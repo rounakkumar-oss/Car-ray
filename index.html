@@ -3,6 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0c10" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="DeskRacer" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <title>Desk Racer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -24,23 +31,60 @@
     <!-- Subtle Corner Vignette Behind HUD Elements (Visible in Camera Views 1 & 2) -->
     <div id="hud-corner-vignette"></div>
 
-    <!-- Direct Floating GitHub Download Pill (Always visible on Desktop & Mobile) -->
-    <button
-      id="btn-floating-github-dl"
-      class="floating-github-dl-btn"
-      type="button"
-      title="Direct Download Complete Project (.zip) for GitHub"
-    >
-      <svg class="floating-github-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-      </svg>
-      <span id="floating-github-text" class="floating-github-text">GITHUB DOWNLOAD (.ZIP)</span>
-      <svg class="floating-dl-arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-        <polyline points="7 10 12 15 17 10"></polyline>
-        <line x1="12" y1="15" x2="12" y2="3"></line>
-      </svg>
-    </button>
+    <!-- Direct Floating APK / App Install & Download Bar (Always visible at Top Center) -->
+    <div class="floating-download-bar">
+      <button
+        id="btn-floating-install-apk"
+        class="floating-apk-install-btn"
+        type="button"
+        title="Direct Install Game App on Android / Phone / PC"
+      >
+        <svg class="floating-github-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4483-.9993.9993-.9993c.5511 0 .9993.4483.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4483.9993.9993 0 .5511-.4483.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.2439 13.8533 7.8508 12 7.8508s-3.5902.3931-5.1367 1.0989L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3435-4.1021-2.6892-7.5743-6.1185-9.4396"/>
+        </svg>
+        <span id="floating-apk-install-text" class="floating-github-text">INSTALL ANDROID APP / APK</span>
+      </button>
+
+      <button
+        id="btn-floating-github-dl"
+        class="floating-github-dl-btn"
+        type="button"
+        title="Direct Download APK Builder &amp; GitHub Project (.zip)"
+      >
+        <svg class="floating-dl-arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span id="floating-github-text" class="floating-github-text">DOWNLOAD APK + GITHUB (.ZIP)</span>
+      </button>
+    </div>
+
+    <!-- APK / Mobile Install Instructions Modal -->
+    <div id="apk-install-modal" class="welcome-dialog-overlay apk-modal-overlay hidden" role="dialog" aria-labelledby="apk-modal-title">
+      <div class="welcome-dialog-card apk-modal-card">
+        <div class="welcome-eyebrow">ANDROID APK &amp; MOBILE INSTALL</div>
+        <h2 id="apk-modal-title" class="welcome-title apk-modal-heading">DOWNLOAD GAME</h2>
+        <div class="apk-modal-steps">
+          <div class="apk-step-box">
+            <div class="apk-step-title">1. DIRECT PHONE INSTALL (INSTANT)</div>
+            <p class="apk-step-desc">Open this game link in <strong>Chrome (Android)</strong> or <strong>Safari (iPhone)</strong>, tap browser menu <strong>⋮</strong> and select <strong>"Install App" / "Add to Home Screen"</strong> to install Desk Racer directly like an APK!</p>
+          </div>
+          <div class="apk-step-box">
+            <div class="apk-step-title">2. DOWNLOAD APK + GITHUB PACKAGE (.ZIP)</div>
+            <p class="apk-step-desc">Includes complete game code + <strong>Capacitor Android APK auto-builder</strong> (<code>.github/workflows/build-apk.yml</code>). Push to GitHub to download ready <code>app-debug.apk</code> from GitHub Actions!</p>
+          </div>
+        </div>
+        <div class="welcome-footer-row">
+          <button id="btn-modal-download-zip" class="welcome-start-btn" type="button">
+            <span class="welcome-start-text">DIRECT DOWNLOAD APK PACKAGE (.ZIP)</span>
+          </button>
+          <button id="btn-modal-close" class="welcome-github-btn" type="button">
+            <span class="welcome-github-text">CLOSE</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Streamlined HUD Overlay -->
     <div id="hud-root">
@@ -72,8 +116,8 @@
               id="btn-hud-github"
               class="hud-mute-btn hud-github-btn"
               type="button"
-              aria-label="Download Project for GitHub"
-              title="Download Project for GitHub (.zip)"
+              aria-label="Download APK &amp; GitHub Project"
+              title="Download APK &amp; GitHub Project (.zip)"
             >
               <svg class="mute-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
@@ -159,12 +203,21 @@
               </span>
             </button>
 
-            <button id="btn-welcome-github" class="welcome-github-btn" type="button" title="Direct Download Complete Source Code &amp; Assets (.zip) for GitHub">
-              <svg class="welcome-github-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-              </svg>
-              <span id="welcome-github-text" class="welcome-github-text">DIRECT GITHUB DOWNLOAD (.ZIP)</span>
-            </button>
+            <div class="welcome-download-actions-row">
+              <button id="btn-welcome-install-apk" class="welcome-github-btn welcome-apk-btn" type="button" title="Install Game App on Android / Phone / Desktop">
+                <svg class="welcome-github-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4483-.9993.9993-.9993c.5511 0 .9993.4483.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4483.9993.9993 0 .5511-.4483.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.2439 13.8533 7.8508 12 7.8508s-3.5902.3931-5.1367 1.0989L4.841 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3435-4.1021-2.6892-7.5743-6.1185-9.4396"/>
+                </svg>
+                <span class="welcome-github-text">INSTALL ANDROID APP / APK</span>
+              </button>
+
+              <button id="btn-welcome-github" class="welcome-github-btn" type="button" title="Direct Download Complete APK Project &amp; Source Code (.zip)">
+                <svg class="welcome-github-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+                </svg>
+                <span id="welcome-github-text" class="welcome-github-text">DOWNLOAD APK + GITHUB (.ZIP)</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -191,7 +244,7 @@
               <svg class="welcome-github-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
               </svg>
-              <span class="welcome-github-text">DIRECT GITHUB DOWNLOAD (.ZIP)</span>
+              <span class="welcome-github-text">DOWNLOAD APK + GITHUB (.ZIP)</span>
             </button>
           </div>
         </div>

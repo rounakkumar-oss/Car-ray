@@ -25,6 +25,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/three": "^0.183.0",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "vite-plugin-pwa": "^2.0.0"
   }
 }

@@ -2389,7 +2389,59 @@ async function initApp() {
   const btnFloatingGithub = document.getElementById('btn-floating-github-dl');
   const elFloatingGithubText = document.getElementById('floating-github-text');
   const btnFinishGithub = document.getElementById('btn-finish-github');
+  const btnFloatingInstallApk = document.getElementById('btn-floating-install-apk');
+  const btnWelcomeInstallApk = document.getElementById('btn-welcome-install-apk');
+  const elApkModal = document.getElementById('apk-install-modal');
+  const btnModalDownloadZip = document.getElementById('btn-modal-download-zip');
+  const btnModalClose = document.getElementById('btn-modal-close');
   let isDownloadingGithubZip = false;
+  let deferredPwaPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPwaPrompt = e;
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredPwaPrompt = null;
+    if (elApkModal) elApkModal.classList.add('hidden');
+  });
+
+  async function handleInstallApkClick(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (deferredPwaPrompt) {
+      try {
+        await deferredPwaPrompt.prompt();
+        const choice = await deferredPwaPrompt.userChoice;
+        if (choice && choice.outcome === 'accepted') {
+          deferredPwaPrompt = null;
+          return;
+        }
+      } catch (_err) {
+        // Fallback to modal + direct download
+      }
+    }
+    if (elApkModal) {
+      elApkModal.classList.remove('hidden');
+    }
+  }
+
+  if (btnFloatingInstallApk) {
+    btnFloatingInstallApk.addEventListener('click', handleInstallApkClick);
+  }
+  if (btnWelcomeInstallApk) {
+    btnWelcomeInstallApk.addEventListener('click', handleInstallApkClick);
+  }
+  if (btnModalClose && elApkModal) {
+    btnModalClose.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      elApkModal.classList.add('hidden');
+    });
+  }
 
   async function handleGithubDownload(e) {
     if (e) {
@@ -2400,10 +2452,10 @@ async function initApp() {
     isDownloadingGithubZip = true;
     const origWelcomeText = elWelcomeGithubText
       ? elWelcomeGithubText.textContent
-      : 'DIRECT GITHUB DOWNLOAD (.ZIP)';
+      : 'DOWNLOAD APK + GITHUB (.ZIP)';
     const origFloatingText = elFloatingGithubText
       ? elFloatingGithubText.textContent
-      : 'GITHUB DOWNLOAD (.ZIP)';
+      : 'DOWNLOAD APK + GITHUB (.ZIP)';
 
     if (btnWelcomeGithub) btnWelcomeGithub.disabled = true;
     if (btnHudGithub) btnHudGithub.disabled = true;
@@ -2444,8 +2496,14 @@ async function initApp() {
   if (btnFinishGithub) {
     btnFinishGithub.addEventListener('click', handleGithubDownload);
   }
+  if (btnModalDownloadZip) {
+    btnModalDownloadZip.addEventListener('click', (e) => {
+      if (elApkModal) elApkModal.classList.add('hidden');
+      handleGithubDownload(e);
+    });
+  }
 
-  if (urlParams.get('download') === '1' || urlParams.get('github') === '1') {
+  if (urlParams.get('download') === '1' || urlParams.get('github') === '1' || urlParams.get('apk') === '1') {
     setTimeout(() => handleGithubDownload(), 600);
   }
 
