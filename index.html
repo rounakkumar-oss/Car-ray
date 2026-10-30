@@ -63,25 +63,30 @@
     <!-- APK / Mobile Install Instructions Modal -->
     <div id="apk-install-modal" class="welcome-dialog-overlay apk-modal-overlay hidden" role="dialog" aria-labelledby="apk-modal-title">
       <div class="welcome-dialog-card apk-modal-card">
-        <div class="welcome-eyebrow">ANDROID APK &amp; MOBILE INSTALL</div>
-        <h2 id="apk-modal-title" class="welcome-title apk-modal-heading">DOWNLOAD GAME</h2>
+        <div class="welcome-eyebrow">ANDROID APK &amp; GITHUB RELEASE</div>
+        <h2 id="apk-modal-title" class="welcome-title apk-modal-heading">GET ANDROID APK</h2>
         <div class="apk-modal-steps">
           <div class="apk-step-box">
-            <div class="apk-step-title">1. DIRECT PHONE INSTALL (INSTANT)</div>
-            <p class="apk-step-desc">Open this game link in <strong>Chrome (Android)</strong> or <strong>Safari (iPhone)</strong>, tap browser menu <strong>⋮</strong> and select <strong>"Install App" / "Add to Home Screen"</strong> to install Desk Racer directly like an APK!</p>
+            <div class="apk-step-title">OPTION 1: DIRECT INSTALL ON PHONE (NO APK FILE NEEDED)</div>
+            <p class="apk-step-desc">Open this game link in <strong>Chrome (Android)</strong>, tap the top-right browser menu <strong>⋮</strong> &rarr; tap <strong>"Install app" / "Add to Home screen"</strong>. The game installs directly on your phone!</p>
           </div>
           <div class="apk-step-box">
-            <div class="apk-step-title">2. DOWNLOAD APK + GITHUB PACKAGE (.ZIP)</div>
-            <p class="apk-step-desc">Includes complete game code + <strong>Capacitor Android APK auto-builder</strong> (<code>.github/workflows/build-apk.yml</code>). Push to GitHub to download ready <code>app-debug.apk</code> from GitHub Actions!</p>
+            <div class="apk-step-title">OPTION 2: GITHUB RELEASES &amp; ACTIONS APK</div>
+            <p class="apk-step-desc">We added <code>.github/workflows/build-apk.yml</code> directly into this project! Push/Sync to GitHub again, or if GitHub Actions is empty, click <strong>"COPY APK WORKFLOW YAML"</strong> below &rarr; on GitHub go to <strong>Actions &rarr; New workflow &rarr; set up a workflow yourself</strong> &rarr; paste &amp; commit. Your <strong><code>Desk-Racer-3D.apk</code></strong> will appear directly under <strong>GitHub Releases</strong>!</p>
           </div>
         </div>
         <div class="welcome-footer-row">
-          <button id="btn-modal-download-zip" class="welcome-start-btn" type="button">
-            <span class="welcome-start-text">DIRECT DOWNLOAD APK PACKAGE (.ZIP)</span>
+          <button id="btn-modal-copy-workflow" class="welcome-start-btn" type="button">
+            <span id="modal-copy-workflow-text" class="welcome-start-text">COPY APK WORKFLOW YAML</span>
           </button>
-          <button id="btn-modal-close" class="welcome-github-btn" type="button">
-            <span class="welcome-github-text">CLOSE</span>
-          </button>
+          <div class="welcome-download-actions-row">
+            <button id="btn-modal-download-zip" class="welcome-github-btn" type="button">
+              <span class="welcome-github-text">DOWNLOAD FULL ZIP</span>
+            </button>
+            <button id="btn-modal-close" class="welcome-github-btn" type="button">
+              <span class="welcome-github-text">CLOSE</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

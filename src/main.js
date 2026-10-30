@@ -17,7 +17,7 @@ import { buildGoldenHourAtmosphere } from './scene/GoldenHourAtmosphere.js';
 import { buildRoomEnvironment } from './scene/RoomEnvironmentBuilder.js';
 import { createKartPhysicsController } from './physics/KartPhysicsController.js';
 import { createWebAudioSynth } from './audio/WebAudioSynth.js';
-import { downloadProjectForGitHub } from './utils/githubExporter.js';
+import { downloadProjectForGitHub, APK_WORKFLOW_YAML } from './utils/githubExporter.js';
 
 async function initApp() {
   const container = document.getElementById('canvas-container');
@@ -2440,6 +2440,38 @@ async function initApp() {
       e.preventDefault();
       e.stopPropagation();
       elApkModal.classList.add('hidden');
+    });
+  }
+
+  const btnModalCopyWorkflow = document.getElementById('btn-modal-copy-workflow');
+  const elModalCopyWorkflowText = document.getElementById('modal-copy-workflow-text');
+  if (btnModalCopyWorkflow) {
+    btnModalCopyWorkflow.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(APK_WORKFLOW_YAML);
+        if (elModalCopyWorkflowText) {
+          elModalCopyWorkflowText.textContent = 'COPIED! PASTE IN GITHUB ACTIONS';
+        }
+      } catch (_err) {
+        if (elModalCopyWorkflowText) {
+          elModalCopyWorkflowText.textContent = 'DOWNLOADING WORKFLOW FILE...';
+        }
+        const blob = new Blob([APK_WORKFLOW_YAML], { type: 'text/yaml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'build-apk.yml';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      setTimeout(() => {
+        if (elModalCopyWorkflowText) {
+          elModalCopyWorkflowText.textContent = 'COPY APK WORKFLOW YAML';
+        }
+      }, 2800);
     });
   }
 

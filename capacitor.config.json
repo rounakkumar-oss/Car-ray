@@ -1,0 +1,9 @@
+{
+  "appId": "com.deskracer.game",
+  "appName": "Desk Racer 3D",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

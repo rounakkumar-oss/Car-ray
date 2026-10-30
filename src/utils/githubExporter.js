@@ -4,6 +4,9 @@ const SOURCE_FILES = import.meta.glob(
   [
     '/.env.example',
     '/.gitignore',
+    '/.github/workflows/build-apk.yml',
+    '/capacitor.config.json',
+    '/README.md',
     '/index.css',
     '/index.html',
     '/metadata.json',
@@ -38,26 +41,15 @@ const PUBLIC_ICON_FILES = [
   'apple-touch-icon.png',
 ];
 
-const CAPACITOR_CONFIG_JSON = JSON.stringify(
-  {
-    appId: 'com.deskracer.game',
-    appName: 'Desk Racer 3D',
-    webDir: 'dist',
-    bundledWebRuntime: false,
-    server: {
-      androidScheme: 'https',
-    },
-  },
-  null,
-  2
-);
-
-const GITHUB_WORKFLOW_APK_YML = `name: Build Android APK
+export const APK_WORKFLOW_YAML = `name: Build & Release Android APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "*" ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-apk:
@@ -93,45 +85,26 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk ../Desk-Racer-3D.apk
 
-      - name: Upload Ready-to-Install Android APK
+      - name: Upload APK to Actions Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Desk-Racer-Android-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-`;
+          path: Desk-Racer-3D.apk
 
-const README_CONTENT = `# Desk Racer 3D — Android APK & Web Racing Game
-
-A 3D miniature desk coaster time-trial racing game built with **Three.js**, **Rapier3D Physics**, **PWA**, and **Capacitor Android APK** support.
-
-## Method 1: Automatic Android APK Build on GitHub (No Android Studio Needed!)
-
-This package includes a pre-configured GitHub Actions workflow (\`.github/workflows/build-apk.yml\`) that automatically compiles the Android \`.apk\` file in the cloud!
-
-1. Upload/Push all files from this ZIP to a new GitHub repository.
-2. Open your repository on GitHub and click the **Actions** tab at the top.
-3. Click on the **Build Android APK** workflow run.
-4. Once it finishes (takes ~2 minutes), scroll down to **Artifacts** and click **Desk-Racer-Android-APK** to download your ready-to-install \`app-debug.apk\`!
-
-## Method 2: Build Android APK Locally
-
-\`\`\`bash
-npm install
-npm run build
-npm install @capacitor/core @capacitor/cli @capacitor/android
-npx cap add android
-npx cap sync android
-cd android && ./gradlew assembleDebug
-\`\`\`
-Your APK will be generated at: \`android/app/build/outputs/apk/debug/app-debug.apk\`.
-
-## Method 3: Run Local Web Development Server
-
-\`\`\`bash
-npm install
-npm run dev
-\`\`\`
+      - name: Create Direct Download GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.\${{ github.run_number }}
+          name: "Desk Racer 3D — Android APK (Build #\${{ github.run_number }})"
+          body: |
+            ### Direct Android APK Download
+            Click **Desk-Racer-3D.apk** below under **Assets** to download and install the game directly on your Android phone!
+          files: Desk-Racer-3D.apk
+          prerelease: false
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
 `;
 
 export async function downloadProjectForGitHub(onStatusUpdate) {
@@ -152,12 +125,11 @@ export async function downloadProjectForGitHub(onStatusUpdate) {
     }
   }
 
-  // 2. Add Capacitor Android configuration & GitHub Actions automated APK builder workflow
-  zip.file('capacitor.config.json', CAPACITOR_CONFIG_JSON);
-  zip.file('.github/workflows/build-apk.yml', GITHUB_WORKFLOW_APK_YML);
-  zip.file('README.md', README_CONTENT);
+  // Also ensure workflow is present both in .github/workflows/build-apk.yml AND visible build-apk.yml
+  zip.file('.github/workflows/build-apk.yml', APK_WORKFLOW_YAML);
+  zip.file('build-apk.yml', APK_WORKFLOW_YAML);
 
-  // 3. Fetch and bundle JSON data files into public/assets/data/
+  // 2. Fetch and bundle JSON data files into public/assets/data/
   notify('BUNDLING GAME ASSETS...');
   await Promise.all(
     PUBLIC_DATA_FILES.map(async (relPath) => {
@@ -173,7 +145,7 @@ export async function downloadProjectForGitHub(onStatusUpdate) {
     })
   );
 
-  // 4. Fetch and bundle WAV audio loops into public/assets/audio/
+  // 3. Fetch and bundle WAV audio loops into public/assets/audio/
   await Promise.all(
     PUBLIC_AUDIO_FILES.map(async (relPath) => {
       try {
@@ -188,7 +160,7 @@ export async function downloadProjectForGitHub(onStatusUpdate) {
     })
   );
 
-  // 5. Fetch and bundle PWA/Android app icons
+  // 4. Fetch and bundle PWA/Android app icons
   await Promise.all(
     PUBLIC_ICON_FILES.map(async (relPath) => {
       try {
