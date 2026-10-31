@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 import { buildProceduralDeskDiorama } from './scene/DeskDioramaBuilder.js';
 import { buildCoasterTrack } from './scene/CoasterTrackBuilder.js';
@@ -11,23 +14,58 @@ import { buildGiantHouseWorld } from './scene/GiantHouseBuilder.js';
 import { createProceduralPMREMEnvironment } from './scene/ProceduralTextures.js';
 import { createKartPhysicsController } from './physics/KartPhysicsController.js';
 import { createWebAudioSynth } from './audio/WebAudioSynth.js';
+import { createFriendsMultiplayerManager } from './multiplayer/FriendsMultiplayerManager.js';
 
 async function initApp() {
+  const gameContainer = document.getElementById('game-container');
   const widescreenStage = document.getElementById('widescreen-stage');
   const container = document.getElementById('canvas-container');
 
-  function getStageDimensions() {
-    if (widescreenStage) {
-      const rect = widescreenStage.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        return { width: Math.round(rect.width), height: Math.round(rect.height) };
-      }
+  // -------------------------------------------------------------------------
+  // 0. INSTANT AUTO-LANDSCAPE 16:9 ORIENTATION WRAPPER
+  //    Automatically rotates #game-container by 90deg when held vertically
+  //    (window.innerHeight > window.innerWidth) and locks 16:9 widescreen!
+  // -------------------------------------------------------------------------
+  function updateAutoLandscapeStageSize() {
+    const vw = Math.max(1, window.innerWidth);
+    const vh = Math.max(1, window.innerHeight);
+    const isPortrait = vh > vw;
+
+    if (gameContainer) {
+      gameContainer.classList.toggle('force-landscape-rotate', isPortrait);
+      gameContainer.style.width = isPortrait ? `${vh}px` : `${vw}px`;
+      gameContainer.style.height = isPortrait ? `${vw}px` : `${vh}px`;
     }
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const w = Math.min(vw, Math.round((vh * 16) / 9));
-    const h = Math.min(vh, Math.round((vw * 9) / 16));
-    return { width: Math.max(320, w), height: Math.max(180, h) };
+
+    const landW = isPortrait ? vh : vw;
+    const landH = isPortrait ? vw : vh;
+    const stageW = Math.min(landW, Math.round((landH * 16) / 9));
+    const stageH = Math.min(landH, Math.round((landW * 9) / 16));
+
+    if (widescreenStage) {
+      widescreenStage.style.width = `${stageW}px`;
+      widescreenStage.style.height = `${stageH}px`;
+    }
+
+    return {
+      width: Math.max(320, stageW),
+      height: Math.max(180, stageH),
+      isPortrait,
+    };
+  }
+
+  function getStageDimensions() {
+    return updateAutoLandscapeStageSize();
+  }
+
+  function tryLockScreenOrientationLandscape() {
+    try {
+      if (screen.orientation && typeof screen.orientation.lock === 'function') {
+        screen.orientation.lock('landscape').catch(() => {});
+      }
+    } catch (_e) {
+      // Ignore orientation lock restrictions on desktop/iOS browsers
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -49,7 +87,9 @@ async function initApp() {
     antialias: false,
     powerPreference: 'high-performance',
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+  let currentGraphicsQuality = 'medium'; // 'low' | 'medium' | 'high' | 'ultra'
+  let targetPixelRatio = Math.min(window.devicePixelRatio || 1, 1.15);
+  renderer.setPixelRatio(targetPixelRatio);
   renderer.setSize(initDims.width, initDims.height);
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
@@ -57,8 +97,6 @@ async function initApp() {
   const isScreenshotUrl = urlParams.get('screenshot') === '1';
   const isScreenshotMode = isScreenshotUrl;
 
-  // Immediately initialize Welcome Button warmup state & grab keyboard focus into the iframe
-  // so pressing Enter never triggers a parent-frame toolbar Reload button or flashes prematurely
   const earlyBtnWelcomeStart = document.getElementById('btn-welcome-start');
   const earlyWelcomeStartText = document.getElementById('welcome-start-text');
   const earlyWelcomeEnterKbd = document.getElementById('welcome-enter-kbd');
@@ -86,8 +124,23 @@ async function initApp() {
   scene.environment = createProceduralPMREMEnvironment(renderer);
   scene.environmentIntensity = 0.72;
 
-  const bloomPass = null;
+  // Optional Post-Processing Composer & Dynamic Bloom Pass (Activated in ULTRA Graphics Mode)
+  let ultraComposer = null;
+  let bloomPass = null;
+  let useUltraBloomComposer = false;
   const bokehPass = { enabled: false, uniforms: null };
+
+  function ensureUltraComposer(w, h) {
+    if (!ultraComposer) {
+      ultraComposer = new EffectComposer(renderer);
+      const renderPass = new RenderPass(scene, camera);
+      ultraComposer.addPass(renderPass);
+      bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.36, 0.45, 0.82);
+      ultraComposer.addPass(bloomPass);
+    }
+    ultraComposer.setPixelRatio(targetPixelRatio);
+    ultraComposer.setSize(w, h);
+  }
 
   const orbitControls = new OrbitControls(camera, renderer.domElement);
   orbitControls.enableDamping = true;
@@ -760,7 +813,7 @@ async function initApp() {
       hudLapWidget.classList.toggle('hidden', hideRacingHud || activeGameMode === 'house');
     }
     if (hudHouseRoomBanner) {
-      hudHouseRoomBanner.classList.toggle('hidden', hideRacingHud || activeGameMode !== 'house');
+      hudHouseRoomBanner.classList.toggle('hidden', hideRacingHud);
     }
 
     if (mode === 5) {
@@ -887,15 +940,6 @@ async function initApp() {
     hideLapSplit();
     physics.setGameMode(mode);
 
-    // Sync HUD & Start Dialog Mode Selector UI
-    if (hudModeSwitchLabel) {
-      hudModeSwitchLabel.textContent = isHouse
-        ? 'MODE: GIANT HOUSE (14 ROOMS)'
-        : 'MODE: NEON TRACK';
-    }
-    if (btnSwitchGameMode) {
-      btnSwitchGameMode.classList.toggle('is-house-mode', isHouse);
-    }
     if (btnModeTrack) {
       btnModeTrack.classList.toggle('active', !isHouse);
       btnModeTrack.setAttribute('aria-pressed', !isHouse ? 'true' : 'false');
@@ -904,14 +948,21 @@ async function initApp() {
       btnModeHouse.classList.toggle('active', isHouse);
       btnModeHouse.setAttribute('aria-pressed', isHouse ? 'true' : 'false');
     }
+    const btnSettingsModeTrack = document.getElementById('btn-settings-mode-track');
+    const btnSettingsModeHouse = document.getElementById('btn-settings-mode-house');
+    if (btnSettingsModeTrack) btnSettingsModeTrack.classList.toggle('active', !isHouse);
+    if (btnSettingsModeHouse) btnSettingsModeHouse.classList.toggle('active', isHouse);
+
     if (hudLapWidget) {
       hudLapWidget.classList.toggle('hidden', isHouse || activeCameraMode > 4);
     }
     if (hudHouseRoomBanner) {
-      hudHouseRoomBanner.classList.toggle('hidden', !isHouse || activeCameraMode > 4);
+      hudHouseRoomBanner.classList.toggle('hidden', activeCameraMode > 4);
     }
-    if (hudHouseRoomName && physics.state.currentRoomName) {
-      hudHouseRoomName.textContent = physics.state.currentRoomName;
+    if (hudHouseRoomName) {
+      hudHouseRoomName.textContent = isHouse
+        ? physics.state.currentRoomShort || '12 • CENTRAL HALL'
+        : 'NEON TRACK CIRCUIT';
     }
 
     syncKartScaleForCamera(activeCameraMode);
@@ -919,7 +970,7 @@ async function initApp() {
     updateWelcomeWarmupUI();
     lastMinimapKx = -9999;
     lastMinimapKy = -9999;
-    drawMinimapRadar(physics.state);
+    drawMinimapRadar(physics.state, true);
   }
 
   if (btnModeTrack) {
@@ -932,17 +983,6 @@ async function initApp() {
     btnModeHouse.addEventListener('click', (e) => {
       e.stopPropagation();
       setActiveGameMode('house');
-    });
-  }
-  if (btnSwitchGameMode) {
-    btnSwitchGameMode.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const targetMode = activeGameMode === 'track' ? 'house' : 'track';
-      setActiveGameMode(targetMode);
-      if (targetMode === 'house') {
-        hideWelcomeDialog();
-      }
-      btnSwitchGameMode.blur();
     });
   }
 
@@ -1780,7 +1820,11 @@ async function initApp() {
       strokeElevationTier(tier.min, tier.max, tier.shade, 12.0, 0.0);
     }
 
-    // Build Pre-Rendered 14-Room Giant House Floorplan Minimap Canvas
+    // -------------------------------------------------------------------------
+    // HIGH-CLARITY ARCHITECTURAL 2D FLOORPLAN MINI-MAP (14-ROOM GIANT HOUSE)
+    // Shows color-coded rooms, walls, wide doorways, furniture outlines,
+    // directional ramp chevrons, and crisp readable room labels!
+    // -------------------------------------------------------------------------
     houseRadarBgCanvas = document.createElement('canvas');
     houseRadarBgCanvas.width = w;
     houseRadarBgCanvas.height = h;
@@ -1789,36 +1833,246 @@ async function initApp() {
     const hMaxX = 6.0;
     const hMinZ = -3.6;
     const hMaxZ = 6.0;
-    const hScale = Math.min((w - 56) / (hMaxX - hMinX), (h - 32) / (hMaxZ - hMinZ));
+    const hScale = Math.min((w - 28) / (hMaxX - hMinX), (h - 22) / (hMaxZ - hMinZ));
     const hOffX = (w - (hMaxX - hMinX) * hScale) * 0.5 - hMinX * hScale;
     const hOffY = (h - (hMaxZ - hMinZ) * hScale) * 0.5 - hMinZ * hScale;
     mapHouseMinimapX = (x) => x * hScale + hOffX;
     mapHouseMinimapY = (z) => z * hScale + hOffY;
 
-    for (const r of giantHouse.rooms) {
-      const rx = mapHouseMinimapX(r.cx - 1.16);
-      const ry = mapHouseMinimapY(r.cz - 1.16);
-      const rw = 2.32 * hScale;
-      const rh = 2.32 * hScale;
-      hCtx.fillStyle = 'rgba(12, 22, 36, 0.78)';
-      hCtx.fillRect(rx, ry, rw, rh);
-      hCtx.strokeStyle = 'rgba(130, 215, 255, 0.55)';
-      hCtx.lineWidth = 2.2;
-      hCtx.strokeRect(rx, ry, rw, rh);
+    const ROOM_FLOOR_FILL = {
+      hardwood: 'rgba(138, 96, 62, 0.52)',
+      walnut: 'rgba(98, 64, 42, 0.56)',
+      tile: 'rgba(54, 78, 104, 0.54)',
+      marble: 'rgba(82, 108, 136, 0.52)',
+      velvetDark: 'rgba(42, 34, 78, 0.64)',
+      carpetCrimson: 'rgba(104, 28, 46, 0.60)',
+      gymRubber: 'rgba(36, 56, 68, 0.60)',
+    };
 
-      hCtx.fillStyle = '#d8f3ff';
-      hCtx.font = '700 13px "Orbitron", sans-serif';
+    // 1. Dark glass architectural blueprint backing
+    hCtx.fillStyle = 'rgba(6, 12, 24, 0.88)';
+    hCtx.fillRect(0, 0, w, h);
+
+    // 2. Color-coded Room Floor Surfaces + Subtle Architectural Grid
+    for (const r of giantHouse.rooms) {
+      const rx = mapHouseMinimapX(r.xMin);
+      const ry = mapHouseMinimapY(r.zMin);
+      const rw = (r.xMax - r.xMin) * hScale;
+      const rh = (r.zMax - r.zMin) * hScale;
+
+      hCtx.fillStyle = ROOM_FLOOR_FILL[r.floorType] || 'rgba(32, 48, 72, 0.55)';
+      hCtx.fillRect(rx + 1.5, ry + 1.5, rw - 3, rh - 3);
+
+      // Subtle architectural tile/plank grid inside room
+      hCtx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      hCtx.lineWidth = 1;
+      const stepPx = 0.6 * hScale;
+      for (let gx = rx + stepPx; gx < rx + rw - 2; gx += stepPx) {
+        hCtx.beginPath();
+        hCtx.moveTo(gx, ry + 2);
+        hCtx.lineTo(gx, ry + rh - 2);
+        hCtx.stroke();
+      }
+      for (let gy = ry + stepPx; gy < ry + rh - 2; gy += stepPx) {
+        hCtx.beginPath();
+        hCtx.moveTo(rx + 2, gy);
+        hCtx.lineTo(rx + rw - 2, gy);
+        hCtx.stroke();
+      }
+    }
+
+    // 3. Architectural Furniture Outlines (Sofas, Beds, Islands, Pool, Tables, Desks)
+    if (giantHouse.furnitureOutlines) {
+      for (const f of giantHouse.furnitureOutlines) {
+        const fx = mapHouseMinimapX(f.x - f.w * 0.5);
+        const fy = mapHouseMinimapY(f.z - f.d * 0.5);
+        const fw = f.w * hScale;
+        const fd = f.d * hScale;
+
+        hCtx.save();
+        hCtx.fillStyle = f.isPool ? 'rgba(0, 200, 255, 0.36)' : 'rgba(10, 18, 32, 0.62)';
+        hCtx.strokeStyle = f.color || 'rgba(180, 230, 255, 0.65)';
+        hCtx.lineWidth = f.isPool ? 2.0 : 1.4;
+        hCtx.beginPath();
+        if (hCtx.roundRect) {
+          hCtx.roundRect(fx, fy, fw, fd, 3);
+        } else {
+          hCtx.rect(fx, fy, fw, fd);
+        }
+        hCtx.fill();
+        hCtx.stroke();
+        hCtx.restore();
+      }
+    }
+
+    // 4. Ramp Icons with Directional Chevrons (>>>)
+    if (giantHouse.ramps) {
+      for (const r of giantHouse.ramps) {
+        const rx = mapHouseMinimapX(r.xMin);
+        const ry = mapHouseMinimapY(r.zMin);
+        const rw = (r.xMax - r.xMin) * hScale;
+        const rh = (r.zMax - r.zMin) * hScale;
+
+        hCtx.save();
+        hCtx.fillStyle = r.dir === 'flat' ? 'rgba(255, 195, 75, 0.34)' : 'rgba(0, 229, 255, 0.36)';
+        hCtx.strokeStyle = r.dir === 'flat' ? '#ffd27d' : '#00e5ff';
+        hCtx.lineWidth = 1.5;
+        hCtx.fillRect(rx, ry, rw, rh);
+        hCtx.strokeRect(rx, ry, rw, rh);
+
+        // Draw directional chevron arrow inside sloped ramps
+        if (r.dir !== 'flat') {
+          const rcx = rx + rw * 0.5;
+          const rcy = ry + rh * 0.5;
+          hCtx.strokeStyle = '#ffffff';
+          hCtx.lineWidth = 1.6;
+          hCtx.beginPath();
+          const sz = Math.min(rw, rh) * 0.28;
+          if (r.dir === '+x') {
+            hCtx.moveTo(rcx - sz * 0.6, rcy - sz);
+            hCtx.lineTo(rcx + sz * 0.6, rcy);
+            hCtx.lineTo(rcx - sz * 0.6, rcy + sz);
+          } else if (r.dir === '-x') {
+            hCtx.moveTo(rcx + sz * 0.6, rcy - sz);
+            hCtx.lineTo(rcx - sz * 0.6, rcy);
+            hCtx.lineTo(rcx + sz * 0.6, rcy + sz);
+          }
+          hCtx.stroke();
+        }
+        hCtx.restore();
+      }
+    }
+
+    // 5. Architectural Partition Walls with Wide Open Doorway Gaps!
+    hCtx.strokeStyle = 'rgba(225, 245, 255, 0.88)';
+    hCtx.lineWidth = 3.2;
+    hCtx.lineCap = 'round';
+
+    // Outer perimeter border
+    const ox0 = mapHouseMinimapX(hMinX);
+    const oy0 = mapHouseMinimapY(hMinZ);
+    const ow = (hMaxX - hMinX) * hScale;
+    const oh = (hMaxZ - hMinZ) * hScale;
+    hCtx.strokeRect(ox0, oy0, ow, oh);
+
+    // Interior partition walls with wide doorway openings
+    if (giantHouse.doorways) {
+      for (const dw of giantHouse.doorways) {
+        if (dw.axis === 'x') {
+          const yPx = mapHouseMinimapY(dw.fixedCoord);
+          const xStart = mapHouseMinimapX(dw.startCoord);
+          const xDoorMin = mapHouseMinimapX(dw.doorMin);
+          const xDoorMax = mapHouseMinimapX(dw.doorMax);
+          const xEnd = mapHouseMinimapX(dw.endCoord);
+
+          hCtx.strokeStyle = 'rgba(225, 245, 255, 0.88)';
+          hCtx.lineWidth = 3.0;
+          hCtx.beginPath();
+          hCtx.moveTo(xStart, yPx);
+          hCtx.lineTo(xDoorMin, yPx);
+          hCtx.moveTo(xDoorMax, yPx);
+          hCtx.lineTo(xEnd, yPx);
+          hCtx.stroke();
+
+          // Subtle glowing doorway threshold tick
+          hCtx.strokeStyle = dw.accent || 'rgba(0, 229, 255, 0.55)';
+          hCtx.lineWidth = 1.4;
+          hCtx.setLineDash([2, 3]);
+          hCtx.beginPath();
+          hCtx.moveTo(xDoorMin, yPx);
+          hCtx.lineTo(xDoorMax, yPx);
+          hCtx.stroke();
+          hCtx.setLineDash([]);
+        } else {
+          const xPx = mapHouseMinimapX(dw.fixedCoord);
+          const yStart = mapHouseMinimapY(dw.startCoord);
+          const yDoorMin = mapHouseMinimapY(dw.doorMin);
+          const yDoorMax = mapHouseMinimapY(dw.doorMax);
+          const yEnd = mapHouseMinimapY(dw.endCoord);
+
+          hCtx.strokeStyle = 'rgba(225, 245, 255, 0.88)';
+          hCtx.lineWidth = 3.0;
+          hCtx.beginPath();
+          hCtx.moveTo(xPx, yStart);
+          hCtx.lineTo(xPx, yDoorMin);
+          hCtx.moveTo(xPx, yDoorMax);
+          hCtx.lineTo(xPx, yEnd);
+          hCtx.stroke();
+
+          hCtx.strokeStyle = dw.accent || 'rgba(0, 229, 255, 0.55)';
+          hCtx.lineWidth = 1.4;
+          hCtx.setLineDash([2, 3]);
+          hCtx.beginPath();
+          hCtx.moveTo(xPx, yDoorMin);
+          hCtx.lineTo(xPx, yDoorMax);
+          hCtx.stroke();
+          hCtx.setLineDash([]);
+        }
+      }
+    }
+
+    // 6. Crisp, High-Contrast Room Codes & Readable Room Names
+    for (const r of giantHouse.rooms) {
+      const rx = mapHouseMinimapX(r.xMin);
+      const ry = mapHouseMinimapY(r.zMin);
+      const rw = (r.xMax - r.xMin) * hScale;
+      const rh = (r.zMax - r.zMin) * hScale;
+      const rcx = rx + rw * 0.5;
+      const rcy = ry + rh * 0.5;
+
+      hCtx.save();
+      hCtx.font = '800 11.5px "Orbitron", sans-serif';
       hCtx.textAlign = 'center';
       hCtx.textBaseline = 'middle';
-      const shortTag = r.shortName.split(' ')[0];
-      hCtx.fillText(shortTag, rx + rw * 0.5, ry + rh * 0.5);
+      const labelText = `${r.code} ${r.shortName.split(' ')[0]}`;
+      hCtx.strokeStyle = 'rgba(2, 6, 14, 0.94)';
+      hCtx.lineWidth = 3.6;
+      hCtx.strokeText(labelText, rcx, rcy);
+      hCtx.fillStyle = '#f2fbff';
+      hCtx.fillText(labelText, rcx, rcy);
+      hCtx.restore();
     }
   }
 
   let lastMinimapKx = -9999;
   let lastMinimapKy = -9999;
+  let lastMinimapYaw = -9999;
 
-  function drawMinimapRadar(st) {
+  // Initialize Friends-Only Multiplayer Manager (2 to 6 Players via 4-Digit Room Code + Chor-Police)
+  let multiplayer = null;
+
+  function drawDirectionalArrow(ctx, x, y, angleRad, fillColor, strokeColor = '#ffffff', scale = 1.0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angleRad);
+    ctx.scale(scale, scale);
+
+    // Outer glow halo
+    const grad = ctx.createRadialGradient(0, 0, 2, 0, 0, 20);
+    grad.addColorStop(0, 'rgba(0, 235, 255, 0.72)');
+    grad.addColorStop(1, 'rgba(0, 235, 255, 0.0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, 20, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sculpted directional chevron arrow pointing along +X (0 rad)
+    ctx.beginPath();
+    ctx.moveTo(13, 0);
+    ctx.lineTo(-9, -8.5);
+    ctx.lineTo(-4.5, 0);
+    ctx.lineTo(-9, 8.5);
+    ctx.closePath();
+
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = strokeColor;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawMinimapRadar(st, forceRedraw = false) {
     if (!radarCtx || !radarCanvas) return;
     const isHouse = activeGameMode === 'house';
     const kx = isHouse
@@ -1827,14 +2081,23 @@ async function initApp() {
     const ky = isHouse
       ? mapHouseMinimapY(st.position.z)
       : mapMinimapY(st.position.x, st.position.y, st.position.z);
+    const yaw = isHouse
+      ? st.houseWorldYaw || 0
+      : Math.atan2(st.tangent.z, st.tangent.x);
+
+    const hasRemotePlayers = multiplayer && multiplayer.getState().isActive;
     if (
-      Math.abs(kx - lastMinimapKx) < 0.15 &&
-      Math.abs(ky - lastMinimapKy) < 0.15
+      !forceRedraw &&
+      !hasRemotePlayers &&
+      Math.abs(kx - lastMinimapKx) < 0.12 &&
+      Math.abs(ky - lastMinimapKy) < 0.12 &&
+      Math.abs(yaw - lastMinimapYaw) < 0.02
     ) {
       return;
     }
     lastMinimapKx = kx;
     lastMinimapKy = ky;
+    lastMinimapYaw = yaw;
 
     const w = radarCanvas.width;
     const h = radarCanvas.height;
@@ -1844,31 +2107,40 @@ async function initApp() {
       radarCtx.drawImage(bgSource, 0, 0);
     }
 
-    radarCtx.save();
-    const haloGrad = radarCtx.createRadialGradient(kx, ky, 3.0, kx, ky, 26.0);
-    haloGrad.addColorStop(0.0, 'rgba(0, 240, 255, 0.90)');
-    haloGrad.addColorStop(0.45, 'rgba(0, 224, 255, 0.44)');
-    haloGrad.addColorStop(1.0, 'rgba(0, 210, 255, 0.0)');
-    radarCtx.fillStyle = haloGrad;
-    radarCtx.beginPath();
-    radarCtx.arc(kx, ky, 26.0, 0, Math.PI * 2);
-    radarCtx.fill();
+    // Highlight active room border in Giant House mode
+    if (isHouse && giantHouse.getRoomAt) {
+      const activeRm = giantHouse.getRoomAt(st.position.x, st.position.z);
+      if (activeRm) {
+        const rx = mapHouseMinimapX(activeRm.xMin);
+        const ry = mapHouseMinimapY(activeRm.zMin);
+        const rw = mapHouseMinimapX(activeRm.xMax) - rx;
+        const rh = mapHouseMinimapY(activeRm.zMax) - ry;
+        radarCtx.save();
+        radarCtx.strokeStyle = activeRm.accentColor || '#00e5ff';
+        radarCtx.lineWidth = 2.8;
+        radarCtx.strokeRect(rx + 1, ry + 1, rw - 2, rh - 2);
+        radarCtx.restore();
+      }
+    }
 
-    radarCtx.fillStyle = 'rgba(0, 12, 22, 0.55)';
-    radarCtx.beginPath();
-    radarCtx.arc(kx, ky, 12.2, 0, Math.PI * 2);
-    radarCtx.fill();
+    // Draw Friends in Multiplayer (Automatically hides Hiders' dots on the Seeker's Mini-Map!)
+    if (multiplayer) {
+      const friendMarkers = multiplayer.getMinimapMarkers(activeGameMode);
+      for (let i = 0; i < friendMarkers.length; i++) {
+        const m = friendMarkers[i];
+        const fx = isHouse
+          ? mapHouseMinimapX(m.x)
+          : mapMinimapX(m.x, 0.04, m.z);
+        const fy = isHouse
+          ? mapHouseMinimapY(m.z)
+          : mapMinimapY(m.x, 0.04, m.z);
+        const fColor = m.role === 'seeker' ? '#ff3b30' : m.color || '#ffd27d';
+        drawDirectionalArrow(radarCtx, fx, fy, m.rotY || 0, fColor, '#ffffff', 0.85);
+      }
+    }
 
-    radarCtx.fillStyle = '#00e8ff';
-    radarCtx.beginPath();
-    radarCtx.arc(kx, ky, 10.2, 0, Math.PI * 2);
-    radarCtx.fill();
-
-    radarCtx.fillStyle = '#dcfdff';
-    radarCtx.beginPath();
-    radarCtx.arc(kx, ky, 4.8, 0, Math.PI * 2);
-    radarCtx.fill();
-    radarCtx.restore();
+    // Draw Glowing Directional Arrow for the Local Player's Car
+    drawDirectionalArrow(radarCtx, kx, ky, yaw, '#00e8ff', '#ffffff', 1.05);
   }
 
   // Cache HUD DOM elements
@@ -2301,11 +2573,17 @@ async function initApp() {
 
   function syncMobileTouchControlsVisibility() {
     if (!elMobileTouchControls) return;
+    const elSettingsModal = document.getElementById('water-glass-settings-modal');
+    const elMpModal = document.getElementById('multiplayer-modal');
     const isWelcomeOpen =
       elWelcomeOverlay && !elWelcomeOverlay.classList.contains('hidden');
     const isFinishOpen =
       elFinishOverlay && !elFinishOverlay.classList.contains('hidden');
-    const shouldHide = Boolean(isWelcomeOpen || isFinishOpen);
+    const isSettingsOpen =
+      elSettingsModal && !elSettingsModal.classList.contains('hidden');
+    const isMpOpen =
+      elMpModal && !elMpModal.classList.contains('hidden');
+    const shouldHide = Boolean(isWelcomeOpen || isFinishOpen || isSettingsOpen || isMpOpen);
     elMobileTouchControls.classList.toggle('hidden', shouldHide);
     if (shouldHide) {
       releaseAllMobileTouchControls();
@@ -2398,6 +2676,369 @@ async function initApp() {
 
   syncMobileTouchControlsVisibility();
 
+  // -------------------------------------------------------------------------
+  // WATER-GLASS SETTINGS MODAL (⚙️) & GRAPHICS QUALITY SELECTOR (LOW/MED/HIGH/ULTRA)
+  // -------------------------------------------------------------------------
+  const elSettingsModal = document.getElementById('water-glass-settings-modal');
+  const btnOpenSettings = document.getElementById('btn-open-settings');
+  const btnCloseSettings = document.getElementById('btn-close-settings');
+  const btnSettingsResume = document.getElementById('btn-settings-resume');
+  const btnSettingsModeTrack = document.getElementById('btn-settings-mode-track');
+  const btnSettingsModeHouse = document.getElementById('btn-settings-mode-house');
+  const btnSettingsOpenMp = document.getElementById('btn-settings-open-mp');
+  const btnSettingsResetCar = document.getElementById('btn-settings-reset-car');
+  const gfxPresetBtns = document.querySelectorAll('.gfx-preset-card');
+
+  function applyGraphicsQuality(tier) {
+    currentGraphicsQuality = tier;
+    const dims = getStageDimensions();
+
+    if (tier === 'low') {
+      targetPixelRatio = 0.75;
+      scene.environmentIntensity = 0.38;
+      renderer.toneMappingExposure = 0.72;
+      useUltraBloomComposer = false;
+    } else if (tier === 'medium') {
+      targetPixelRatio = Math.min(window.devicePixelRatio || 1, 1.05);
+      scene.environmentIntensity = 0.75;
+      renderer.toneMappingExposure = 0.78;
+      useUltraBloomComposer = false;
+    } else if (tier === 'high') {
+      targetPixelRatio = Math.min(window.devicePixelRatio || 1.5, 1.45);
+      scene.environmentIntensity = 1.08;
+      renderer.toneMappingExposure = 0.85;
+      useUltraBloomComposer = false;
+    } else if (tier === 'ultra') {
+      // Ultra: Max Resolution pixelRatio: 2, Dynamic Bloom & Full PBR Reflections
+      targetPixelRatio = 2.0;
+      scene.environmentIntensity = 1.42;
+      renderer.toneMappingExposure = 0.90;
+      useUltraBloomComposer = true;
+      ensureUltraComposer(dims.width, dims.height);
+    }
+
+    renderer.setPixelRatio(targetPixelRatio);
+    renderer.setSize(dims.width, dims.height);
+    if (useUltraBloomComposer && ultraComposer) {
+      ultraComposer.setPixelRatio(targetPixelRatio);
+      ultraComposer.setSize(dims.width, dims.height);
+    }
+
+    gfxPresetBtns.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.gfx === tier);
+    });
+  }
+
+  gfxPresetBtns.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyGraphicsQuality(btn.dataset.gfx || 'medium');
+    });
+  });
+
+  function openSettingsModal() {
+    if (!elSettingsModal) return;
+    elSettingsModal.classList.remove('hidden');
+    syncMobileTouchControlsVisibility();
+  }
+
+  function closeSettingsModal() {
+    if (!elSettingsModal) return;
+    elSettingsModal.classList.add('hidden');
+    syncMobileTouchControlsVisibility();
+  }
+
+  if (btnOpenSettings) {
+    btnOpenSettings.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openSettingsModal();
+      btnOpenSettings.blur();
+    });
+  }
+  if (btnCloseSettings) {
+    btnCloseSettings.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeSettingsModal();
+    });
+  }
+  if (btnSettingsResume) {
+    btnSettingsResume.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeSettingsModal();
+    });
+  }
+  if (btnSettingsModeTrack) {
+    btnSettingsModeTrack.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveGameMode('track');
+      closeSettingsModal();
+      hideWelcomeDialog();
+    });
+  }
+  if (btnSettingsModeHouse) {
+    btnSettingsModeHouse.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveGameMode('house');
+      closeSettingsModal();
+      hideWelcomeDialog();
+    });
+  }
+  if (btnSettingsResetCar) {
+    btnSettingsResetCar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      physics.resetToStart();
+      closeSettingsModal();
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // FRIENDS-ONLY MULTIPLAYER (2 TO 6 PLAYERS VIA 4-DIGIT ROOM CODE + CHOR-POLICE)
+  // -------------------------------------------------------------------------
+  const elMpModal = document.getElementById('multiplayer-modal');
+  const btnOpenMpHud = document.getElementById('btn-open-multiplayer');
+  const btnOpenMpWelcome = document.getElementById('btn-open-mp-welcome');
+  const btnCloseMp = document.getElementById('btn-close-multiplayer');
+  const elMpPlayerName = document.getElementById('mp-player-name-input');
+  const elMpFeedback = document.getElementById('mp-feedback-msg');
+  const elMpSetupView = document.getElementById('mp-setup-view');
+  const elMpActiveLobbyView = document.getElementById('mp-active-lobby-view');
+  const elMpRoomCodeDisplay = document.getElementById('mp-room-code-display');
+  const elMpPlayerCountBadge = document.getElementById('mp-player-count-badge');
+  const elMpCurrentModeBadge = document.getElementById('mp-current-mode-badge');
+  const elMpPlayersList = document.getElementById('mp-players-list');
+  const btnMpCreateRoom = document.getElementById('btn-mp-create-room');
+  const btnMpJoinRoom = document.getElementById('btn-mp-join-room');
+  const elMpJoinCodeInput = document.getElementById('mp-join-code-input');
+  const btnMpStartHideSeek = document.getElementById('btn-mp-start-hideseek');
+  const btnMpResumeDrive = document.getElementById('btn-mp-resume-drive');
+  const btnMpLeaveRoom = document.getElementById('btn-mp-leave-room');
+  const elHudMpStatusLabel = document.getElementById('hud-mp-status-label');
+  const elHudHideSeekBanner = document.getElementById('hud-hideseek-banner');
+  const elHideSeekRoleBadge = document.getElementById('hideseek-role-badge');
+  const elHideSeekTimerText = document.getElementById('hideseek-timer-text');
+  const elHideSeekInfoText = document.getElementById('hideseek-info-text');
+  const elBlindfoldOverlay = document.getElementById('hideseek-blindfold-overlay');
+  const elBlindfoldDigits = document.getElementById('blindfold-timer-digits');
+
+  let selectedMaxPlayers = 4;
+  let selectedMpMode = 'freeroam'; // 'freeroam' | 'race' | 'hideseek'
+
+  document.querySelectorAll('#mp-max-players-group .mp-seg-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectedMaxPlayers = Number(btn.dataset.max) || 4;
+      document.querySelectorAll('#mp-max-players-group .mp-seg-btn').forEach((b) => {
+        b.classList.toggle('active', b === btn);
+      });
+    });
+  });
+
+  document.querySelectorAll('#mp-mode-select-group .mp-mode-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectedMpMode = btn.dataset.mpmode || 'freeroam';
+      document.querySelectorAll('#mp-mode-select-group .mp-mode-btn').forEach((b) => {
+        b.classList.toggle('active', b === btn);
+      });
+    });
+  });
+
+  function formatMMSS(sec) {
+    const s = Math.max(0, Math.ceil(sec || 0));
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
+  }
+
+  multiplayer = createFriendsMultiplayerManager({
+    scene,
+    onModeSync: (targetWorldMode, _mpMode) => {
+      if (targetWorldMode && targetWorldMode !== activeGameMode) {
+        setActiveGameMode(targetWorldMode);
+      }
+      hideWelcomeDialog();
+    },
+    onStatusUpdate: (mpSt) => {
+      if (elHudMpStatusLabel) {
+        elHudMpStatusLabel.textContent = mpSt.isActive
+          ? `CODE ${mpSt.roomCode} (${mpSt.playerCount}/${mpSt.maxPlayers})`
+          : 'ROOM CODE';
+      }
+      if (elMpSetupView && elMpActiveLobbyView) {
+        elMpSetupView.classList.toggle('hidden', mpSt.isActive);
+        elMpActiveLobbyView.classList.toggle('hidden', !mpSt.isActive);
+      }
+      if (elMpRoomCodeDisplay) {
+        elMpRoomCodeDisplay.textContent = mpSt.roomCode || '----';
+      }
+      if (elMpPlayerCountBadge) {
+        elMpPlayerCountBadge.textContent = `${mpSt.playerCount} / ${mpSt.maxPlayers} PLAYERS`;
+      }
+      if (elMpCurrentModeBadge) {
+        const modeTitle =
+          mpSt.mpMode === 'hideseek'
+            ? 'MODE: CHOR-POLICE'
+            : mpSt.mpMode === 'race'
+              ? 'MODE: TRACK RACING'
+              : 'MODE: FREE ROAM';
+        elMpCurrentModeBadge.textContent = modeTitle;
+      }
+      if (btnMpStartHideSeek) {
+        btnMpStartHideSeek.classList.toggle(
+          'hidden',
+          !(mpSt.isHost && mpSt.mpMode === 'hideseek')
+        );
+      }
+      if (elMpPlayersList && Array.isArray(mpSt.players)) {
+        elMpPlayersList.innerHTML = mpSt.players
+          .map((p) => {
+            const roleTag =
+              mpSt.mpMode === 'hideseek' && mpSt.hideSeekPhase !== 'idle'
+                ? p.role === 'seeker'
+                  ? ' · 🚓 POLICE'
+                  : p.caught
+                    ? ' · 🔒 CAUGHT'
+                    : ' · 🏃 CHOR'
+                : p.isHost
+                  ? ' · HOST'
+                  : '';
+            return `<div class="mp-player-chip"><span class="mp-player-dot" style="background:${p.color}"></span><span>${p.name}${p.isSelf ? ' (YOU)' : ''}${roleTag}</span></div>`;
+          })
+          .join('');
+      }
+    },
+    onHideSeekUpdate: (mpSt) => {
+      const showBanner = mpSt.isActive && mpSt.mpMode === 'hideseek' && mpSt.hideSeekPhase !== 'idle';
+      if (elHudHideSeekBanner) {
+        elHudHideSeekBanner.classList.toggle('hidden', !showBanner);
+      }
+      if (physics.setSeekerBlindfolded) {
+        physics.setSeekerBlindfolded(mpSt.isBlindfolded);
+      }
+      if (elBlindfoldOverlay) {
+        elBlindfoldOverlay.classList.toggle('hidden', !mpSt.isBlindfolded);
+      }
+      if (elBlindfoldDigits && mpSt.isBlindfolded) {
+        elBlindfoldDigits.textContent = String(Math.max(1, Math.ceil(mpSt.hideSeekTimer)));
+      }
+      if (showBanner) {
+        if (elHideSeekRoleBadge) {
+          const isSeeker = mpSt.myRole === 'seeker';
+          elHideSeekRoleBadge.textContent = isSeeker ? '🚓 POLICE (SEEKER)' : '🏃 CHOR (HIDER)';
+          elHideSeekRoleBadge.classList.toggle('is-hider', !isSeeker);
+        }
+        if (elHideSeekTimerText) {
+          elHideSeekTimerText.textContent = formatMMSS(mpSt.hideSeekTimer);
+        }
+        if (elHideSeekInfoText) {
+          elHideSeekInfoText.textContent =
+            mpSt.statusText || `${mpSt.RemainingHiders ?? mpSt.remainingHiders} HIDERS LEFT`;
+        }
+      }
+    },
+  });
+
+  function openMultiplayerModal() {
+    if (!elMpModal) return;
+    closeSettingsModal();
+    elMpModal.classList.remove('hidden');
+    syncMobileTouchControlsVisibility();
+  }
+
+  function closeMultiplayerModal() {
+    if (!elMpModal) return;
+    elMpModal.classList.add('hidden');
+    syncMobileTouchControlsVisibility();
+  }
+
+  if (btnOpenMpHud) {
+    btnOpenMpHud.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openMultiplayerModal();
+      btnOpenMpHud.blur();
+    });
+  }
+  if (btnOpenMpWelcome) {
+    btnOpenMpWelcome.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideWelcomeDialog();
+      openMultiplayerModal();
+    });
+  }
+  if (btnSettingsOpenMp) {
+    btnSettingsOpenMp.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openMultiplayerModal();
+    });
+  }
+  if (btnCloseMp) {
+    btnCloseMp.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeMultiplayerModal();
+    });
+  }
+  if (btnMpResumeDrive) {
+    btnMpResumeDrive.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeMultiplayerModal();
+      hideWelcomeDialog();
+    });
+  }
+  if (btnMpCreateRoom) {
+    btnMpCreateRoom.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (elMpPlayerName) multiplayer.setPlayerName(elMpPlayerName.value);
+      if (elMpFeedback) elMpFeedback.textContent = 'Creating private 4-digit room...';
+      if (selectedMpMode === 'freeroam' || selectedMpMode === 'hideseek') {
+        setActiveGameMode('house');
+      } else if (selectedMpMode === 'race') {
+        setActiveGameMode('track');
+      }
+      const res = await multiplayer.hostRoom({
+        maxPlayers: selectedMaxPlayers,
+        mpMode: selectedMpMode,
+      });
+      if (elMpFeedback) {
+        elMpFeedback.textContent = res.ok
+          ? `Room ${res.code} created! Share this 4-digit code with friends.`
+          : res.error || 'Could not create room';
+      }
+    });
+  }
+  if (btnMpJoinRoom) {
+    btnMpJoinRoom.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (elMpPlayerName) multiplayer.setPlayerName(elMpPlayerName.value);
+      const codeVal = elMpJoinCodeInput ? elMpJoinCodeInput.value.trim() : '';
+      if (elMpFeedback) elMpFeedback.textContent = `Connecting to Room ${codeVal}...`;
+      const res = await multiplayer.joinRoom(codeVal);
+      if (elMpFeedback) {
+        elMpFeedback.textContent = res.ok
+          ? `Joined Room ${res.code}!`
+          : res.error || 'Failed to join room';
+      }
+    });
+  }
+  if (btnMpStartHideSeek) {
+    btnMpStartHideSeek.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveGameMode('house');
+      multiplayer.startHideAndSeekRound();
+      closeMultiplayerModal();
+      hideWelcomeDialog();
+    });
+  }
+  if (btnMpLeaveRoom) {
+    btnMpLeaveRoom.addEventListener('click', (e) => {
+      e.stopPropagation();
+      multiplayer.leaveRoom();
+      if (physics.setSeekerBlindfolded) physics.setSeekerBlindfolded(false);
+      if (elBlindfoldOverlay) elBlindfoldOverlay.classList.add('hidden');
+      if (elHudHideSeekBanner) elHudHideSeekBanner.classList.add('hidden');
+      if (elMpFeedback) elMpFeedback.textContent = 'Disconnected from room.';
+    });
+  }
+
   function showWelcomeDialog() {
     if (elWelcomeOverlay) {
       elWelcomeOverlay.classList.remove('hidden');
@@ -2413,21 +3054,8 @@ async function initApp() {
     syncMobileTouchControlsVisibility();
   }
 
-  if (elBrandLogo) {
-    elBrandLogo.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showWelcomeDialog();
-    });
-    elBrandLogo.addEventListener('keydown', (e) => {
-      if (e.code === 'Enter' || e.code === 'Space') {
-        e.preventDefault();
-        e.stopPropagation();
-        showWelcomeDialog();
-      }
-    });
-  }
-
   function dismissWelcomeAndStartRace() {
+    tryLockScreenOrientationLandscape();
     if (audioSynth.setEnabled && !audioSynth.isEnabled?.()) {
       const on = audioSynth.setEnabled(true);
       updateAudioButtonUI(on);
@@ -2490,8 +3118,10 @@ async function initApp() {
     if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName) && !e.target.readOnly) return;
     if (e.repeat) return;
     if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.key === 'Enter') {
-      e.preventDefault();
-      dismissWelcomeAndStartRace();
+      if (elWelcomeOverlay && !elWelcomeOverlay.classList.contains('hidden')) {
+        e.preventDefault();
+        dismissWelcomeAndStartRace();
+      }
     } else if (
       e.code === 'KeyW' ||
       e.code === 'ArrowUp' ||
@@ -2556,11 +3186,16 @@ async function initApp() {
     }
 
     if (activeGameMode === 'house') {
-      if (hudHouseRoomName && st.currentRoomName && st.currentRoomName !== lastRoomNameStr) {
-        lastRoomNameStr = st.currentRoomName;
-        hudHouseRoomName.textContent = st.currentRoomName;
+      const compactRoom = st.currentRoomShort || st.currentRoomName || '12 • CENTRAL HALL';
+      if (hudHouseRoomName && compactRoom !== lastRoomNameStr) {
+        lastRoomNameStr = compactRoom;
+        hudHouseRoomName.textContent = compactRoom;
       }
     } else {
+      if (hudHouseRoomName && lastRoomNameStr !== 'NEON TRACK CIRCUIT') {
+        lastRoomNameStr = 'NEON TRACK CIRCUIT';
+        hudHouseRoomName.textContent = 'NEON TRACK CIRCUIT';
+      }
       const isPAutoMode = Boolean(st.autopilot && !st.victoryCruise);
       const lapDisplay = isPAutoMode ? 1 : Math.min(3, Math.max(1, st.lapCount || 1));
       if (elLapCurr && lapDisplay !== lastLapCurr) {
@@ -2697,19 +3332,24 @@ async function initApp() {
   let screenshotFrameCounter = 0;
 
   // -------------------------------------------------------------------------
-  // 7. 16:9 WIDESCREEN RESIZE & 60FPS DELTA-TIME ANIMATION LOOP (MOBILE OPTIMIZED)
+  // 7. 16:9 AUTO-LANDSCAPE RESIZE & 60FPS DELTA-TIME ANIMATION LOOP
   // -------------------------------------------------------------------------
   function handleStageResize() {
     const dims = getStageDimensions();
     camera.aspect = 16 / 9;
     camera.updateProjectionMatrix();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    renderer.setPixelRatio(targetPixelRatio);
     renderer.setSize(dims.width, dims.height);
+    if (useUltraBloomComposer && ultraComposer) {
+      ultraComposer.setPixelRatio(targetPixelRatio);
+      ultraComposer.setSize(dims.width, dims.height);
+    }
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
   }
 
   window.addEventListener('resize', handleStageResize);
+  window.addEventListener('orientationchange', handleStageResize);
   handleStageResize();
 
   const clock = new THREE.Clock();
@@ -2734,6 +3374,11 @@ async function initApp() {
     microKart.updateWheels(dt, st.speed, st.steerAngle);
     microKart.updateKartVisuals(dt, st);
 
+    // 2B. Step Friends-Only Multiplayer (60ms compact [x,y,z,rotY] broadcast + 60 FPS lerp + Chor-Police)
+    if (multiplayer) {
+      multiplayer.update(dt, st, activeGameMode);
+    }
+
     // 3. Update Atmosphere & Under-Track LEDs
     atmosphere.updateAtmosphere(elapsedTime, settings, renderer, bloomPass, scene, diorama);
     if (activeGameMode === 'track' && coaster.updateUnderTrackLed) {
@@ -2743,7 +3388,7 @@ async function initApp() {
     // 4. Update Camera (1: Close Chase, 2: Far Chase, 3: Hood/Cockpit, 4: Top-Down Heli)
     updateCamera(dt, elapsedTime, st);
 
-    // 5. Update WebAudio Synth (throttled internally to 100ms) & HUD (throttled to 5 Hz / 200ms via direct DOM refs)
+    // 5. Update WebAudio Synth & HUD (throttled to 5 Hz / 200ms via direct DOM refs)
     audioSynth.update(st);
     const nowMs = performance.now();
     if (isScreenshotMode || nowMs - lastHudUpdateMs >= 200) {
@@ -2797,8 +3442,12 @@ async function initApp() {
       return;
     }
 
-    // 6. Direct single-pass WebGL render for locked 60 FPS on mobile GPUs
-    renderer.render(scene, camera);
+    // 6. Render Frame (Single-Pass WebGL or Ultra Dynamic Bloom Composer)
+    if (useUltraBloomComposer && ultraComposer) {
+      ultraComposer.render();
+    } else {
+      renderer.render(scene, camera);
+    }
 
     requestAnimationFrame(animate);
   }

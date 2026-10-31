@@ -256,9 +256,10 @@ export function buildGiantHouseWorld() {
     },
   ];
 
-  // Physics collision & ramp structures
+  // Physics collision & ramp structures + 2D Mini-Map architectural metadata
   const colliders = [];
   const ramps = [];
+  const doorways = [];
 
   function registerCollider(x, z, w, d, yMax) {
     colliders.push({
@@ -1066,9 +1067,32 @@ export function buildGiantHouseWorld() {
       const mesh = new THREE.Mesh(geo, mat);
       mesh.frustumCulled = true;
       parent.add(mesh);
+
+      // Raised sloped side-rail curbs along the two non-entry edges of every sloped ramp
+      const railMat = style === 'steel' ? neonGoldMat : neonCyanMat;
+      const midY = (yStart + yEnd) * 0.5 + 0.011;
+      if (dir === '+x' || dir === '-x') {
+        const slopeAngle = Math.atan2(yEnd - yStart, Math.max(1e-4, w)) * (dir === '+x' ? 1 : -1);
+        const railLen = Math.hypot(w, yEnd - yStart);
+        for (const zEdge of [zMin + 0.009, zMax - 0.009]) {
+          const sRail = new THREE.Mesh(getRoundedBoxGeo(railLen, 0.020, 0.016, 0.004, 2), railMat);
+          sRail.position.set(cx, midY, zEdge);
+          sRail.rotation.z = slopeAngle;
+          parent.add(sRail);
+        }
+      } else if (dir === '+z' || dir === '-z') {
+        const slopeAngle = Math.atan2(yEnd - yStart, Math.max(1e-4, d)) * (dir === '+z' ? -1 : 1);
+        const railLen = Math.hypot(d, yEnd - yStart);
+        for (const xEdge of [xMin + 0.009, xMax - 0.009]) {
+          const sRail = new THREE.Mesh(getRoundedBoxGeo(0.016, 0.020, railLen, 0.004, 2), railMat);
+          sRail.position.set(xEdge, midY, cz);
+          sRail.rotation.x = slopeAngle;
+          parent.add(sRail);
+        }
+      }
     }
 
-    ramps.push({ xMin, xMax, zMin, zMax, yStart, yEnd, dir });
+    ramps.push({ xMin, xMax, zMin, zMax, yStart, yEnd, dir, color, style });
   }
 
   // -------------------------------------------------------------------------
@@ -1206,6 +1230,16 @@ export function buildGiantHouseWorld() {
     const c2 = endCoord - segLen * 0.5;
     const lintelH = 0.22;
     const lintelY = wallH - lintelH * 0.5;
+
+    doorways.push({
+      axis,
+      fixedCoord,
+      startCoord,
+      endCoord,
+      doorMin: mid - doorW * 0.5,
+      doorMax: mid + doorW * 0.5,
+      accent,
+    });
 
     if (axis === 'x') {
       if (segLen > 0.04) {
@@ -2106,7 +2140,40 @@ export function buildGiantHouseWorld() {
     return ROOM_LIST[11];
   }
 
-  function sampleFloorAndRamp(x, z, outNormal) {
+  function evalRampSurfaceAt(r, x, z) {
+    let ry = r.yStart;
+    let rnx = 0.0;
+    let rny = 1.0;
+    let rnz = 0.0;
+    if (r.dir === '+x') {
+      const t = THREE.MathUtils.clamp((x - r.xMin) / Math.max(1e-4, r.xMax - r.xMin), 0, 1);
+      ry = r.yStart + t * (r.yEnd - r.yStart);
+      rnx = -(r.yEnd - r.yStart) / Math.max(1e-4, r.xMax - r.xMin);
+    } else if (r.dir === '-x') {
+      const t = THREE.MathUtils.clamp((r.xMax - x) / Math.max(1e-4, r.xMax - r.xMin), 0, 1);
+      ry = r.yStart + t * (r.yEnd - r.yStart);
+      rnx = (r.yEnd - r.yStart) / Math.max(1e-4, r.xMax - r.xMin);
+    } else if (r.dir === '+z') {
+      const t = THREE.MathUtils.clamp((z - r.zMin) / Math.max(1e-4, r.zMax - r.zMin), 0, 1);
+      ry = r.yStart + t * (r.yEnd - r.yStart);
+      rnz = -(r.yEnd - r.yStart) / Math.max(1e-4, r.zMax - r.zMin);
+    } else if (r.dir === '-z') {
+      const t = THREE.MathUtils.clamp((r.zMax - z) / Math.max(1e-4, r.zMax - r.zMin), 0, 1);
+      ry = r.yStart + t * (r.yEnd - r.yStart);
+      rnz = (r.yEnd - r.yStart) / Math.max(1e-4, r.zMax - r.zMin);
+    }
+    return { ry, rnx, rny, rnz };
+  }
+
+  function sampleFloorAndRamp(x, z, currentYOrNormal = 999, maybeOutNormal = null) {
+    let currentY = 999;
+    let outNormal = maybeOutNormal;
+    if (typeof currentYOrNormal === 'object' && currentYOrNormal !== null) {
+      outNormal = currentYOrNormal;
+    } else if (typeof currentYOrNormal === 'number') {
+      currentY = currentYOrNormal;
+    }
+
     let bestY = 0.0;
     let nx = 0.0;
     let ny = 1.0;
@@ -2115,32 +2182,10 @@ export function buildGiantHouseWorld() {
     for (let i = 0; i < ramps.length; i++) {
       const r = ramps[i];
       if (x >= r.xMin && x <= r.xMax && z >= r.zMin && z <= r.zMax) {
-        let ry = r.yStart;
-        let rnx = 0.0;
-        let rny = 1.0;
-        let rnz = 0.0;
-        if (r.dir === '+x') {
-          const t = (x - r.xMin) / Math.max(1e-4, r.xMax - r.xMin);
-          ry = r.yStart + t * (r.yEnd - r.yStart);
-          const slope = (r.yEnd - r.yStart) / Math.max(1e-4, r.xMax - r.xMin);
-          rnx = -slope;
-        } else if (r.dir === '-x') {
-          const t = (r.xMax - x) / Math.max(1e-4, r.xMax - r.xMin);
-          ry = r.yStart + t * (r.yEnd - r.yStart);
-          const slope = (r.yEnd - r.yStart) / Math.max(1e-4, r.xMax - r.xMin);
-          rnx = slope;
-        } else if (r.dir === '+z') {
-          const t = (z - r.zMin) / Math.max(1e-4, r.zMax - r.zMin);
-          ry = r.yStart + t * (r.yEnd - r.yStart);
-          const slope = (r.yEnd - r.yStart) / Math.max(1e-4, r.zMax - r.zMin);
-          rnz = -slope;
-        } else if (r.dir === '-z') {
-          const t = (r.zMax - z) / Math.max(1e-4, r.zMax - r.zMin);
-          ry = r.yStart + t * (r.yEnd - r.yStart);
-          const slope = (r.yEnd - r.yStart) / Math.max(1e-4, r.zMax - r.zMin);
-          rnz = slope;
-        }
-        if (ry >= bestY) {
+        const { ry, rnx, rny, rnz } = evalRampSurfaceAt(r, x, z);
+        // Only mount or stay on a ramp surface if the car's height is within mounting tolerance
+        // of the ramp surface at (x, z), preventing side-clipping or popping from floor level!
+        if (currentY + 0.052 >= ry && ry >= bestY) {
           bestY = ry;
           const len = Math.hypot(rnx, rny, rnz) || 1.0;
           nx = rnx / len;
@@ -2156,63 +2201,185 @@ export function buildGiantHouseWorld() {
     return bestY;
   }
 
-  function resolveCollisions(x, z, y, radius = 0.045) {
-    let cx = THREE.MathUtils.clamp(x, -3.50, 5.90);
-    let cz = THREE.MathUtils.clamp(z, -3.50, 5.90);
+  function resolveSingleBox(cx, cz, prevX, prevZ, xMin, xMax, zMin, zMax, radius) {
+    const closestX = THREE.MathUtils.clamp(cx, xMin, xMax);
+    const closestZ = THREE.MathUtils.clamp(cz, zMin, zMax);
+    const dx = cx - closestX;
+    const dz = cz - closestZ;
+    const distSq = dx * dx + dz * dz;
+
+    if (distSq >= radius * radius) {
+      return null;
+    }
+
+    if (distSq > 1e-6) {
+      const dist = Math.sqrt(distSq);
+      const pen = radius - dist;
+      const nx = dx / dist;
+      const nz = dz / dist;
+      return {
+        x: cx + nx * pen,
+        z: cz + nz * pen,
+        nx,
+        nz,
+      };
+    }
+
+    // Center entered the AABB: determine normal from the previous position (prevX, prevZ)
+    // so the car is ALWAYS pushed back toward the side it approached from (zero teleportation!)
+    const pClosestX = THREE.MathUtils.clamp(prevX, xMin, xMax);
+    const pClosestZ = THREE.MathUtils.clamp(prevZ, zMin, zMax);
+    const pdx = prevX - pClosestX;
+    const pdz = prevZ - pClosestZ;
+    const pDist = Math.hypot(pdx, pdz);
+    if (pDist > 1e-6) {
+      const nx = pdx / pDist;
+      const nz = pdz / pDist;
+      return {
+        x: pClosestX + nx * radius,
+        z: pClosestZ + nz * radius,
+        nx,
+        nz,
+      };
+    }
+
+    // Fallback: smallest penetration axis capped to safe push-out
+    const dLeft = Math.abs(cx - xMin);
+    const dRight = Math.abs(xMax - cx);
+    const dTop = Math.abs(cz - zMin);
+    const dBot = Math.abs(zMax - cz);
+    const minD = Math.min(dLeft, dRight, dTop, dBot);
+    if (minD === dLeft) return { x: xMin - radius, z: cz, nx: -1, nz: 0 };
+    if (minD === dRight) return { x: xMax + radius, z: cz, nx: 1, nz: 0 };
+    if (minD === dTop) return { x: cx, z: zMin - radius, nx: 0, nz: -1 };
+    return { x: cx, z: zMax + radius, nx: 0, nz: 1 };
+  }
+
+  function resolveCollisions(prevX, prevZ, nextX, nextZ, currentY = 0, radius = 0.052) {
+    // Support legacy 4-arg call signature (x, z, y, radius) just in case
+    if (arguments.length <= 4) {
+      const legacyX = prevX;
+      const legacyZ = prevZ;
+      const legacyY = nextX || 0;
+      const legacyR = nextZ || 0.052;
+      return resolveCollisions(legacyX, legacyZ, legacyX, legacyZ, legacyY, legacyR);
+    }
+
+    let cx = THREE.MathUtils.clamp(nextX, -3.50, 5.90);
+    let cz = THREE.MathUtils.clamp(nextZ, -3.50, 5.90);
     let hit = false;
     let hitNx = 0.0;
     let hitNz = 0.0;
 
-    for (let i = 0; i < colliders.length; i++) {
-      const box = colliders[i];
-      if (y > box.yMax - 0.01) continue;
+    // 1. Solid 3D Wedge / Prism Ramp Side & Back Collision Checks:
+    // Prevent the car from ever driving through the middle, sides, or tall back edge of any ramp
+    // when the car's current height is below the ramp surface!
+    const mountClearance = 0.042;
+    for (let i = 0; i < ramps.length; i++) {
+      const r = ramps[i];
+      if (r.dir === 'flat') continue; // Flat elevated bridges allow driving underneath between support pillars
 
-      const closestX = THREE.MathUtils.clamp(cx, box.xMin, box.xMax);
-      const closestZ = THREE.MathUtils.clamp(cz, box.zMin, box.zMax);
-      const dx = cx - closestX;
-      const dz = cz - closestZ;
-      const distSq = dx * dx + dz * dz;
+      const yMaxRamp = Math.max(r.yStart, r.yEnd);
+      if (currentY + mountClearance >= yMaxRamp) continue;
 
-      if (distSq < radius * radius) {
-        hit = true;
-        if (distSq > 1e-8) {
-          const dist = Math.sqrt(distSq);
-          const pen = radius - dist;
-          const nx = dx / dist;
-          const nz = dz / dist;
-          cx += nx * pen;
-          cz += nz * pen;
-          hitNx = nx;
-          hitNz = nz;
-        } else {
-          const dLeft = Math.abs(cx - box.xMin);
-          const dRight = Math.abs(box.xMax - cx);
-          const dTop = Math.abs(cz - box.zMin);
-          const dBot = Math.abs(box.zMax - cz);
-          const minD = Math.min(dLeft, dRight, dTop, dBot);
-          if (minD === dLeft) {
-            cx = box.xMin - radius;
-            hitNx = -1; hitNz = 0;
-          } else if (minD === dRight) {
-            cx = box.xMax + radius;
-            hitNx = 1; hitNz = 0;
-          } else if (minD === dTop) {
-            cz = box.zMin - radius;
-            hitNx = 0; hitNz = -1;
-          } else {
-            cz = box.zMax + radius;
-            hitNx = 0; hitNz = 1;
-          }
+      let rxMin = r.xMin;
+      let rxMax = r.xMax;
+      let rzMin = r.zMin;
+      let rzMax = r.zMax;
+      const spanY = Math.max(1e-4, r.yEnd - r.yStart);
+      const frac = THREE.MathUtils.clamp((currentY + mountClearance - r.yStart) / spanY, 0.0, 1.0);
+
+      if (r.dir === '+x') {
+        rxMin = r.xMin + frac * (r.xMax - r.xMin);
+      } else if (r.dir === '-x') {
+        rxMax = r.xMax - frac * (r.xMax - r.xMin);
+      } else if (r.dir === '+z') {
+        rzMin = r.zMin + frac * (r.zMax - r.zMin);
+      } else if (r.dir === '-z') {
+        rzMax = r.zMax - frac * (r.zMax - r.zMin);
+      }
+
+      if (rxMax - rxMin > 0.02 && rzMax - rzMin > 0.02) {
+        const res = resolveSingleBox(cx, cz, prevX, prevZ, rxMin, rxMax, rzMin, rzMax, radius);
+        if (res) {
+          cx = res.x;
+          cz = res.z;
+          hit = true;
+          hitNx = res.nx;
+          hitNz = res.nz;
         }
       }
     }
 
+    // 2. Wall & Furniture AABB Colliders
+    for (let i = 0; i < colliders.length; i++) {
+      const box = colliders[i];
+      if (currentY > box.yMax - 0.01) continue;
+
+      const res = resolveSingleBox(cx, cz, prevX, prevZ, box.xMin, box.xMax, box.zMin, box.zMax, radius);
+      if (res) {
+        cx = res.x;
+        cz = res.z;
+        hit = true;
+        hitNx = res.nx;
+        hitNz = res.nz;
+      }
+    }
+
+    cx = THREE.MathUtils.clamp(cx, -3.50, 5.90);
+    cz = THREE.MathUtils.clamp(cz, -3.50, 5.90);
+
     return { x: cx, z: cz, hit, nx: hitNx, nz: hitNz };
   }
+
+  // Architectural 2D Floorplan Furniture Outlines for the Top-Left Mini-Map
+  const furnitureOutlines = [
+    // Room 01: Living Room
+    { x: -2.4, z: -3.15, w: 1.32, d: 0.52, label: 'SOFA', color: '#3b6cb7' },
+    { x: -2.4, z: -2.35, w: 0.66, d: 0.44, label: 'TABLE', color: '#8c5832' },
+    { x: -3.40, z: -2.35, w: 0.24, d: 1.02, label: 'TV', color: '#00e5ff' },
+    // Room 02: Kitchen
+    { x: -0.35, z: -3.32, w: 1.48, d: 0.44, label: 'COUNTER', color: '#3a5f8f' },
+    { x: 0.78, z: -3.30, w: 0.50, d: 0.48, label: 'FRIDGE', color: '#a8b8c8' },
+    { x: 0.0, z: -2.35, w: 0.96, d: 0.54, label: 'ISLAND', color: '#dce8f4' },
+    // Room 05: Dining Hall
+    { x: 2.4, z: -2.4, w: 1.38, d: 0.74, label: 'DINING', color: '#7a4b2a' },
+    // Room 13: Indoor Pool
+    { x: 4.8, z: -2.4, w: 1.44, d: 1.32, label: 'POOL', color: '#00c8ff', isPool: true },
+    // Room 03: Master Bedroom
+    { x: -2.65, z: 0.0, w: 1.18, d: 1.00, label: 'KING BED', color: '#9c78db' },
+    { x: -2.55, z: -0.95, w: 0.68, d: 0.30, label: 'CLOSET', color: '#6c4328' },
+    // Room 04: Gaming / Arcade
+    { x: -2.4, z: 3.22, w: 1.12, d: 0.54, label: 'PC DESK', color: '#ff2a85' },
+    { x: -3.35, z: 2.30, w: 0.30, d: 0.85, label: 'ARCADES', color: '#b388ff' },
+    // Room 06: Toy Room
+    { x: 0.0, z: 2.4, w: 1.25, d: 0.95, label: 'TOY TRACK', color: '#ffca28' },
+    // Room 07: Home Theater
+    { x: 2.4, z: 2.45, w: 1.15, d: 0.48, label: 'RECLINERS', color: '#c62828' },
+    { x: 2.4, z: 3.44, w: 1.48, d: 0.12, label: 'SCREEN', color: '#ff4081' },
+    // Room 08: Indoor Gym
+    { x: -0.62, z: 4.85, w: 0.55, d: 0.68, label: 'TREADMILL', color: '#00e676' },
+    { x: 0.68, z: 5.42, w: 0.68, d: 0.28, label: 'WEIGHTS', color: '#78909c' },
+    // Room 09: Library / Study
+    { x: -3.38, z: 4.8, w: 0.28, d: 1.48, label: 'SHELVES', color: '#8d5b38' },
+    { x: -1.85, z: 4.8, w: 0.54, d: 1.12, label: 'STUDY', color: '#d49b62' },
+    // Room 10: Bathroom
+    { x: 5.25, z: 1.65, w: 0.82, d: 0.44, label: 'TUB', color: '#e0f7fa' },
+    { x: 5.52, z: 3.12, w: 0.66, d: 0.66, label: 'SHOWER', color: '#40c4ff' },
+    // Room 11: Garage / Workshop
+    { x: 3.6, z: 4.75, w: 1.10, d: 0.60, label: 'CAR LIFT', color: '#ff6e40' },
+    { x: 1.85, z: 5.65, w: 0.95, d: 0.36, label: 'BENCH', color: '#d32f2f' },
+    // Room 14: Backyard Patio
+    { x: 5.35, z: 0.0, w: 0.62, d: 0.62, label: 'PATIO', color: '#4cd964' },
+  ];
 
   return {
     houseGroup,
     rooms: ROOM_LIST,
+    ramps,
+    colliders,
+    doorways,
+    furnitureOutlines,
     getRoomAt,
     sampleFloorAndRamp,
     resolveCollisions,

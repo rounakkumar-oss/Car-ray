@@ -1123,10 +1123,11 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     giantHouseRef = houseWorld;
   }
 
-  function resetHousePose() {
+  function resetHousePose(spawnX = -0.65, spawnZ = 0.0, spawnYaw = 0.0) {
     // Spawn in Room 12 (Grand Central Hallway) facing East (+X) toward the central stunt ramp
-    state.position.set(-0.65, 0.001, 0.0);
-    houseWorldYaw = 0.0;
+    state.position.set(spawnX, 0.001, spawnZ);
+    houseWorldYaw = spawnYaw;
+    state.houseWorldYaw = houseWorldYaw;
     housePrevSurfaceY = 0.0;
     state.speed = 0.0;
     state.lateralOffset = 0.0;
@@ -1150,8 +1151,8 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     state.quaternion.setFromRotationMatrix(_rotMat);
     if (giantHouseRef && giantHouseRef.getRoomAt) {
       const rm = giantHouseRef.getRoomAt(state.position.x, state.position.z);
-      state.currentRoomName = rm ? `${rm.code} · ${rm.name}` : '12 · GRAND CENTRAL HALLWAY';
-      state.currentRoomShort = rm ? rm.shortName : 'CENTRAL HALL';
+      state.currentRoomName = rm ? `${rm.code} • ${rm.name}` : '12 • GRAND CENTRAL HALLWAY';
+      state.currentRoomShort = rm ? `${rm.code} • ${rm.shortName}` : '12 • CENTRAL HALL';
     }
   }
 
@@ -1173,6 +1174,13 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     state.activeKeysStr = computeActiveKeysStr();
     if (state.railHitCooldown > 0) {
       state.railHitCooldown = Math.max(0.0, state.railHitCooldown - clampedDt);
+    }
+
+    // If local player is a Seeker during the 20s Chor-Police blindfold head-start, lock movement
+    if (state.seekerBlindfolded) {
+      state.speed = 0.0;
+      state.curbRumble = 0.0;
+      return state;
     }
 
     let throttle = 0.0;
@@ -1234,36 +1242,60 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
       );
     }
 
-    // Advance world (X, Z) with 4.2x world travel multiplier so the RC car covers rooms with exciting pace
-    const worldStepDist = state.speed * 4.2 * clampedDt;
+    // Advance world (X, Z) with 4.2x world travel multiplier
+    const prevX = state.position.x;
+    const prevZ = state.position.z;
+    const currentY = state.position.y + state.hopHeight;
     const fwdX = Math.cos(houseWorldYaw);
     const fwdZ = Math.sin(houseWorldYaw);
-    let nextX = state.position.x + fwdX * worldStepDist;
-    let nextZ = state.position.z + fwdZ * worldStepDist;
 
-    // Resolve wall and furniture leg bounding-box collisions with smooth bounce
+    // Explicit world velocity vector (properly signed for both forward and reverse!)
+    let velX = fwdX * state.speed;
+    let velZ = fwdZ * state.speed;
+
+    let nextX = prevX + velX * 4.2 * clampedDt;
+    let nextZ = prevZ + velZ * 4.2 * clampedDt;
+
+    // Resolve wall, furniture, and ramp side-wall collisions with smooth sliding velocity projection:
+    // velocity.sub(normal.multiplyScalar(velocity.dot(normal))) — NEVER teleports or flips yaw!
     if (giantHouseRef && giantHouseRef.resolveCollisions) {
       const col = giantHouseRef.resolveCollisions(
+        prevX,
+        prevZ,
         nextX,
         nextZ,
-        state.position.y + state.hopHeight,
+        currentY,
         0.052
       );
       nextX = col.x;
       nextZ = col.z;
+
       if (col.hit) {
-        // Reflect heading slightly along wall tangent and damp speed smoothly
-        const dotN = fwdX * col.nx + fwdZ * col.nz;
-        if (dotN < -0.15) {
-          const slideX = fwdX - col.nx * dotN * 1.18;
-          const slideZ = fwdZ - col.nz * dotN * 1.18;
-          houseWorldYaw = Math.atan2(slideZ, slideX);
-          state.speed *= 0.72;
-          state.curbRumble = 0.75;
-          if (state.railHitCooldown <= 0.0) {
-            state.railHitCooldown = 0.25;
-            state.hopVel = Math.max(state.hopVel, 0.008);
-            if (onRailImpactCallback) onRailImpactCallback(0.45);
+        const dotN = velX * col.nx + velZ * col.nz;
+        if (dotN < 0) {
+          // Project velocity onto collision tangent plane: v = v - n * (v . n)
+          velX -= col.nx * dotN;
+          velZ -= col.nz * dotN;
+          const projectedSpeed = Math.hypot(velX, velZ);
+          const signSpd = state.speed >= 0 ? 1.0 : -1.0;
+          state.speed = signSpd * projectedSpeed * 0.92;
+
+          // Smoothly guide heading along the wall only when driving forward at a glancing angle
+          if (signSpd > 0 && projectedSpeed > 0.025) {
+            const slideYaw = Math.atan2(velZ, velX);
+            let diff = slideYaw - houseWorldYaw;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            if (Math.abs(diff) < 1.15) {
+              houseWorldYaw += diff * Math.min(1.0, 10.0 * clampedDt);
+            }
+          }
+
+          state.curbRumble = 0.65;
+          if (state.railHitCooldown <= 0.0 && Math.abs(dotN) > 0.035) {
+            state.railHitCooldown = 0.24;
+            state.hopVel = Math.max(state.hopVel, 0.006);
+            if (onRailImpactCallback) onRailImpactCallback(0.38);
           }
         }
       } else {
@@ -1271,11 +1303,18 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
       }
     }
 
-    // Evaluate floor & ramp surface height + launch off ramp lips
+    state.houseWorldYaw = houseWorldYaw;
+
+    // Evaluate floor & ramp surface height (passing currentY so car only mounts from ramp lip)
     let targetSurfaceY = 0.0;
     _houseSurfaceNormal.set(0, 1, 0);
     if (giantHouseRef && giantHouseRef.sampleFloorAndRamp) {
-      targetSurfaceY = giantHouseRef.sampleFloorAndRamp(nextX, nextZ, _houseSurfaceNormal);
+      targetSurfaceY = giantHouseRef.sampleFloorAndRamp(
+        nextX,
+        nextZ,
+        currentY,
+        _houseSurfaceNormal
+      );
     }
 
     // Detect driving off the top edge of a ramp -> convert drop into airborne hopHeight!
@@ -1315,8 +1354,8 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     if (giantHouseRef && giantHouseRef.getRoomAt) {
       const rm = giantHouseRef.getRoomAt(nextX, nextZ);
       if (rm) {
-        state.currentRoomName = `${rm.code} · ${rm.name}`;
-        state.currentRoomShort = rm.shortName;
+        state.currentRoomName = `${rm.code} • ${rm.name}`;
+        state.currentRoomShort = `${rm.code} • ${rm.shortName}`;
       }
     }
 
@@ -1324,8 +1363,10 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
   }
 
   state.gameMode = currentGameMode;
-  state.currentRoomName = '12 · GRAND CENTRAL HALLWAY';
-  state.currentRoomShort = 'CENTRAL HALL';
+  state.houseWorldYaw = houseWorldYaw;
+  state.seekerBlindfolded = false;
+  state.currentRoomName = '12 • GRAND CENTRAL HALLWAY';
+  state.currentRoomShort = '12 • CENTRAL HALL';
 
   function stepPhysics(dt) {
     const safeDt = Math.min(Math.max(dt || 1 / 60, 0.001), 0.1);
@@ -1354,6 +1395,13 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
         resetHousePose();
       } else {
         resetToStart();
+      }
+    },
+    resetHousePose,
+    setSeekerBlindfolded: (flag) => {
+      state.seekerBlindfolded = Boolean(flag);
+      if (state.seekerBlindfolded) {
+        state.speed = 0.0;
       }
     },
     setAutopilot,
