@@ -932,6 +932,36 @@ export function createDeskRacerHybridAudio(options = {}) {
     });
   }
 
+  /**
+   * Plays an urgent Police Siren Yelp + BUSTED chord when caught in Police Hide & Seek Mode.
+   */
+  function playPoliceBustedSiren() {
+    if (!enabled || !ctx || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    const sirenOsc = ctx.createOscillator();
+    const sirenGain = ctx.createGain();
+    sirenOsc.type = 'triangle';
+
+    // 3 rapid Police Hi-Lo / Yelp sweeps (680 Hz <-> 1180 Hz)
+    sirenOsc.frequency.setValueAtTime(680, now);
+    sirenOsc.frequency.linearRampToValueAtTime(1180, now + 0.18);
+    sirenOsc.frequency.linearRampToValueAtTime(660, now + 0.36);
+    sirenOsc.frequency.linearRampToValueAtTime(1220, now + 0.54);
+    sirenOsc.frequency.linearRampToValueAtTime(640, now + 0.72);
+    sirenOsc.frequency.linearRampToValueAtTime(1140, now + 0.90);
+    sirenOsc.frequency.exponentialRampToValueAtTime(320, now + 1.25);
+
+    sirenGain.gain.setValueAtTime(0.0001, now);
+    sirenGain.gain.linearRampToValueAtTime(0.22, now + 0.02);
+    sirenGain.gain.setValueAtTime(0.20, now + 0.85);
+    sirenGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.28);
+
+    sirenOsc.connect(sirenGain);
+    sirenGain.connect(masterGain);
+    sirenOsc.start(now);
+    sirenOsc.stop(now + 1.3);
+  }
+
   return {
     preload,
     toggle,
@@ -939,6 +969,7 @@ export function createDeskRacerHybridAudio(options = {}) {
     update,
     playLapChime,
     playRaceFinishFanfare,
+    playPoliceBustedSiren,
     playRailImpact,
     playF1CountdownBeep,
     triggerSputterBurst,

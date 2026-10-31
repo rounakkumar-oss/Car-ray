@@ -15,6 +15,7 @@ import { createProceduralPMREMEnvironment } from './scene/ProceduralTextures.js'
 import { createKartPhysicsController } from './physics/KartPhysicsController.js';
 import { createWebAudioSynth } from './audio/WebAudioSynth.js';
 import { createFriendsMultiplayerManager } from './multiplayer/FriendsMultiplayerManager.js';
+import { createPoliceChaseManager } from './police/PoliceChaseManager.js';
 
 async function initApp() {
   const gameContainer = document.getElementById('game-container');
@@ -22,9 +23,9 @@ async function initApp() {
   const container = document.getElementById('canvas-container');
 
   // -------------------------------------------------------------------------
-  // 0. INSTANT AUTO-LANDSCAPE 16:9 ORIENTATION WRAPPER
+  // 0. TRUE EDGE-TO-EDGE FULLSCREEN LANDSCAPE WRAPPER (ZERO SIDE BARS)
   //    Automatically rotates #game-container by 90deg when held vertically
-  //    (window.innerHeight > window.innerWidth) and locks 16:9 widescreen!
+  //    (window.innerHeight > window.innerWidth) and stretches 100% edge-to-edge!
   // -------------------------------------------------------------------------
   function updateAutoLandscapeStageSize() {
     const vw = Math.max(1, window.innerWidth);
@@ -37,10 +38,8 @@ async function initApp() {
       gameContainer.style.height = isPortrait ? `${vw}px` : `${vh}px`;
     }
 
-    const landW = isPortrait ? vh : vw;
-    const landH = isPortrait ? vw : vh;
-    const stageW = Math.min(landW, Math.round((landH * 16) / 9));
-    const stageH = Math.min(landH, Math.round((landW * 9) / 16));
+    const stageW = isPortrait ? vh : vw;
+    const stageH = isPortrait ? vw : vh;
 
     if (widescreenStage) {
       widescreenStage.style.width = `${stageW}px`;
@@ -60,6 +59,20 @@ async function initApp() {
 
   function tryLockScreenOrientationLandscape() {
     try {
+      const docEl = document.documentElement;
+      if (docEl && !document.fullscreenElement) {
+        const reqFs =
+          docEl.requestFullscreen ||
+          docEl.webkitRequestFullscreen ||
+          docEl.msRequestFullscreen;
+        if (typeof reqFs === 'function') {
+          Promise.resolve(reqFs.call(docEl)).catch(() => {});
+        }
+      }
+    } catch (_e) {
+      // Ignore fullscreen restrictions in embedded iframes
+    }
+    try {
       if (screen.orientation && typeof screen.orientation.lock === 'function') {
         screen.orientation.lock('landscape').catch(() => {});
       }
@@ -69,7 +82,7 @@ async function initApp() {
   }
 
   // -------------------------------------------------------------------------
-  // 1. THREE.JS SCENE & MOBILE-OPTIMIZED HIGH-PERFORMANCE 16:9 RENDERER
+  // 1. THREE.JS SCENE & MOBILE-OPTIMIZED EDGE-TO-EDGE RENDERER
   // -------------------------------------------------------------------------
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x181312);
@@ -78,7 +91,7 @@ async function initApp() {
   const initDims = getStageDimensions();
   const camera = new THREE.PerspectiveCamera(
     54,
-    16 / 9,
+    initDims.width / Math.max(1, initDims.height),
     0.002, // 2mm near plane for 1:87 HO micro-scale closeups!
     4.2    // Shortened far plane with matching fog so distant objects are culled on mobile GPUs
   );
@@ -213,7 +226,9 @@ async function initApp() {
     scene.add(microKart.sparkPoints);
   }
 
-  let activeGameMode = 'track'; // 'track' (Neon Track Racing) | 'house' (Giant House Open World)
+  let activeGameMode = 'house'; // 'track' (Neon Track Racing) | 'house' (Giant House Open World)
+  let selectedPlayMode = 'freeroam'; // 'freeroam' | 'track' | 'police'
+  let selectedLightingTheme = 'sunset'; // 'sunset' | 'cyber' | 'daylight'
   let activeCameraMode = 1; // 1: Close Chase, 2: Far Chase, 3: Hood/Cockpit, 4: Top-Down Heli
 
   function syncKartScaleForCamera(mode) {
@@ -796,7 +811,7 @@ async function initApp() {
     });
 
     if (hudCameraLabel) {
-      hudCameraLabel.textContent = CAMERA_MODE_LABELS[mode] || `CAM ${mode}`;
+      hudCameraLabel.textContent = String(mode);
     }
 
     if (visorOverlay) {
@@ -909,12 +924,169 @@ async function initApp() {
     btn.addEventListener('click', () => setCameraMode(Number(btn.dataset.cam)));
   });
 
-  function setActiveGameMode(nextMode) {
-    const mode = nextMode === 'house' ? 'house' : 'track';
-    activeGameMode = mode;
-    const isHouse = mode === 'house';
+  const btnModePolice = document.getElementById('btn-mode-police');
+  const elHudPoliceBanner = document.getElementById('hud-police-banner');
+  const elPoliceStatusBadge = document.getElementById('police-status-badge');
+  const elPoliceTimerText = document.getElementById('police-timer-text');
+  const elPoliceStealthText = document.getElementById('police-stealth-text');
 
-    // Toggle 3D world groups between Mode 1 (Neon Track) and Mode 2 (Giant House Open World)
+  const elBustedOverlay = document.getElementById('busted-gameover-overlay');
+  const elBustedTitle = document.getElementById('busted-title');
+  const elBustedSubtitle = document.getElementById('busted-subtitle');
+  const elBustedStatTime = document.getElementById('busted-stat-time');
+  const elBustedStatEscapes = document.getElementById('busted-stat-escapes');
+  const elBustedStatScore = document.getElementById('busted-stat-score');
+  const btnBustedRetry = document.getElementById('btn-busted-retry');
+  const btnBustedMenu = document.getElementById('btn-busted-menu');
+
+  function formatPoliceSurvivalTime(sec) {
+    const s = Math.max(0, Math.floor(sec || 0));
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
+  }
+
+  function hideBustedGameOver() {
+    if (elBustedOverlay) {
+      elBustedOverlay.classList.add('hidden');
+    }
+    if (physics.setBustedLocked) {
+      physics.setBustedLocked(false);
+    }
+    if (typeof syncMobileTouchControlsVisibility === 'function') {
+      syncMobileTouchControlsVisibility();
+    }
+  }
+
+  function showBustedGameOver(bustedInfo = {}) {
+    if (physics.setBustedLocked) {
+      physics.setBustedLocked(true);
+    }
+    if (audioSynth.playPoliceBustedSiren) {
+      audioSynth.playPoliceBustedSiren();
+    }
+    if (elBustedTitle) {
+      elBustedTitle.textContent = 'BUSTED!';
+    }
+    if (elBustedSubtitle) {
+      elBustedSubtitle.textContent =
+        bustedInfo.reason === 'RAMMED BY INTERCEPTOR!'
+          ? 'YOU ARE OUT! RAMMED BY POLICE INTERCEPTOR'
+          : 'YOU ARE OUT! SPOTTED IN POLICE VISION CONE';
+    }
+    if (elBustedStatTime) {
+      elBustedStatTime.textContent = formatPoliceSurvivalTime(bustedInfo.survivalTime || 0);
+    }
+    if (elBustedStatEscapes) {
+      elBustedStatEscapes.textContent = String(bustedInfo.escapedCount || 0);
+    }
+    if (elBustedStatScore) {
+      elBustedStatScore.textContent = String(bustedInfo.score || 0);
+    }
+    if (elBustedOverlay) {
+      elBustedOverlay.classList.remove('hidden');
+    }
+    if (typeof syncMobileTouchControlsVisibility === 'function') {
+      syncMobileTouchControlsVisibility();
+    }
+  }
+
+  const policeManager = createPoliceChaseManager({
+    scene,
+    giantHouse,
+    onBusted: (bustedInfo) => {
+      showBustedGameOver(bustedInfo);
+    },
+  });
+  optimizeSceneHierarchyForMobile(policeManager.policeGroup);
+
+  function applyMapLightingTheme(themeName) {
+    selectedLightingTheme = themeName || 'sunset';
+    const isHouse = activeGameMode === 'house';
+
+    if (selectedLightingTheme === 'daylight') {
+      settings.sunIntensity = 0.85;
+      settings.lampIntensity = 0.95;
+      settings.trackGlowIntensity = 0.85;
+      scene.environmentIntensity = 1.12;
+      renderer.toneMappingExposure = 0.88;
+      if (isHouse) {
+        scene.background.setHex(0x233044);
+        scene.fog.color.setHex(0x233044);
+        scene.fog.density = 0.032;
+      } else {
+        scene.background.setHex(0x28221e);
+        scene.fog.color.setHex(0x28221e);
+        scene.fog.density = 0.11;
+      }
+    } else if (selectedLightingTheme === 'cyber') {
+      settings.sunIntensity = 0.0;
+      settings.lampIntensity = 1.25;
+      settings.trackGlowIntensity = 1.35;
+      scene.environmentIntensity = 0.78;
+      renderer.toneMappingExposure = 0.76;
+      if (isHouse) {
+        scene.background.setHex(0x0b1020);
+        scene.fog.color.setHex(0x0b1020);
+        scene.fog.density = 0.045;
+      } else {
+        scene.background.setHex(0x0d0b18);
+        scene.fog.color.setHex(0x0d0b18);
+        scene.fog.density = 0.13;
+      }
+    } else {
+      // 'sunset' (Warm Golden Sunset default)
+      settings.sunIntensity = 0.32;
+      settings.lampIntensity = 1.15;
+      settings.trackGlowIntensity = 1.05;
+      scene.environmentIntensity = 0.86;
+      renderer.toneMappingExposure = 0.80;
+      if (isHouse) {
+        scene.background.setHex(0x161c28);
+        scene.fog.color.setHex(0x161c28);
+        scene.fog.density = 0.038;
+      } else {
+        scene.background.setHex(0x181312);
+        scene.fog.color.setHex(0x181312);
+        scene.fog.density = 0.135;
+      }
+    }
+
+    if (diorama.updateLightingMaterials) {
+      diorama.updateLightingMaterials(settings.sunIntensity, settings.lampIntensity);
+    }
+    if (roomEnv.updateRoomLighting) {
+      roomEnv.updateRoomLighting(settings.sunIntensity, settings.lampIntensity);
+    }
+
+    document.querySelectorAll('.theme-pill-btn').forEach((btn) => {
+      const active = btn.dataset.theme === selectedLightingTheme;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
+  document.querySelectorAll('.theme-pill-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyMapLightingTheme(btn.dataset.theme || 'sunset');
+    });
+  });
+
+  function setActiveGameMode(nextMode) {
+    let playMode = nextMode;
+    if (nextMode === 'house') playMode = 'freeroam';
+    if (!['freeroam', 'track', 'police'].includes(playMode)) {
+      playMode = 'freeroam';
+    }
+    selectedPlayMode = playMode;
+
+    const worldMode = playMode === 'track' ? 'track' : 'house';
+    activeGameMode = worldMode;
+    const isHouse = worldMode === 'house';
+    const isPolice = playMode === 'police';
+
+    // Toggle 3D world groups between Track Mode and Giant House Mode
     giantHouse.houseGroup.visible = isHouse;
     diorama.root.visible = !isHouse && !loadedGlbStatus.desk;
     if (diorama.nightGlowGroup) diorama.nightGlowGroup.visible = !isHouse;
@@ -924,34 +1096,45 @@ async function initApp() {
     coaster.debugGroup.visible = false;
     glbContainerGroup.visible = !isHouse;
 
-    // Adjust scene background and fog for the spacious 14-Room Giant House vs cozy Neon Track
-    if (isHouse) {
-      scene.background.setHex(0x161c28);
-      scene.fog.color.setHex(0x161c28);
-      scene.fog.density = 0.042;
-    } else {
-      scene.background.setHex(0x181312);
-      scene.fog.color.setHex(0x181312);
-      scene.fog.density = 0.14;
-    }
+    applyMapLightingTheme(selectedLightingTheme);
 
     cancelF1StartCountdown();
     hideFinishOverlay();
+    hideBustedGameOver();
     hideLapSplit();
-    physics.setGameMode(mode);
 
-    if (btnModeTrack) {
-      btnModeTrack.classList.toggle('active', !isHouse);
-      btnModeTrack.setAttribute('aria-pressed', !isHouse ? 'true' : 'false');
+    physics.setGameMode(worldMode);
+    policeManager.setEnabled(isPolice);
+    if (isPolice) {
+      policeManager.resetRound();
     }
+
+    if (elHudPoliceBanner) {
+      elHudPoliceBanner.classList.toggle('hidden', !isPolice || activeCameraMode > 4);
+    }
+
     if (btnModeHouse) {
-      btnModeHouse.classList.toggle('active', isHouse);
-      btnModeHouse.setAttribute('aria-pressed', isHouse ? 'true' : 'false');
+      const act = playMode === 'freeroam';
+      btnModeHouse.classList.toggle('active', act);
+      btnModeHouse.setAttribute('aria-pressed', act ? 'true' : 'false');
     }
+    if (btnModeTrack) {
+      const act = playMode === 'track';
+      btnModeTrack.classList.toggle('active', act);
+      btnModeTrack.setAttribute('aria-pressed', act ? 'true' : 'false');
+    }
+    if (btnModePolice) {
+      const act = playMode === 'police';
+      btnModePolice.classList.toggle('active', act);
+      btnModePolice.setAttribute('aria-pressed', act ? 'true' : 'false');
+    }
+
     const btnSettingsModeTrack = document.getElementById('btn-settings-mode-track');
     const btnSettingsModeHouse = document.getElementById('btn-settings-mode-house');
-    if (btnSettingsModeTrack) btnSettingsModeTrack.classList.toggle('active', !isHouse);
-    if (btnSettingsModeHouse) btnSettingsModeHouse.classList.toggle('active', isHouse);
+    const btnSettingsModePolice = document.getElementById('btn-settings-mode-police');
+    if (btnSettingsModeHouse) btnSettingsModeHouse.classList.toggle('active', playMode === 'freeroam');
+    if (btnSettingsModeTrack) btnSettingsModeTrack.classList.toggle('active', playMode === 'track');
+    if (btnSettingsModePolice) btnSettingsModePolice.classList.toggle('active', playMode === 'police');
 
     if (hudLapWidget) {
       hudLapWidget.classList.toggle('hidden', isHouse || activeCameraMode > 4);
@@ -973,16 +1156,37 @@ async function initApp() {
     drawMinimapRadar(physics.state, true);
   }
 
+  if (btnModeHouse) {
+    btnModeHouse.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveGameMode('freeroam');
+    });
+  }
   if (btnModeTrack) {
     btnModeTrack.addEventListener('click', (e) => {
       e.stopPropagation();
       setActiveGameMode('track');
     });
   }
-  if (btnModeHouse) {
-    btnModeHouse.addEventListener('click', (e) => {
+  if (btnModePolice) {
+    btnModePolice.addEventListener('click', (e) => {
       e.stopPropagation();
-      setActiveGameMode('house');
+      setActiveGameMode('police');
+    });
+  }
+  if (btnBustedRetry) {
+    btnBustedRetry.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideBustedGameOver();
+      physics.setGameMode('house');
+      policeManager.resetRound();
+    });
+  }
+  if (btnBustedMenu) {
+    btnBustedMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideBustedGameOver();
+      showWelcomeDialog();
     });
   }
 
@@ -1905,6 +2109,24 @@ async function initApp() {
       }
     }
 
+    // 3B. Stealth Hiding Zones Under Furniture (Emerald dashed outlines)
+    if (giantHouse.hidingZones) {
+      for (const hz of giantHouse.hidingZones) {
+        const zx = mapHouseMinimapX(hz.xMin);
+        const zy = mapHouseMinimapY(hz.zMin);
+        const zw = (hz.xMax - hz.xMin) * hScale;
+        const zh = (hz.zMax - hz.zMin) * hScale;
+        hCtx.save();
+        hCtx.fillStyle = 'rgba(0, 230, 118, 0.16)';
+        hCtx.strokeStyle = 'rgba(78, 255, 159, 0.72)';
+        hCtx.lineWidth = 1.2;
+        hCtx.setLineDash([2, 2]);
+        hCtx.fillRect(zx, zy, zw, zh);
+        hCtx.strokeRect(zx, zy, zw, zh);
+        hCtx.restore();
+      }
+    }
+
     // 4. Ramp Icons with Directional Chevrons (>>>)
     if (giantHouse.ramps) {
       for (const r of giantHouse.ramps) {
@@ -2086,9 +2308,11 @@ async function initApp() {
       : Math.atan2(st.tangent.z, st.tangent.x);
 
     const hasRemotePlayers = multiplayer && multiplayer.getState().isActive;
+    const hasActivePolice = selectedPlayMode === 'police';
     if (
       !forceRedraw &&
       !hasRemotePlayers &&
+      !hasActivePolice &&
       Math.abs(kx - lastMinimapKx) < 0.12 &&
       Math.abs(ky - lastMinimapKy) < 0.12 &&
       Math.abs(yaw - lastMinimapYaw) < 0.02
@@ -2123,6 +2347,44 @@ async function initApp() {
       }
     }
 
+    // Draw AI Police Interceptors + Forward Red Vision Cones on Radar
+    if (isHouse && selectedPlayMode === 'police' && policeManager) {
+      const cops = policeManager.getPoliceRadarMarkers();
+      const pxPerUnit = Math.abs(mapHouseMinimapX(1.0) - mapHouseMinimapX(0.0));
+      const sirenFlashBlue = Math.floor(performance.now() / 160) % 2 === 0;
+
+      for (let i = 0; i < cops.length; i++) {
+        const c = cops[i];
+        const cx = mapHouseMinimapX(c.x);
+        const cy = mapHouseMinimapY(c.z);
+        const coneRadPx = (c.visionRange || 1.38) * pxPerUnit;
+        const halfAng = c.visionHalfAngle || 0.44;
+
+        // Forward Red Vision Cone Wedge on Radar
+        radarCtx.save();
+        radarCtx.beginPath();
+        radarCtx.moveTo(cx, cy);
+        radarCtx.arc(cx, cy, coneRadPx, c.yaw - halfAng, c.yaw + halfAng);
+        radarCtx.closePath();
+        radarCtx.fillStyle = c.chasing
+          ? 'rgba(255, 38, 38, 0.42)'
+          : 'rgba(255, 55, 48, 0.26)';
+        radarCtx.fill();
+        radarCtx.strokeStyle = c.chasing
+          ? 'rgba(255, 110, 110, 0.9)'
+          : 'rgba(255, 80, 80, 0.55)';
+        radarCtx.lineWidth = 1.2;
+        radarCtx.stroke();
+        radarCtx.restore();
+
+        // Flashing Red/Blue Police Interceptor Marker
+        const copColor = (i % 2 === 0 ? sirenFlashBlue : !sirenFlashBlue)
+          ? '#247cff'
+          : '#ff2d2d';
+        drawDirectionalArrow(radarCtx, cx, cy, c.yaw, copColor, '#ffffff', 0.86);
+      }
+    }
+
     // Draw Friends in Multiplayer (Automatically hides Hiders' dots on the Seeker's Mini-Map!)
     if (multiplayer) {
       const friendMarkers = multiplayer.getMinimapMarkers(activeGameMode);
@@ -2140,7 +2402,20 @@ async function initApp() {
     }
 
     // Draw Glowing Directional Arrow for the Local Player's Car
-    drawDirectionalArrow(radarCtx, kx, ky, yaw, '#00e8ff', '#ffffff', 1.05);
+    const playerHidden =
+      isHouse &&
+      selectedPlayMode === 'police' &&
+      policeManager &&
+      policeManager.state.playerHidden;
+    drawDirectionalArrow(
+      radarCtx,
+      kx,
+      ky,
+      yaw,
+      playerHidden ? '#00e676' : '#00e8ff',
+      '#ffffff',
+      1.05
+    );
   }
 
   // Cache HUD DOM elements
@@ -2382,12 +2657,16 @@ async function initApp() {
   function updateWelcomeWarmupUI() {
     if (isScreenshotMode || !btnWelcomeStart) return;
     const readyLabel =
-      activeGameMode === 'house' ? 'START FREE ROAM' : 'START TIME TRIAL';
+      selectedPlayMode === 'police'
+        ? 'PLAY POLICE HIDE & SEEK'
+        : selectedPlayMode === 'freeroam'
+          ? 'PLAY GIANT HOUSE ROAM'
+          : 'PLAY NEON TRACK RACE';
     if (isCircuitReady || activeGameMode === 'house') {
       btnWelcomeStart.classList.remove('is-warming-up', 'is-queued');
       if (elWelcomeProgressFill) elWelcomeProgressFill.style.width = '100%';
       if (elWelcomeStartText) elWelcomeStartText.textContent = readyLabel;
-      if (elWelcomeEnterKbd) elWelcomeEnterKbd.textContent = 'ENTER ↵';
+      if (elWelcomeEnterKbd) elWelcomeEnterKbd.textContent = 'TAP / ENTER ↵';
       focusWelcomeStartButton();
       return;
     }
@@ -2407,7 +2686,7 @@ async function initApp() {
     }
     if (elWelcomeStartText) {
       elWelcomeStartText.textContent = pendingRaceStartAfterWarmup
-        ? 'STARTING TIME TRIAL...'
+        ? 'STARTING...'
         : 'PREPARING CIRCUIT...';
     }
     if (elWelcomeEnterKbd) {
@@ -2579,11 +2858,15 @@ async function initApp() {
       elWelcomeOverlay && !elWelcomeOverlay.classList.contains('hidden');
     const isFinishOpen =
       elFinishOverlay && !elFinishOverlay.classList.contains('hidden');
+    const isBustedOpen =
+      elBustedOverlay && !elBustedOverlay.classList.contains('hidden');
     const isSettingsOpen =
       elSettingsModal && !elSettingsModal.classList.contains('hidden');
     const isMpOpen =
       elMpModal && !elMpModal.classList.contains('hidden');
-    const shouldHide = Boolean(isWelcomeOpen || isFinishOpen || isSettingsOpen || isMpOpen);
+    const shouldHide = Boolean(
+      isWelcomeOpen || isFinishOpen || isBustedOpen || isSettingsOpen || isMpOpen
+    );
     elMobileTouchControls.classList.toggle('hidden', shouldHide);
     if (shouldHide) {
       releaseAllMobileTouchControls();
@@ -2685,6 +2968,8 @@ async function initApp() {
   const btnSettingsResume = document.getElementById('btn-settings-resume');
   const btnSettingsModeTrack = document.getElementById('btn-settings-mode-track');
   const btnSettingsModeHouse = document.getElementById('btn-settings-mode-house');
+  const btnSettingsModePolice = document.getElementById('btn-settings-mode-police');
+  const btnSettingsMainMenu = document.getElementById('btn-settings-main-menu');
   const btnSettingsOpenMp = document.getElementById('btn-settings-open-mp');
   const btnSettingsResetCar = document.getElementById('btn-settings-reset-car');
   const gfxPresetBtns = document.querySelectorAll('.gfx-preset-card');
@@ -2778,15 +3063,35 @@ async function initApp() {
   if (btnSettingsModeHouse) {
     btnSettingsModeHouse.addEventListener('click', (e) => {
       e.stopPropagation();
-      setActiveGameMode('house');
+      setActiveGameMode('freeroam');
       closeSettingsModal();
       hideWelcomeDialog();
+    });
+  }
+  if (btnSettingsModePolice) {
+    btnSettingsModePolice.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveGameMode('police');
+      closeSettingsModal();
+      hideWelcomeDialog();
+    });
+  }
+  if (btnSettingsMainMenu) {
+    btnSettingsMainMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeSettingsModal();
+      hideBustedGameOver();
+      showWelcomeDialog();
     });
   }
   if (btnSettingsResetCar) {
     btnSettingsResetCar.addEventListener('click', (e) => {
       e.stopPropagation();
+      hideBustedGameOver();
       physics.resetToStart();
+      if (selectedPlayMode === 'police') {
+        policeManager.resetRound();
+      }
       closeSettingsModal();
     });
   }
@@ -3066,8 +3371,10 @@ async function initApp() {
       updateWelcomeWarmupUI();
     }
     pendingRaceStartAfterWarmup = false;
+    setActiveGameMode(selectedPlayMode);
     hideWelcomeDialog();
     hideFinishOverlay();
+    hideBustedGameOver();
     hideLapSplit();
     startF1StartCountdown();
   }
@@ -3234,14 +3541,48 @@ async function initApp() {
       }
     }
 
+    // Update AI Police Chase / Hide & Seek Top-Center Status Banner
+    if (selectedPlayMode === 'police' && policeManager && elHudPoliceBanner) {
+      const pSt = policeManager.state;
+      if (elPoliceTimerText) {
+        elPoliceTimerText.textContent = formatPoliceSurvivalTime(pSt.survivalTime);
+      }
+      if (elPoliceStatusBadge) {
+        elPoliceStatusBadge.textContent =
+          pSt.chasingCopsCount > 0
+            ? `🚨 ${pSt.chasingCopsCount} COPS PURSUING!`
+            : '🚓 4 COPS PATROLLING';
+        elPoliceStatusBadge.classList.toggle('is-chasing', pSt.chasingCopsCount > 0);
+      }
+      if (elPoliceStealthText) {
+        if (pSt.playerHidden) {
+          elPoliceStealthText.textContent = `HIDDEN UNDER ${pSt.hiddenLabel || 'FURNITURE'} ✓`;
+          elPoliceStealthText.classList.add('is-hidden-safe');
+          elPoliceStealthText.classList.remove('is-danger');
+        } else if (pSt.chasingCopsCount > 0) {
+          elPoliceStealthText.textContent = 'SPOTTED! HIDE UNDER FURNITURE!';
+          elPoliceStealthText.classList.add('is-danger');
+          elPoliceStealthText.classList.remove('is-hidden-safe');
+        } else {
+          elPoliceStealthText.textContent = 'AVOID RED VISION CONES';
+          elPoliceStealthText.classList.remove('is-hidden-safe', 'is-danger');
+        }
+      }
+    }
+
     drawMinimapRadar(st);
   }
 
   // -------------------------------------------------------------------------
-  // URL QUERY PARAMETERS (?mode=house|track, ?cam=1..4/6, ?sector=1..6, ?s=..., ?finish=1)
+  // URL QUERY PARAMETERS (?mode=house|track|police, ?cam=1..4/6, ?sector=1..6, ?s=..., ?finish=1)
   // -------------------------------------------------------------------------
-  if (urlParams.get('mode') === 'house') {
-    setActiveGameMode('house');
+  const urlModeParam = urlParams.get('mode');
+  if (urlModeParam === 'police') {
+    setActiveGameMode('police');
+  } else if (urlModeParam === 'track' || urlParams.has('sector') || urlParams.has('s') || urlParams.get('finish') === '1' || urlParams.has('f1step') || urlParams.get('sparks') === '1') {
+    setActiveGameMode('track');
+  } else {
+    setActiveGameMode('freeroam');
   }
   if (urlParams.has('sector')) {
     const requestedSector = parseInt(urlParams.get('sector'), 10);
@@ -3332,11 +3673,11 @@ async function initApp() {
   let screenshotFrameCounter = 0;
 
   // -------------------------------------------------------------------------
-  // 7. 16:9 AUTO-LANDSCAPE RESIZE & 60FPS DELTA-TIME ANIMATION LOOP
+  // 7. TRUE EDGE-TO-EDGE FULLSCREEN RESIZE & 60FPS DELTA-TIME ANIMATION LOOP
   // -------------------------------------------------------------------------
   function handleStageResize() {
     const dims = getStageDimensions();
-    camera.aspect = 16 / 9;
+    camera.aspect = dims.width / Math.max(1, dims.height);
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(targetPixelRatio);
     renderer.setSize(dims.width, dims.height);
@@ -3377,6 +3718,16 @@ async function initApp() {
     // 2B. Step Friends-Only Multiplayer (60ms compact [x,y,z,rotY] broadcast + 60 FPS lerp + Chor-Police)
     if (multiplayer) {
       multiplayer.update(dt, st, activeGameMode);
+    }
+
+    // 2C. Step AI Police Interceptors & Vision Cone Stealth Detection in Police Mode
+    if (selectedPlayMode === 'police' && policeManager) {
+      const isMenuPaused =
+        (elWelcomeOverlay && !elWelcomeOverlay.classList.contains('hidden')) ||
+        (elSettingsModal && !elSettingsModal.classList.contains('hidden'));
+      if (!isMenuPaused) {
+        policeManager.update(dt, st);
+      }
     }
 
     // 3. Update Atmosphere & Under-Track LEDs

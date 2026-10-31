@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0c10" />
+    <meta name="theme-color" content="#000000" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -20,9 +20,8 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <!-- Instant Auto-Landscape 16:9 Orientation Wrapper (Rotates 90deg automatically if phone is held vertically) -->
+    <!-- Edge-to-Edge 100vw x 100dvh Fullscreen Landscape Game Container (Zero Side Bars) -->
     <div id="game-container" class="game-container">
-      <!-- 16:9 Widescreen Landscape Game Stage -->
       <div id="widescreen-stage" class="widescreen-stage">
         <!-- 3D WebGL Canvas Mount -->
         <div id="canvas-container"></div>
@@ -32,7 +31,7 @@
           <div class="visor-vignette"></div>
         </div>
 
-        <!-- Seeker 20-Second Blindfold Countdown Overlay (Chor-Police Hide & Seek Mode) -->
+        <!-- Seeker 20-Second Blindfold Countdown Overlay (Friends Multiplayer Chor-Police Mode) -->
         <div id="hideseek-blindfold-overlay" class="hideseek-blindfold-overlay hidden">
           <div class="blindfold-glass-card water-glass-card">
             <div class="blindfold-badge">CHOR-POLICE · SEEKER BLINDFOLD</div>
@@ -45,37 +44,77 @@
           </div>
         </div>
 
-        <!-- Subtle Corner Vignette Behind HUD Elements -->
-        <div id="hud-corner-vignette"></div>
+        <!-- BUSTED / YOU ARE OUT! Game-Over Screen (Police Hide & Seek Mode) -->
+        <div id="busted-gameover-overlay" class="busted-gameover-overlay hidden" role="dialog" aria-labelledby="busted-title">
+          <div class="busted-siren-flash-left"></div>
+          <div class="busted-siren-flash-right"></div>
+          <div class="busted-dialog-card water-glass-modal">
+            <div class="busted-siren-pill">🚨 POLICE INTERCEPTOR UNIT</div>
+            <h2 id="busted-title" class="busted-title">BUSTED!</h2>
+            <div id="busted-subtitle" class="busted-subtitle">YOU ARE OUT — SPOTTED IN POLICE VISION CONE</div>
 
-        <!-- Streamlined Water-Glass HUD Overlay -->
-        <div id="hud-root">
-          <!-- Top Bar: Sleek Room Label + Architectural 2D Mini-Map (Top-Left) | Chor-Police Banner (Center) | Lap + Friends MP + Camera + Settings + Mute (Top-Right) -->
-          <header class="hud-top-bar">
-            <!-- Top-Left: ONLY Sleek Room Location Pill + High-Clarity 2D Architectural Mini-Map -->
-            <div class="hud-top-left-stack">
-              <div id="hud-house-room-banner" class="hud-room-sleek-pill water-glass-pill">
-                <span class="room-dot-indicator"></span>
-                <span id="hud-house-room-name" class="room-banner-name">12 • CENTRAL HALL</span>
+            <div class="busted-stats-grid">
+              <div class="busted-stat-box water-glass-subcard">
+                <span class="busted-stat-label">SURVIVAL TIME</span>
+                <span id="busted-stat-time" class="busted-stat-val">00:00.0</span>
               </div>
-
-              <!-- Top-Left 2D Architectural Mini-Map -->
-              <div id="hud-minimap-widget" class="hud-minimap-widget water-glass-panel" title="Live 2D Architectural Floorplan &amp; Radar">
-                <canvas id="minimap-canvas" width="640" height="420"></canvas>
+              <div class="busted-stat-box water-glass-subcard">
+                <span class="busted-stat-label">CLOSE CALLS</span>
+                <span id="busted-stat-escapes" class="busted-stat-val">0</span>
+              </div>
+              <div class="busted-stat-box water-glass-subcard">
+                <span class="busted-stat-label">FINAL SCORE</span>
+                <span id="busted-stat-score" class="busted-stat-val busted-score-gold">0</span>
               </div>
             </div>
 
-            <!-- Top-Center: Chor-Police (Hide & Seek) / Multiplayer Live Status Banner -->
+            <div class="busted-actions-row">
+              <button id="btn-busted-retry" type="button" class="welcome-start-btn water-glass-cta busted-action-btn">
+                <span class="welcome-start-text">RETRY EVASION</span>
+              </button>
+              <button id="btn-busted-menu" type="button" class="busted-secondary-btn water-glass-btn">
+                MAIN MENU
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subtle Corner Vignette Behind HUD Elements -->
+        <div id="hud-corner-vignette"></div>
+
+        <!-- Minimal Pro-Gaming HUD Overlay (Pushed Cleanly to Screen Corners) -->
+        <div id="hud-root">
+          <!-- Top Bar: Sleek Radar Mini-Map + Tiny Room Badge (Top-Left) | Police / Mode Status (Center) | Compact Icon-Only Pills (Top-Right) -->
+          <header class="hud-top-bar">
+            <!-- Top-Left: Rounded Radar Mini-Map + Tiny Room Badge Underneath -->
+            <div class="hud-top-left-stack">
+              <div id="hud-minimap-widget" class="hud-minimap-widget water-glass-panel" title="Live Radar &amp; Room Floorplan">
+                <canvas id="minimap-canvas" width="520" height="360"></canvas>
+              </div>
+              <div id="hud-house-room-banner" class="hud-room-sleek-pill water-glass-pill">
+                <span id="hud-room-dot" class="room-dot-indicator"></span>
+                <span id="hud-house-room-name" class="room-banner-name">12 · CENTRAL HALL</span>
+              </div>
+            </div>
+
+            <!-- Top-Center: Police Hide & Seek Live Status Pill (Survival Time + Hidden Under Furniture Indicator) -->
+            <div id="hud-police-banner" class="hud-police-banner water-glass-pill hidden">
+              <span id="police-status-badge" class="police-status-badge">🚨 EVADE POLICE</span>
+              <span id="police-timer-text" class="police-timer-text">00:00.0</span>
+              <span id="police-stealth-text" class="police-stealth-text">HIDE UNDER FURNITURE</span>
+            </div>
+
+            <!-- Top-Center: Friends Multiplayer Chor-Police Live Status Banner -->
             <div id="hud-hideseek-banner" class="hud-hideseek-banner water-glass-pill hidden">
               <span id="hideseek-role-badge" class="hideseek-role-badge">SEEKER</span>
               <span id="hideseek-timer-text" class="hideseek-timer-text">02:00</span>
               <span id="hideseek-info-text" class="hideseek-info-text">FIND ALL HIDERS</span>
             </div>
 
-            <!-- Top-Right: Lap Timer (Track Mode) + Multiplayer + Camera + Settings (⚙️) + Sound Mute -->
+            <!-- Top-Right: Compact Icon-Only Pill Buttons (Lap Timer + Friends + Camera 🎥 + Pause/Settings ⚙️ + Audio Mute 🔊) -->
             <div class="hud-settings-anchor">
               <div class="hud-top-right-row">
-                <!-- Top-Right Lap Counter & Lap Timer (Visible in Mode 1: Neon Track Racing) -->
+                <!-- Compact Lap Counter & Timer (Shown only in Track Race Mode) -->
                 <div id="hud-lap-widget" class="hud-lap-widget water-glass-pill">
                   <div id="hud-lap-header" class="hud-lap-header">
                     LAP <span id="hud-lap-curr" class="hud-lap-curr">1</span>/3
@@ -84,51 +123,44 @@
                   <div id="hud-lap-split" class="hud-lap-split hidden"></div>
                 </div>
 
-                <!-- Top-Right Friends Multiplayer Button -->
+                <!-- Icon-Only Camera Switch Button (🎥) with Compact Angle Badge -->
+                <button
+                  id="btn-switch-camera"
+                  class="hud-icon-btn water-glass-btn hud-cam-icon-btn"
+                  type="button"
+                  aria-label="Switch Camera View (C)"
+                  title="Switch Camera Angle (C)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M23 7l-7 5 7 5V7z"></path>
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                  </svg>
+                  <span id="hud-camera-label" class="hud-cam-mini-badge">1</span>
+                </button>
+
+                <!-- Icon-Only Friends Multiplayer Button -->
                 <button
                   id="btn-open-multiplayer"
-                  class="hud-action-btn water-glass-btn hud-mp-btn"
+                  class="hud-icon-btn water-glass-btn"
                   type="button"
-                  aria-label="Friends Multiplayer Room"
-                  title="Friends-Only Multiplayer (Room Code)"
+                  aria-label="Friends Multiplayer Lobby"
+                  title="Friends Multiplayer (Room Code)"
                 >
-                  <svg class="hud-btn-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                     <circle cx="9" cy="7" r="4"></circle>
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                     <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                   </svg>
-                  <span class="hud-camera-btn-stack">
-                    <span class="hud-camera-btn-title">FRIENDS</span>
-                    <span id="hud-mp-status-label" class="hud-camera-btn-sub">ROOM CODE</span>
-                  </span>
                 </button>
 
-                <!-- Top-Right In-Game Camera Angle Switcher Button (Cycles 4 Angles) -->
-                <button
-                  id="btn-switch-camera"
-                  class="hud-action-btn water-glass-btn hud-camera-btn"
-                  type="button"
-                  aria-label="Switch Camera View (C)"
-                  title="Cycle Camera Angle (C)"
-                >
-                  <svg class="hud-btn-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M23 7l-7 5 7 5V7z"></path>
-                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                  </svg>
-                  <span class="hud-camera-btn-stack">
-                    <span class="hud-camera-btn-title">CAMERA</span>
-                    <span id="hud-camera-label" class="hud-camera-btn-sub">CLOSE CHASE</span>
-                  </span>
-                </button>
-
-                <!-- Top-Right Water-Glass Settings (⚙️) Button -->
+                <!-- Icon-Only Pause / Menu / Settings Button (⚙️) -->
                 <button
                   id="btn-open-settings"
                   class="hud-icon-btn water-glass-btn"
                   type="button"
-                  aria-label="Graphics &amp; Game Settings"
-                  title="Graphics Quality &amp; Game Settings"
+                  aria-label="Pause &amp; Game Menu"
+                  title="Pause &amp; Game Menu"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <circle cx="12" cy="12" r="3"></circle>
@@ -136,7 +168,7 @@
                   </svg>
                 </button>
 
-                <!-- Top-Right Mute / Unmute Sound Icon Button -->
+                <!-- Icon-Only Audio Mute Button (🔊) -->
                 <button
                   id="btn-mute-sound"
                   class="hud-icon-btn hud-mute-btn water-glass-btn is-muted"
@@ -144,13 +176,11 @@
                   aria-label="Toggle Sound (M)"
                   title="Toggle Sound (M)"
                 >
-                  <!-- Speaker Unmuted Icon -->
                   <svg id="icon-sound-on" class="mute-svg hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                     <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
                     <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
                   </svg>
-                  <!-- Speaker Muted Icon -->
                   <svg id="icon-sound-off" class="mute-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                     <line x1="23" y1="9" x2="17" y2="15"></line>
@@ -161,105 +191,160 @@
             </div>
           </header>
 
-          <!-- Welcome & Game Mode Dialog (Shown on Launch) -->
+          <!-- Sleek Modern AAA Racing Start Menu Screen -->
           <div id="welcome-dialog-overlay" class="welcome-dialog-overlay">
             <div class="welcome-dialog-card water-glass-modal" role="dialog" aria-labelledby="welcome-title">
-              <div id="welcome-eyebrow-text" class="welcome-eyebrow">16:9 AUTO-LANDSCAPE · WATER-GLASS EDITION</div>
-              <h1 id="welcome-title" class="welcome-title">DESK RACER</h1>
+              <!-- Header Bar -->
+              <div class="start-menu-header">
+                <div class="start-brand-group">
+                  <span class="welcome-eyebrow">MICRO-SCALE 3D RACING &amp; STEALTH SANDBOX</span>
+                  <h1 id="welcome-title" class="welcome-title">DESK RACER</h1>
+                </div>
+                <!-- Map / Lighting Theme Selector Pills -->
+                <div class="start-theme-selector" role="group" aria-label="Select Lighting Theme">
+                  <span class="start-theme-label">ATMOSPHERE</span>
+                  <div class="start-theme-pills">
+                    <button type="button" class="theme-pill-btn active" data-theme="sunset">🌅 Warm Neon</button>
+                    <button type="button" class="theme-pill-btn" data-theme="cyber">🌌 Cyber Night</button>
+                    <button type="button" class="theme-pill-btn" data-theme="daylight">☀️ Daylight</button>
+                  </div>
+                </div>
+              </div>
 
-              <!-- Sleek 3-Card Mode & Friends Multiplayer Selector on Start Screen -->
+              <!-- 3 Visual Mode Cards: Free Roam, Track Race, Police Hide & Seek -->
               <div class="welcome-mode-selector welcome-mode-selector-3" role="group" aria-label="Select Game Mode">
-                <button
-                  id="btn-mode-track"
-                  class="mode-select-card water-glass-subcard active"
-                  type="button"
-                  data-mode="track"
-                >
-                  <span class="mode-select-kicker">MODE 1</span>
-                  <span class="mode-select-title">NEON TRACK RACING</span>
-                  <span class="mode-select-desc">3-Lap Banked Desk Coaster Time Trial</span>
-                </button>
+                <!-- Card 1: Free Roam (14-Room Giant House) -->
                 <button
                   id="btn-mode-house"
                   class="mode-select-card water-glass-subcard"
                   type="button"
-                  data-mode="house"
+                  data-gamemode="freeroam"
                 >
-                  <span class="mode-select-kicker">MODE 2</span>
-                  <span class="mode-select-title">GIANT HOUSE (14 ROOMS)</span>
-                  <span class="mode-select-desc">Photorealistic Rooms, Ramps &amp; Free Roam</span>
+                  <div class="mode-preview-banner preview-freeroam">
+                    <svg class="mode-preview-svg" viewBox="0 0 220 74" fill="none">
+                      <rect x="6" y="8" width="62" height="58" rx="4" stroke="rgba(0,229,255,0.55)" stroke-width="1.8" fill="rgba(0,229,255,0.08)" />
+                      <rect x="76" y="8" width="68" height="58" rx="4" stroke="rgba(255,170,68,0.65)" stroke-width="1.8" fill="rgba(255,170,68,0.10)" />
+                      <rect x="152" y="8" width="62" height="58" rx="4" stroke="rgba(179,136,255,0.55)" stroke-width="1.8" fill="rgba(179,136,255,0.08)" />
+                      <path d="M45 46 L95 26 L132 26 L178 46" stroke="#00e5ff" stroke-width="3" stroke-linecap="round" stroke-dasharray="5 4" />
+                      <circle cx="178" cy="46" r="5" fill="#00e5ff" />
+                    </svg>
+                    <span class="mode-tag-badge">14 ROOMS · OPEN WORLD</span>
+                  </div>
+                  <div class="mode-card-body">
+                    <span class="mode-select-title">FREE ROAM HOUSE</span>
+                    <span class="mode-select-desc">Explore 14 photorealistic rooms, stunt ramps, pool bridges &amp; furniture</span>
+                  </div>
                 </button>
+
+                <!-- Card 2: Neon Track Race (3-Lap Desk Coaster) -->
                 <button
-                  id="btn-open-mp-welcome"
-                  class="mode-select-card water-glass-subcard mode-select-mp"
+                  id="btn-mode-track"
+                  class="mode-select-card water-glass-subcard active"
                   type="button"
+                  data-gamemode="track"
                 >
-                  <span class="mode-select-kicker">2–6 PLAYERS P2P</span>
-                  <span class="mode-select-title">MULTIPLAYER (FRIENDS)</span>
-                  <span class="mode-select-desc">4-Digit Room Code · Chor-Police Hide &amp; Seek</span>
+                  <div class="mode-preview-banner preview-track">
+                    <svg class="mode-preview-svg" viewBox="0 0 220 74" fill="none">
+                      <path d="M22 52 C42 14, 98 14, 114 38 C130 62, 178 58, 198 22" stroke="rgba(255,140,40,0.35)" stroke-width="11" stroke-linecap="round" />
+                      <path d="M22 52 C42 14, 98 14, 114 38 C130 62, 178 58, 198 22" stroke="#00e5ff" stroke-width="3.2" stroke-linecap="round" />
+                      <circle cx="114" cy="38" r="5.5" fill="#ffd27d" />
+                    </svg>
+                    <span class="mode-tag-badge">3 LAPS · DESK CIRCUIT</span>
+                  </div>
+                  <div class="mode-card-body">
+                    <span class="mode-select-title">NEON TRACK RACE</span>
+                    <span class="mode-select-desc">High-speed banked coaster racing across the RGB gaming desk</span>
+                  </div>
+                </button>
+
+                <!-- Card 3: Police Hide & Seek (AI Interceptors + Red Vision Cones) -->
+                <button
+                  id="btn-mode-police"
+                  class="mode-select-card water-glass-subcard"
+                  type="button"
+                  data-gamemode="police"
+                >
+                  <div class="mode-preview-banner preview-police">
+                    <svg class="mode-preview-svg" viewBox="0 0 220 74" fill="none">
+                      <polygon points="56,38 148,12 148,64" fill="rgba(255,35,45,0.32)" stroke="rgba(255,60,60,0.85)" stroke-width="1.5" />
+                      <circle cx="52" cy="38" r="6" fill="#ff2a38" />
+                      <circle cx="52" cy="38" r="11" stroke="#0088ff" stroke-width="2" stroke-dasharray="4 3" />
+                      <rect x="156" y="22" width="44" height="30" rx="5" stroke="#00e676" stroke-width="1.8" fill="rgba(0,230,118,0.14)" />
+                      <circle cx="178" cy="37" r="4.5" fill="#00e676" />
+                    </svg>
+                    <span class="mode-tag-badge mode-tag-police">🚨 AI SIRENS &amp; VISION CONES</span>
+                  </div>
+                  <div class="mode-card-body">
+                    <span class="mode-select-title">POLICE HIDE &amp; SEEK</span>
+                    <span class="mode-select-desc">Dodge Police vision cones &amp; hide under beds, sofas, tables &amp; desks!</span>
+                  </div>
                 </button>
               </div>
 
-              <div class="welcome-controls-grid">
-                <!-- WASD / Touch Controls -->
-                <div class="welcome-control-block water-glass-subcard">
-                  <div class="welcome-control-label">CONTROLS</div>
-                  <div class="control-keys-list" aria-label="WASD Controls">
-                    <div class="control-key-row">
-                      <div class="control-kbd-pair">
-                        <kbd class="welcome-key">W</kbd>
-                      </div>
-                      <span>ACCELERATE</span>
-                    </div>
-                    <div class="control-key-row">
-                      <div class="control-kbd-pair">
-                        <kbd class="welcome-key">A</kbd>
-                        <kbd class="welcome-key">D</kbd>
-                      </div>
-                      <span>STEER LEFT / RIGHT</span>
-                    </div>
-                    <div class="control-key-row">
-                      <div class="control-kbd-pair">
-                        <kbd class="welcome-key">S</kbd>
-                      </div>
-                      <span>BRAKE / REVERSE</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 4 Camera Angles -->
-                <div class="welcome-control-block water-glass-subcard">
-                  <div class="welcome-control-label">4 CAMERA ANGLES</div>
-                  <div class="cam-keys-list">
-                    <div class="cam-key-row cam-pill active" data-cam="1"><kbd class="welcome-key welcome-key-cyan">1</kbd><span>CLOSE CHASE CAM</span></div>
-                    <div class="cam-key-row cam-pill" data-cam="2"><kbd class="welcome-key welcome-key-cyan">2</kbd><span>FAR CHASE CAM</span></div>
-                    <div class="cam-key-row cam-pill" data-cam="3"><kbd class="welcome-key welcome-key-cyan">3</kbd><span>HOOD / COCKPIT</span></div>
-                    <div class="cam-key-row cam-pill" data-cam="4"><kbd class="welcome-key welcome-key-cyan">4</kbd><span>TOP-DOWN HELI</span></div>
-                  </div>
-                </div>
-              </div>
-
+              <!-- Footer Action Bar: Play CTA + Friends Multiplayer Room Code + Quick Camera Select -->
               <div class="welcome-footer-row">
                 <button id="btn-welcome-start" class="welcome-start-btn water-glass-cta" type="button">
-                  <span id="welcome-start-text" class="welcome-start-text">START TIME TRIAL</span>
-                  <kbd id="welcome-enter-kbd" class="welcome-enter-kbd">ENTER ↵</kbd>
+                  <span id="welcome-start-text" class="welcome-start-text">PLAY TRACK RACE</span>
+                  <kbd id="welcome-enter-kbd" class="welcome-enter-kbd">PLAY ▶</kbd>
                   <span class="welcome-btn-progress-track" aria-hidden="true">
                     <span id="welcome-btn-progress-fill" class="welcome-btn-progress-fill"></span>
                   </span>
+                </button>
+
+                <button id="btn-open-mp-welcome" type="button" class="start-mp-secondary-btn water-glass-btn">
+                  👥 FRIENDS ROOM CODE (2–6P)
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- Water-Glass Settings Modal (⚙️ Graphics Quality Selector + Quick Mode & Camera Controls) -->
+          <!-- Pause / Settings & Graphics Modal (⚙️) -->
           <div id="water-glass-settings-modal" class="welcome-dialog-overlay hidden" role="dialog" aria-labelledby="settings-modal-title">
             <div class="welcome-dialog-card water-glass-modal settings-modal-card">
               <div class="modal-top-bar">
                 <div>
-                  <div class="welcome-eyebrow">LIQUID GLASS CONFIGURATION</div>
-                  <h2 id="settings-modal-title" class="modal-heading">SETTINGS &amp; GRAPHICS</h2>
+                  <div class="welcome-eyebrow">PAUSE &amp; CONFIGURATION</div>
+                  <h2 id="settings-modal-title" class="modal-heading">GAME MENU &amp; GRAPHICS</h2>
                 </div>
                 <button id="btn-close-settings" class="modal-close-btn water-glass-btn" type="button" aria-label="Close Settings">✕</button>
+              </div>
+
+              <!-- Quick Game Mode Switcher -->
+              <div class="settings-section">
+                <div class="settings-section-title">SWITCH GAME MODE</div>
+                <div class="settings-quick-row">
+                  <button id="btn-settings-mode-house" type="button" class="settings-pill-btn water-glass-btn">
+                    🏠 FREE ROAM HOUSE
+                  </button>
+                  <button id="btn-settings-mode-track" type="button" class="settings-pill-btn water-glass-btn">
+                    🏎️ NEON TRACK RACE
+                  </button>
+                  <button id="btn-settings-mode-police" type="button" class="settings-pill-btn water-glass-btn">
+                    🚨 POLICE HIDE &amp; SEEK
+                  </button>
+                  <button id="btn-settings-open-mp" type="button" class="settings-pill-btn water-glass-btn">
+                    👥 FRIENDS LOBBY
+                  </button>
+                </div>
+              </div>
+
+              <!-- Lighting / Map Theme Selector inside Settings -->
+              <div class="settings-section">
+                <div class="settings-section-title">MAP LIGHTING THEME</div>
+                <div class="settings-quick-row">
+                  <button type="button" class="settings-pill-btn water-glass-btn theme-pill-btn active" data-theme="sunset">
+                    🌅 WARM NEON
+                  </button>
+                  <button type="button" class="settings-pill-btn water-glass-btn theme-pill-btn" data-theme="cyber">
+                    🌌 CYBER NIGHT
+                  </button>
+                  <button type="button" class="settings-pill-btn water-glass-btn theme-pill-btn" data-theme="daylight">
+                    ☀️ DAYLIGHT STUDIO
+                  </button>
+                  <button id="btn-settings-reset-car" type="button" class="settings-pill-btn water-glass-btn">
+                    🔄 RESPAWN CAR
+                  </button>
+                </div>
               </div>
 
               <!-- Graphics Quality Selector (Low, Medium, High, Ultra) -->
@@ -268,42 +353,23 @@
                 <div class="gfx-preset-grid" role="radiogroup" aria-label="Graphics Quality">
                   <button type="button" class="gfx-preset-card water-glass-subcard" data-gfx="low">
                     <span class="gfx-preset-badge">LOW</span>
-                    <span class="gfx-preset-name">Max Battery / FPS</span>
-                    <span class="gfx-preset-desc">0.75x Res · Fast Shaders · 60 FPS Locked</span>
+                    <span class="gfx-preset-name">Max FPS</span>
+                    <span class="gfx-preset-desc">0.75x Res · 60 FPS</span>
                   </button>
                   <button type="button" class="gfx-preset-card water-glass-subcard active" data-gfx="medium">
                     <span class="gfx-preset-badge">MEDIUM</span>
                     <span class="gfx-preset-name">Balanced</span>
-                    <span class="gfx-preset-desc">1.0x Native · PBR Materials · Smooth Mobile</span>
+                    <span class="gfx-preset-desc">1.0x Native · Smooth</span>
                   </button>
                   <button type="button" class="gfx-preset-card water-glass-subcard" data-gfx="high">
                     <span class="gfx-preset-badge">HIGH</span>
-                    <span class="gfx-preset-name">HD Shadows &amp; Reflections</span>
-                    <span class="gfx-preset-desc">1.35x Res · Soft Shadows · Env Reflections</span>
+                    <span class="gfx-preset-name">HD Reflections</span>
+                    <span class="gfx-preset-desc">1.35x Res · Rich PBR</span>
                   </button>
                   <button type="button" class="gfx-preset-card water-glass-subcard" data-gfx="ultra">
                     <span class="gfx-preset-badge">ULTRA</span>
-                    <span class="gfx-preset-name">Max Resolution 2x + Bloom</span>
-                    <span class="gfx-preset-desc">pixelRatio: 2 · Dynamic Bloom &amp; Full PBR</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Quick Game Mode & Camera Switcher inside Settings -->
-              <div class="settings-section">
-                <div class="settings-section-title">GAME MODE &amp; QUICK ACTIONS</div>
-                <div class="settings-quick-row">
-                  <button id="btn-settings-mode-track" type="button" class="settings-pill-btn water-glass-btn">
-                    🏎️ NEON TRACK RACING
-                  </button>
-                  <button id="btn-settings-mode-house" type="button" class="settings-pill-btn water-glass-btn">
-                    🏠 GIANT HOUSE (14 ROOMS)
-                  </button>
-                  <button id="btn-settings-open-mp" type="button" class="settings-pill-btn water-glass-btn">
-                    👥 FRIENDS MULTIPLAYER
-                  </button>
-                  <button id="btn-settings-reset-car" type="button" class="settings-pill-btn water-glass-btn">
-                    🔄 RESET CAR POSITION
+                    <span class="gfx-preset-name">2x + Bloom</span>
+                    <span class="gfx-preset-desc">pixelRatio 2 · Bloom</span>
                   </button>
                 </div>
               </div>
@@ -311,6 +377,9 @@
               <div class="settings-footer-row">
                 <button id="btn-settings-resume" type="button" class="welcome-start-btn water-glass-cta settings-resume-btn">
                   <span class="welcome-start-text">RESUME DRIVING</span>
+                </button>
+                <button id="btn-settings-main-menu" type="button" class="busted-secondary-btn water-glass-btn">
+                  MAIN MENU
                 </button>
               </div>
             </div>
@@ -327,7 +396,6 @@
                 <button id="btn-close-multiplayer" class="modal-close-btn water-glass-btn" type="button" aria-label="Close Multiplayer">✕</button>
               </div>
 
-              <!-- Player Name Row -->
               <div class="mp-name-bar water-glass-subcard">
                 <label for="mp-player-name-input" class="mp-field-label">YOUR RACER NAME</label>
                 <input
@@ -341,9 +409,7 @@
                 <span id="mp-feedback-msg" class="mp-feedback-msg">Ready to Host or Join via 4-Digit Code</span>
               </div>
 
-              <!-- Setup View (Shown when not yet connected to a room) -->
               <div id="mp-setup-view" class="mp-setup-grid">
-                <!-- Left Column: Host a Room -->
                 <div class="mp-column-card water-glass-subcard">
                   <div class="mp-col-kicker">HOST NEW LOBBY</div>
                   <h3 class="mp-col-title">CREATE ROOM CODE</h3>
@@ -382,7 +448,6 @@
                   </button>
                 </div>
 
-                <!-- Right Column: Join Friend's Room -->
                 <div class="mp-column-card water-glass-subcard">
                   <div class="mp-col-kicker">HAVE A FRIEND'S CODE?</div>
                   <h3 class="mp-col-title">JOIN BY 4-DIGIT CODE</h3>
@@ -415,7 +480,6 @@
                 </div>
               </div>
 
-              <!-- Active Connected Room Lobby View -->
               <div id="mp-active-lobby-view" class="mp-active-lobby water-glass-subcard hidden">
                 <div class="mp-lobby-header">
                   <div class="mp-code-box">
@@ -445,9 +509,10 @@
             </div>
           </div>
 
-          <!-- Center Formula 1 Countdown Number (Triggered by pressing Enter at Start) -->
+          <!-- Center Formula 1 Countdown Number -->
           <div id="hud-f1-countdown" class="hud-f1-countdown hidden">5</div>
 
+          <!-- 3-Lap Finish Overlay -->
           <div id="hud-finish-overlay" class="welcome-dialog-overlay hud-finish-overlay hidden" role="dialog" aria-labelledby="hud-finish-title">
             <div class="welcome-dialog-card water-glass-modal finish-dialog-card">
               <div class="welcome-eyebrow">DESKTOP CIRCUIT · 3 LAPS COMPLETE</div>
@@ -457,21 +522,19 @@
               <div class="finish-actions-row">
                 <button id="btn-finish-race-again" class="welcome-start-btn water-glass-cta finish-action-btn" type="button">
                   <span class="welcome-start-text">RACE AGAIN</span>
-                  <kbd class="welcome-enter-kbd">ENTER ↵</kbd>
                 </button>
-                <button id="btn-finish-autopilot" class="welcome-start-btn water-glass-cta finish-action-btn finish-autopilot-btn" type="button">
-                  <span class="welcome-start-text">AUTO-PILOT</span>
-                  <kbd class="welcome-enter-kbd">P</kbd>
+                <button id="btn-finish-autopilot" class="busted-secondary-btn water-glass-btn" type="button">
+                  MAIN MENU
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- Bottom Row: Angled Segmented Speedometer HUD on Bottom-Right -->
+          <!-- Bottom Row: Compact Speedometer in Bottom Corner -->
           <footer class="hud-bottom-bar">
             <div class="hud-bottom-left-spacer"></div>
 
-            <!-- Bottom-Right: Sleek Water-Glass Speedometer + Italic KM/H & Speed Readout -->
+            <!-- Compact Water-Glass Speedometer -->
             <div class="hud-speedo-gauge water-glass-speedo">
               <svg id="speedo-gauge-svg" viewBox="0 0 284 134" class="speedo-svg">
                 <defs>
@@ -485,20 +548,14 @@
                     <feComposite in="SourceGraphic" in2="blur" operator="over" />
                   </filter>
                 </defs>
-
-                <!-- Outer frosted liquid-glass angled bar casing -->
                 <polygon
                   id="speedo-bar-casing"
                   points="15,108 62,34 268,6 276,22 73,50 28,118"
                   class="speedo-bar-casing"
                   stroke="url(#speedoFrameStrokeGrad)"
                 />
-
-                <!-- 18 angled parallelogram speed segments populated dynamically at startup -->
                 <g id="speedo-ticks-group"></g>
               </svg>
-
-              <!-- Italic KM/H label & Large Bold Italic Speed Readout tucked inside the angled bar -->
               <div class="speedo-readout-group">
                 <div class="speedo-unit-label">KM/H</div>
                 <div id="hud-scale-speed" class="speedo-digits">0</div>
@@ -506,7 +563,7 @@
             </div>
           </footer>
 
-          <!-- Ergonomic 16:9 Landscape Water-Glass Multi-Touch Controls (LEFT/RIGHT on Bottom-Left, ACCEL/BRAKE on Bottom-Right) -->
+          <!-- Ergonomic Semi-Transparent Glass Touch Pedals/Buttons (LEFT/RIGHT Bottom-Left, BRAKE/ACCEL Bottom-Right) -->
           <div
             id="mobile-touch-controls"
             class="mobile-touch-controls hidden"
@@ -521,12 +578,10 @@
                 type="button"
                 data-control="left"
                 aria-label="Steer Left (A)"
-                title="Steer Left (A)"
               >
                 <span class="mobile-ctrl-inner">
-                  <svg class="mobile-ctrl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="13 17 8 12 13 7"></polyline>
-                    <polyline points="18 17 13 12 18 7" opacity="0.45"></polyline>
+                  <svg class="mobile-ctrl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="15 18 9 12 15 6"></polyline>
                   </svg>
                   <span class="mobile-ctrl-label">LEFT</span>
                 </span>
@@ -538,19 +593,17 @@
                 type="button"
                 data-control="right"
                 aria-label="Steer Right (D)"
-                title="Steer Right (D)"
               >
                 <span class="mobile-ctrl-inner">
-                  <svg class="mobile-ctrl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="11 17 16 12 11 7"></polyline>
-                    <polyline points="6 17 11 12 6 7" opacity="0.45"></polyline>
+                  <svg class="mobile-ctrl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="9 18 15 12 9 6"></polyline>
                   </svg>
                   <span class="mobile-ctrl-label">RIGHT</span>
                 </span>
               </button>
             </div>
 
-            <!-- Bottom-Right: Brake (S) and Accelerate (W) Buttons -->
+            <!-- Bottom-Right: Brake (S) and Accelerate (W) Pedals -->
             <div class="mobile-ctrl-cluster mobile-pedal-cluster" role="group" aria-label="Accelerate and Brake Controls">
               <button
                 id="btn-touch-brake"
@@ -558,12 +611,11 @@
                 type="button"
                 data-control="backward"
                 aria-label="Brake (S)"
-                title="Brake (S)"
               >
                 <span class="mobile-ctrl-inner">
                   <svg class="mobile-ctrl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="7 8 12 13 17 8"></polyline>
-                    <line x1="7" y1="17" x2="17" y2="17"></line>
+                    <polyline points="7 9 12 14 17 9"></polyline>
+                    <line x1="7" y1="18" x2="17" y2="18"></line>
                   </svg>
                   <span class="mobile-ctrl-label">BRAKE</span>
                 </span>
@@ -575,12 +627,11 @@
                 type="button"
                 data-control="forward"
                 aria-label="Accelerate (W)"
-                title="Accelerate (W)"
               >
                 <span class="mobile-ctrl-inner">
-                  <svg class="mobile-ctrl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="17 13 12 8 7 13"></polyline>
-                    <polyline points="17 18 12 13 7 18" opacity="0.45"></polyline>
+                  <svg class="mobile-ctrl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="17 14 12 9 7 14"></polyline>
+                    <polyline points="17 19 12 14 7 19" opacity="0.5"></polyline>
                   </svg>
                   <span class="mobile-ctrl-label">ACCEL</span>
                 </span>

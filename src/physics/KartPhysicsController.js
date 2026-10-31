@@ -1158,9 +1158,9 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
 
   function setGameMode(mode) {
     const nextMode = mode === 'house' ? 'house' : 'track';
-    if (currentGameMode === nextMode) return currentGameMode;
     currentGameMode = nextMode;
     state.gameMode = currentGameMode;
+    state.bustedLocked = false;
     if (currentGameMode === 'house') {
       state.autopilot = false;
       resetHousePose();
@@ -1176,8 +1176,8 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
       state.railHitCooldown = Math.max(0.0, state.railHitCooldown - clampedDt);
     }
 
-    // If local player is a Seeker during the 20s Chor-Police blindfold head-start, lock movement
-    if (state.seekerBlindfolded) {
+    // If local player is a Seeker during the 20s Chor-Police blindfold head-start, or BUSTED by Police, lock movement
+    if (state.seekerBlindfolded || state.bustedLocked) {
       state.speed = 0.0;
       state.curbRumble = 0.0;
       return state;
@@ -1402,6 +1402,13 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
       state.seekerBlindfolded = Boolean(flag);
       if (state.seekerBlindfolded) {
         state.speed = 0.0;
+      }
+    },
+    setBustedLocked: (flag) => {
+      state.bustedLocked = Boolean(flag);
+      if (state.bustedLocked) {
+        state.speed = 0.0;
+        state.isDrifting = false;
       }
     },
     setAutopilot,

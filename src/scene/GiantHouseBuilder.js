@@ -2311,18 +2311,20 @@ export function buildGiantHouseWorld() {
       }
     }
 
-    // 2. Wall & Furniture AABB Colliders
-    for (let i = 0; i < colliders.length; i++) {
-      const box = colliders[i];
-      if (currentY > box.yMax - 0.01) continue;
+    // 2. Multi-pass Wall & Furniture AABB Colliders (2 passes prevent corner wedging/snagging)
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < colliders.length; i++) {
+        const box = colliders[i];
+        if (currentY > box.yMax - 0.01) continue;
 
-      const res = resolveSingleBox(cx, cz, prevX, prevZ, box.xMin, box.xMax, box.zMin, box.zMax, radius);
-      if (res) {
-        cx = res.x;
-        cz = res.z;
-        hit = true;
-        hitNx = res.nx;
-        hitNz = res.nz;
+        const res = resolveSingleBox(cx, cz, prevX, prevZ, box.xMin, box.xMax, box.zMin, box.zMax, radius);
+        if (res) {
+          cx = res.x;
+          cz = res.z;
+          hit = true;
+          hitNx = res.nx;
+          hitNz = res.nz;
+        }
       }
     }
 
@@ -2332,28 +2334,194 @@ export function buildGiantHouseWorld() {
     return { x: cx, z: cz, hit, nx: hitNx, nz: hitNz };
   }
 
+  // -------------------------------------------------------------------------
+  // 10. UNDER-FURNITURE STEALTH HIDING ZONES & LINE-OF-SIGHT WALL CHECKER
+  //     Allows players in Police / Hide & Seek Mode to hide under sofas,
+  //     beds, tables, desks, and car lifts where Police vision cones cannot see them!
+  // -------------------------------------------------------------------------
+  const hidingZones = [
+    {
+      id: 'sofa_living',
+      label: 'LIVING ROOM SOFA',
+      roomCode: '01',
+      xMin: -2.92,
+      xMax: -1.88,
+      zMin: -3.36,
+      zMax: -2.92,
+      maxY: 0.08,
+    },
+    {
+      id: 'table_living',
+      label: 'COFFEE TABLE',
+      roomCode: '01',
+      xMin: -2.66,
+      xMax: -2.14,
+      zMin: -2.52,
+      zMax: -2.18,
+      maxY: 0.08,
+    },
+    {
+      id: 'island_kitchen',
+      label: 'KITCHEN ISLAND ARCH',
+      roomCode: '02',
+      xMin: -0.30,
+      xMax: 0.30,
+      zMin: -2.58,
+      zMax: -2.12,
+      maxY: 0.08,
+    },
+    {
+      id: 'table_dining',
+      label: 'DINING BANQUET TABLE',
+      roomCode: '05',
+      xMin: 1.82,
+      xMax: 2.98,
+      zMin: -2.68,
+      zMax: -2.12,
+      maxY: 0.12,
+    },
+    {
+      id: 'bed_master',
+      label: 'MASTER KING BED',
+      roomCode: '03',
+      xMin: -3.12,
+      xMax: -2.12,
+      zMin: -0.46,
+      zMax: 0.46,
+      maxY: 0.08,
+    },
+    {
+      id: 'desk_gaming',
+      label: 'GAMING PC DESK',
+      roomCode: '04',
+      xMin: -2.68,
+      xMax: -1.76,
+      zMin: 2.88,
+      zMax: 3.36,
+      maxY: 0.12,
+    },
+    {
+      id: 'bridge_toy',
+      label: 'TOY TRAIN ARCH',
+      roomCode: '06',
+      xMin: -0.26,
+      xMax: 0.26,
+      zMin: 2.25,
+      zMax: 2.65,
+      maxY: 0.08,
+    },
+    {
+      id: 'desk_study',
+      label: 'LIBRARY STUDY DESK',
+      roomCode: '09',
+      xMin: -2.42,
+      xMax: -1.48,
+      zMin: 3.78,
+      zMax: 4.26,
+      maxY: 0.12,
+    },
+    {
+      id: 'lift_garage',
+      label: 'GARAGE CAR LIFT',
+      roomCode: '11',
+      xMin: 3.12,
+      xMax: 4.08,
+      zMin: 4.46,
+      zMax: 5.04,
+      maxY: 0.08,
+    },
+  ];
+
+  // Add subtle emerald stealth floor outlines under hiding furniture so players can spot hiding zones
+  const stealthMat = new THREE.MeshBasicMaterial({
+    color: 0x00e676,
+    transparent: true,
+    opacity: 0.14,
+    depthWrite: false,
+  });
+  for (const hz of hidingZones) {
+    const hw = hz.xMax - hz.xMin;
+    const hd = hz.zMax - hz.zMin;
+    const hcx = (hz.xMin + hz.xMax) * 0.5;
+    const hcz = (hz.zMin + hz.zMax) * 0.5;
+    const padMesh = new THREE.Mesh(new THREE.PlaneGeometry(hw, hd), stealthMat);
+    padMesh.rotation.x = -Math.PI / 2;
+    padMesh.position.set(hcx, 0.0022, hcz);
+    houseGroup.add(padMesh);
+  }
+
+  function isPointHiddenUnderFurniture(x, z, y = 0.0) {
+    for (let i = 0; i < hidingZones.length; i++) {
+      const hz = hidingZones[i];
+      if (
+        x >= hz.xMin &&
+        x <= hz.xMax &&
+        z >= hz.zMin &&
+        z <= hz.zMax &&
+        y <= (hz.maxY ?? 0.10)
+      ) {
+        return { hidden: true, zone: hz };
+      }
+    }
+    return { hidden: false, zone: null };
+  }
+
+  /**
+   * Checks whether two 2D points (x1, z1) and (x2, z2) have clear line-of-sight
+   * across interior partition walls (returns false if a solid wall blocks the ray).
+   */
+  function hasWallLineOfSight(x1, z1, x2, z2) {
+    for (let i = 0; i < doorways.length; i++) {
+      const dw = doorways[i];
+      if (dw.axis === 'x') {
+        const wz = dw.fixedCoord;
+        if ((z1 - wz) * (z2 - wz) < 0) {
+          const t = (wz - z1) / (z2 - z1);
+          const ix = x1 + t * (x2 - x1);
+          if (ix >= dw.startCoord && ix <= dw.endCoord) {
+            if (ix < dw.doorMin + 0.04 || ix > dw.doorMax - 0.04) {
+              return false;
+            }
+          }
+        }
+      } else {
+        const wx = dw.fixedCoord;
+        if ((x1 - wx) * (x2 - wx) < 0) {
+          const t = (wx - x1) / (x2 - x1);
+          const iz = z1 + t * (z2 - z1);
+          if (iz >= dw.startCoord && iz <= dw.endCoord) {
+            if (iz < dw.doorMin + 0.04 || iz > dw.doorMax - 0.04) {
+              return false;
+            }
+          }
+        }
+      }
+    }
+    return true;
+  }
+
   // Architectural 2D Floorplan Furniture Outlines for the Top-Left Mini-Map
   const furnitureOutlines = [
     // Room 01: Living Room
-    { x: -2.4, z: -3.15, w: 1.32, d: 0.52, label: 'SOFA', color: '#3b6cb7' },
-    { x: -2.4, z: -2.35, w: 0.66, d: 0.44, label: 'TABLE', color: '#8c5832' },
+    { x: -2.4, z: -3.15, w: 1.32, d: 0.52, label: 'SOFA', color: '#3b6cb7', canHide: true },
+    { x: -2.4, z: -2.35, w: 0.66, d: 0.44, label: 'TABLE', color: '#8c5832', canHide: true },
     { x: -3.40, z: -2.35, w: 0.24, d: 1.02, label: 'TV', color: '#00e5ff' },
     // Room 02: Kitchen
     { x: -0.35, z: -3.32, w: 1.48, d: 0.44, label: 'COUNTER', color: '#3a5f8f' },
     { x: 0.78, z: -3.30, w: 0.50, d: 0.48, label: 'FRIDGE', color: '#a8b8c8' },
-    { x: 0.0, z: -2.35, w: 0.96, d: 0.54, label: 'ISLAND', color: '#dce8f4' },
+    { x: 0.0, z: -2.35, w: 0.96, d: 0.54, label: 'ISLAND', color: '#dce8f4', canHide: true },
     // Room 05: Dining Hall
-    { x: 2.4, z: -2.4, w: 1.38, d: 0.74, label: 'DINING', color: '#7a4b2a' },
+    { x: 2.4, z: -2.4, w: 1.38, d: 0.74, label: 'DINING', color: '#7a4b2a', canHide: true },
     // Room 13: Indoor Pool
     { x: 4.8, z: -2.4, w: 1.44, d: 1.32, label: 'POOL', color: '#00c8ff', isPool: true },
     // Room 03: Master Bedroom
-    { x: -2.65, z: 0.0, w: 1.18, d: 1.00, label: 'KING BED', color: '#9c78db' },
+    { x: -2.65, z: 0.0, w: 1.18, d: 1.00, label: 'KING BED', color: '#9c78db', canHide: true },
     { x: -2.55, z: -0.95, w: 0.68, d: 0.30, label: 'CLOSET', color: '#6c4328' },
     // Room 04: Gaming / Arcade
-    { x: -2.4, z: 3.22, w: 1.12, d: 0.54, label: 'PC DESK', color: '#ff2a85' },
+    { x: -2.4, z: 3.22, w: 1.12, d: 0.54, label: 'PC DESK', color: '#ff2a85', canHide: true },
     { x: -3.35, z: 2.30, w: 0.30, d: 0.85, label: 'ARCADES', color: '#b388ff' },
     // Room 06: Toy Room
-    { x: 0.0, z: 2.4, w: 1.25, d: 0.95, label: 'TOY TRACK', color: '#ffca28' },
+    { x: 0.0, z: 2.4, w: 1.25, d: 0.95, label: 'TOY TRACK', color: '#ffca28', canHide: true },
     // Room 07: Home Theater
     { x: 2.4, z: 2.45, w: 1.15, d: 0.48, label: 'RECLINERS', color: '#c62828' },
     { x: 2.4, z: 3.44, w: 1.48, d: 0.12, label: 'SCREEN', color: '#ff4081' },
@@ -2362,12 +2530,12 @@ export function buildGiantHouseWorld() {
     { x: 0.68, z: 5.42, w: 0.68, d: 0.28, label: 'WEIGHTS', color: '#78909c' },
     // Room 09: Library / Study
     { x: -3.38, z: 4.8, w: 0.28, d: 1.48, label: 'SHELVES', color: '#8d5b38' },
-    { x: -1.85, z: 4.8, w: 0.54, d: 1.12, label: 'STUDY', color: '#d49b62' },
+    { x: -1.85, z: 4.8, w: 0.54, d: 1.12, label: 'STUDY', color: '#d49b62', canHide: true },
     // Room 10: Bathroom
     { x: 5.25, z: 1.65, w: 0.82, d: 0.44, label: 'TUB', color: '#e0f7fa' },
     { x: 5.52, z: 3.12, w: 0.66, d: 0.66, label: 'SHOWER', color: '#40c4ff' },
     // Room 11: Garage / Workshop
-    { x: 3.6, z: 4.75, w: 1.10, d: 0.60, label: 'CAR LIFT', color: '#ff6e40' },
+    { x: 3.6, z: 4.75, w: 1.10, d: 0.60, label: 'CAR LIFT', color: '#ff6e40', canHide: true },
     { x: 1.85, z: 5.65, w: 0.95, d: 0.36, label: 'BENCH', color: '#d32f2f' },
     // Room 14: Backyard Patio
     { x: 5.35, z: 0.0, w: 0.62, d: 0.62, label: 'PATIO', color: '#4cd964' },
@@ -2379,9 +2547,12 @@ export function buildGiantHouseWorld() {
     ramps,
     colliders,
     doorways,
+    hidingZones,
     furnitureOutlines,
     getRoomAt,
     sampleFloorAndRamp,
     resolveCollisions,
+    isPointHiddenUnderFurniture,
+    hasWallLineOfSight,
   };
 }
