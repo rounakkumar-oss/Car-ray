@@ -1,13 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { buildProceduralDeskDiorama } from './scene/DeskDioramaBuilder.js';
@@ -17,13 +10,12 @@ import { buildGoldenHourAtmosphere } from './scene/GoldenHourAtmosphere.js';
 import { buildRoomEnvironment } from './scene/RoomEnvironmentBuilder.js';
 import { createKartPhysicsController } from './physics/KartPhysicsController.js';
 import { createWebAudioSynth } from './audio/WebAudioSynth.js';
-import { downloadProjectForGitHub, APK_WORKFLOW_YAML } from './utils/githubExporter.js';
 
 async function initApp() {
   const container = document.getElementById('canvas-container');
 
   // -------------------------------------------------------------------------
-  // 1. THREE.JS SCENE, RENDERER & ACES FILMIC + UNREAL BLOOM POST-PROCESSING
+  // 1. THREE.JS SCENE & MOBILE-OPTIMIZED HIGH-PERFORMANCE RENDERER
   // -------------------------------------------------------------------------
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x181312);
@@ -37,7 +29,7 @@ async function initApp() {
   );
 
   const renderer = new THREE.WebGLRenderer({
-    antialias: true,
+    antialias: false,
     powerPreference: 'high-performance',
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -64,10 +56,8 @@ async function initApp() {
     }
   }
 
-  const pixelRatio = isScreenshotUrl ? 1.0 : Math.min(window.devicePixelRatio, 2.0);
-  renderer.setPixelRatio(pixelRatio);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setPixelRatio(1);
+  renderer.shadowMap.enabled = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.68 + 0.08 * 1.15;
   container.appendChild(renderer.domElement);
@@ -75,129 +65,11 @@ async function initApp() {
   // Subtle 1-time PMREM studio environment so dark metallic/satin surfaces (monitor, BoYata, G915) have crisp reflections
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmremGenerator.dispose();
   scene.environmentIntensity = 0.08;
 
-  const composer = new EffectComposer(renderer);
-  const rtSize = renderer.getDrawingBufferSize(new THREE.Vector2());
-  composer.renderTarget1.depthTexture = new THREE.DepthTexture(rtSize.x, rtSize.y, THREE.FloatType);
-  composer.renderTarget2.depthTexture = new THREE.DepthTexture(rtSize.x, rtSize.y, THREE.FloatType);
-
-  const renderPass = new RenderPass(scene, camera);
-  composer.addPass(renderPass);
-
-  const bokehPass = new BokehPass(scene, camera, {
-    focus: 0.12,
-    aperture: 0.0065 * 0.35,
-    maxblur: 0.0045 * 0.35,
-  });
-  const unusedDepthTarget = bokehPass._renderTargetDepth || bokehPass.renderTargetDepth;
-  if (unusedDepthTarget) {
-    unusedDepthTarget.dispose();
-  }
-  bokehPass.setSize = function (width, height) {
-    this.materialBokeh.uniforms['aspect'].value = width / height;
-  };
-
-  // Single-pass hardware-depth BokehPass with a 25-tap Golden-Angle Vogel Spiral disc kernel:
-  // - Reads hardware DepthTexture directly (DEPTH_PACKING = 0 -> zero MeshDepthMaterial geometry pass)
-  // - Single render target pass (no extra downsample pass or dual-sampler branching)
-  // - Uniform disc coverage at 40% fewer texture fetches than the stock 41-tap concentric ring shader
-  bokehPass.materialBokeh.defines.DEPTH_PACKING = 0;
-  bokehPass.materialBokeh.fragmentShader = /* glsl */ `
-    #include <common>
-    varying vec2 vUv;
-    uniform sampler2D tColor;
-    uniform sampler2D tDepth;
-    uniform float maxblur;
-    uniform float aperture;
-    uniform float nearClip;
-    uniform float farClip;
-    uniform float focus;
-    uniform float aspect;
-    #include <packing>
-
-    float getDepth( const in vec2 screenPosition ) {
-      return texture2D( tDepth, screenPosition ).x;
-    }
-
-    float getViewZ( const in float depth ) {
-      #if PERSPECTIVE_CAMERA == 1
-        return perspectiveDepthToViewZ( depth, nearClip, farClip );
-      #else
-        return orthographicDepthToViewZ( depth, nearClip, farClip );
-      #endif
-    }
-
-    void main() {
-      vec2 aspectcorrect = vec2( 1.0, aspect );
-      float viewZ = getViewZ( getDepth( vUv ) );
-      float rawFactor = focus + viewZ;
-      // Keep a generous crystal-sharp focal band (>= ±11mm in macro close-ups) so the entire 13mm
-      // kart body, wheels, and helmet stay 100% tack-sharp while background props melt into bokeh
-      float deadzone = max( 0.011, focus * 0.095 );
-      float absDiff = max( 0.0, abs( rawFactor ) - deadzone );
-      // Relative optical circle-of-confusion scaling so close-up macro shots (focus ~ 0.06m) and
-      // wide shots (focus ~ 0.50m) both transition smoothly without sudden foreground clipping
-      float normScale = 1.0 / max( 0.22, focus * 1.15 );
-      float signedFactor = sign( rawFactor ) * absDiff * ( 0.42 + 0.16 * normScale );
-      vec2 dofblur = vec2( clamp( signedFactor * aperture, -maxblur, maxblur ) );
-      vec2 radius = dofblur * aspectcorrect;
-
-      vec4 col = texture2D( tColor, vUv );
-      float centerBlurMag = abs( dofblur.x );
-      if ( centerBlurMag < 0.00020 ) {
-        gl_FragColor = vec4( col.rgb, 1.0 );
-        return;
-      }
-
-      // 48-point Golden-Angle Vogel spiral with depth-aware foreground occlusion protection
-      // so sharp foreground objects (like the car) never bleed blurry halos onto the background behind them
-      float ign = fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) );
-      float thetaJitter = ( ign - 0.5 ) * 0.45;
-      float cj = cos( thetaJitter );
-      float sj = sin( thetaJitter );
-      mat2 rotMat = mat2( cj, -sj, sj, cj );
-
-      vec4 acc = col;
-      float totalWeight = 1.0;
-      for ( int i = 1; i <= 48; i++ ) {
-        float fi = float( i );
-        float r = sqrt( fi / 48.5 );
-        float theta = fi * 2.39996323;
-        vec2 offset = rotMat * ( vec2( cos( theta ), sin( theta ) ) * r );
-        vec2 sampleUv = vUv + offset * radius;
-        float sampleViewZ = getViewZ( getDepth( sampleUv ) );
-        float sampleDiff = max( 0.0, abs( focus + sampleViewZ ) - deadzone );
-
-        // Prevent background pixels from sampling sharp closer foreground pixels across depth edges
-        float fgReject = ( sampleViewZ > viewZ + 0.006 )
-          ? smoothstep( 0.0, max( 0.008, absDiff * 0.55 ), sampleDiff )
-          : 1.0;
-        float w = ( 1.0 - 0.26 * r * r ) * fgReject;
-        acc += texture2D( tColor, sampleUv ) * w;
-        totalWeight += w;
-      }
-
-      gl_FragColor = vec4( acc.rgb / totalWeight, 1.0 );
-    }
-  `;
-  bokehPass.materialBokeh.needsUpdate = true;
-
-  composer.addPass(bokehPass);
-
-  const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.06, // strength (crisp glow for night scene LEDs, cyan mousepad & under-track strips)
-    0.22, // radius
-    1.15  // threshold (only HDR embers/LEDs > 1.15 bloom — prevents white helmet halo!)
-  );
-  composer.addPass(bloomPass);
-  composer.addPass(new OutputPass());
-
-  const fxaaPass = new ShaderPass(FXAAShader);
-  const drawSize = renderer.getDrawingBufferSize(new THREE.Vector2());
-  fxaaPass.material.uniforms['resolution'].value.set(1.0 / drawSize.x, 1.0 / drawSize.y);
-  composer.addPass(fxaaPass);
+  const bloomPass = null;
+  const bokehPass = { enabled: false, uniforms: null };
 
   const orbitControls = new OrbitControls(camera, renderer.domElement);
   orbitControls.enableDamping = true;
@@ -261,13 +133,9 @@ async function initApp() {
   const microKart = buildMicroKart();
   microKart.kartRoot.scale.setScalar(0.38);
   scene.add(microKart.kartRoot);
-
-  // Dedicated post-Bokeh scene for 3D Drift & Boost Sparks so airborne sparks
-  // flying off the edge of the track in front of distant background walls use
-  // their OWN 3D view-space depth (mvPosition.z) rather than being blurred by
-  // the background wall's depth in readBuffer.depthTexture!
-  const sparkScene = new THREE.Scene();
-  sparkScene.add(microKart.sparkPoints);
+  if (microKart.sparkPoints) {
+    scene.add(microKart.sparkPoints);
+  }
 
   function syncKartScaleForCamera(mode) {
     const is1P = mode === 1 || mode === 2;
@@ -280,55 +148,6 @@ async function initApp() {
           : 0.58;
     microKart.kartRoot.scale.setScalar(targetScale);
   }
-
-  // ZERO-GEOMETRY-PASS BOKEHPASS RENDER:
-  // Because RenderPass already renders the opaque scene with a hardware DepthTexture attached to
-  // readBuffer.depthTexture (and transparent sunbeams/dust/sparks/AO decals have depthWrite: false),
-  // BokehPass reads readBuffer.depthTexture directly without re-rendering any 3D meshes!
-  const renderBokehFullscreenQuad = (pass, rendererArg, mat) => {
-    const fsQuad = pass._fsQuad || pass.fsQuad;
-    if (fsQuad) {
-      fsQuad.material = mat;
-      fsQuad.render(rendererArg);
-    } else if (pass.quad2 && pass.scene2 && pass.camera2) {
-      pass.quad2.material = mat;
-      rendererArg.render(pass.scene2, pass.camera2);
-    }
-  };
-
-  bokehPass.render = function (rendererArg, writeBuffer, readBuffer /*, deltaTime, maskActive */) {
-    this.uniforms['tColor'].value = readBuffer.texture;
-    this.uniforms['tDepth'].value = readBuffer.depthTexture;
-    this.uniforms['nearClip'].value = this.camera.near;
-    this.uniforms['farClip'].value = this.camera.far;
-
-    if (this.renderToScreen) {
-      rendererArg.setRenderTarget(null);
-      renderBokehFullscreenQuad(this, rendererArg, this.materialBokeh);
-    } else {
-      rendererArg.setRenderTarget(writeBuffer);
-      if (this.clear) rendererArg.clear();
-      renderBokehFullscreenQuad(this, rendererArg, this.materialBokeh);
-    }
-
-    if (microKart && microKart.sparkPoints && microKart.sparkPoints.visible) {
-      const sMat = microKart.sparkPoints.material;
-      if (sMat && sMat.uniforms) {
-        sMat.uniforms.tSceneDepth.value = readBuffer.depthTexture;
-        sMat.uniforms.uNearClip.value = this.camera.near;
-        sMat.uniforms.uFarClip.value = this.camera.far;
-        sMat.uniforms.uFocus.value = this.uniforms['focus'].value;
-        sMat.uniforms.uAperture.value = this.uniforms['aperture'].value;
-        sMat.uniforms.uMaxBlur.value = this.uniforms['maxblur'].value;
-        sMat.uniforms.uResolution.value.set(
-            readBuffer.width, readBuffer.height);
-      }
-      const prevAutoClear = rendererArg.autoClear;
-      rendererArg.autoClear = false;
-      rendererArg.render(sparkScene, this.camera);
-      rendererArg.autoClear = prevAutoClear;
-    }
-  };
 
   // Helper to free GPU geometry buffers of hidden procedural fallback groups once a GLB replaces them
   function disposeGroupGeometries(group) {
@@ -538,18 +357,9 @@ async function initApp() {
       };
 
       prepareActiveTree(scene);
-      prepareActiveTree(sparkScene);
 
       const prevTarget = renderer.getRenderTarget();
       const prevAutoClear = renderer.autoClear;
-      const prevLampShadowUpdate = atmosphere.lampKeyLight
-        ? atmosphere.lampKeyLight.shadow.needsUpdate
-        : false;
-      const prevSunShadowUpdate = atmosphere.sunLight
-        ? atmosphere.sunLight.shadow.needsUpdate
-        : false;
-      if (atmosphere.lampKeyLight) atmosphere.lampKeyLight.shadow.needsUpdate = false;
-      if (atmosphere.sunLight) atmosphere.sunLight.shadow.needsUpdate = false;
 
       // Single 64x64 off-screen draw pass with frustumCulled=false compiles all visible shaders
       // and uploads all VBOs/IBOs across 360° with negligible fragment cost
@@ -557,24 +367,6 @@ async function initApp() {
       renderer.setRenderTarget(warmupTarget);
       renderer.autoClear = true;
       renderer.render(scene, camera);
-
-      if (
-        microKart.sparkPoints &&
-        microKart.sparkPoints.material &&
-        microKart.sparkPoints.material.uniforms
-      ) {
-        const sMat = microKart.sparkPoints.material;
-        const prevDepthTex = sMat.uniforms.tSceneDepth.value;
-        sMat.uniforms.tSceneDepth.value = composer.renderTarget2.depthTexture;
-        sMat.uniforms.uNearClip.value = camera.near;
-        sMat.uniforms.uFarClip.value = camera.far;
-        sMat.uniforms.uFocus.value = 0.12;
-        sMat.uniforms.uAperture.value = 0.002;
-        sMat.uniforms.uMaxBlur.value = 0.002;
-        renderer.autoClear = false;
-        renderer.render(sparkScene, camera);
-        sMat.uniforms.tSceneDepth.value = prevDepthTex;
-      }
 
       // Restore all saved states so the visible scene is 100.0% untouched
       for (const [obj, wasCulled] of savedFrustumCulled.entries()) {
@@ -590,13 +382,6 @@ async function initApp() {
         coaster.setF1StartLights(0);
       }
       sync1PRoomAndCurtainVisibility(activeCameraMode);
-
-      if (atmosphere.lampKeyLight) {
-        atmosphere.lampKeyLight.shadow.needsUpdate = prevLampShadowUpdate || true;
-      }
-      if (atmosphere.sunLight) {
-        atmosphere.sunLight.shadow.needsUpdate = prevSunShadowUpdate;
-      }
 
       renderer.autoClear = prevAutoClear;
       renderer.setRenderTarget(prevTarget);
@@ -653,8 +438,8 @@ async function initApp() {
       glbDownloadProgress[key] = 1.0;
       gltf.scene.traverse((child) => {
         if (child.isMesh) {
-          child.castShadow = key !== 'room' && key !== 'kart';
-          child.receiveShadow = key !== 'kart';
+          child.castShadow = false;
+          child.receiveShadow = false;
         }
       });
       try {
@@ -1483,7 +1268,7 @@ async function initApp() {
   if (sliderBloom) {
     sliderBloom.addEventListener('input', (e) => {
       settings.bloomStrength = parseFloat(e.target.value);
-      bloomPass.strength = settings.bloomStrength;
+      if (bloomPass) bloomPass.strength = settings.bloomStrength;
       if (valBloom) valBloom.textContent = settings.bloomStrength.toFixed(2);
     });
   }
@@ -1506,7 +1291,7 @@ async function initApp() {
     sliderDof.addEventListener('input', (e) => {
       settings.dofStrength = parseFloat(e.target.value);
       if (valDof) valDof.textContent = `${settings.dofStrength.toFixed(2)}x`;
-      bokehPass.enabled = settings.dofStrength > 0.01;
+      if (bokehPass) bokehPass.enabled = false;
     });
   }
 
@@ -1847,17 +1632,28 @@ async function initApp() {
     }
   }
 
+  let lastMinimapKx = -9999;
+  let lastMinimapKy = -9999;
+
   function drawMinimapRadar(st) {
     if (!radarCtx || !radarCanvas) return;
+    const kx = mapMinimapX(st.position.x, st.position.y, st.position.z);
+    const ky = mapMinimapY(st.position.x, st.position.y, st.position.z);
+    if (
+      Math.abs(kx - lastMinimapKx) < 0.15 &&
+      Math.abs(ky - lastMinimapKy) < 0.15
+    ) {
+      return;
+    }
+    lastMinimapKx = kx;
+    lastMinimapKy = ky;
+
     const w = radarCanvas.width;
     const h = radarCanvas.height;
     radarCtx.clearRect(0, 0, w, h);
     if (radarBgCanvas) {
       radarCtx.drawImage(radarBgCanvas, 0, 0);
     }
-
-    const kx = mapMinimapX(st.position.x, st.position.y, st.position.z);
-    const ky = mapMinimapY(st.position.x, st.position.y, st.position.z);
 
     radarCtx.save();
     // Cyan glowing dot for live track progress (scaled for 2x Retina canvas)
@@ -2191,16 +1987,85 @@ async function initApp() {
     showFinishOverlay(51.42, 16.84, false);
   }
 
+  // -------------------------------------------------------------------------
+  // MOBILE MULTI-TOUCH DRIVING CONTROLS (CONTINUOUS HOLD + ZERO INPUT LAG)
+  // -------------------------------------------------------------------------
   const elMobileTouchControls = document.getElementById('mobile-touch-controls');
   const mobileControlButtons = elMobileTouchControls
     ? Array.from(elMobileTouchControls.querySelectorAll('.mobile-ctrl-btn'))
     : [];
+  const ALL_TOUCH_DIRS = ['left', 'right', 'forward', 'backward'];
   const activeTouchDirs = new Set();
   const activePointerDirs = new Map();
 
+  // Disable mobile screen scrolling, pinch-zooming, context menus, and text selection globally
+  const preventDefaultIfCancelable = (e) => {
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+  };
+  document.addEventListener('gesturestart', preventDefaultIfCancelable, { passive: false });
+  document.addEventListener('gesturechange', preventDefaultIfCancelable, { passive: false });
+  document.addEventListener('gestureend', preventDefaultIfCancelable, { passive: false });
+  document.addEventListener('selectstart', preventDefaultIfCancelable, { passive: false });
+  document.addEventListener('dragstart', preventDefaultIfCancelable, { passive: false });
+  window.addEventListener(
+    'contextmenu',
+    (e) => {
+      e.preventDefault();
+    },
+    { passive: false }
+  );
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (e.touches && e.touches.length > 1 && e.cancelable) {
+        e.preventDefault();
+      }
+    },
+    { passive: false }
+  );
+
+  function resolveButtonDirectionAtPoint(clientX, clientY) {
+    // 1. Direct DOM hit check
+    const hitEl = document.elementFromPoint(clientX, clientY);
+    const hitBtn = hitEl && hitEl.closest ? hitEl.closest('.mobile-ctrl-btn') : null;
+    if (hitBtn && hitBtn.dataset.control) {
+      return hitBtn.dataset.control;
+    }
+    // 2. Forgiving bounding-box hit test (+18px padding) so thumb micro-drift while holding
+    //    never drops continuous acceleration or steering
+    const pad = 18;
+    let bestDir = null;
+    let bestDistSq = Infinity;
+    for (let i = 0; i < mobileControlButtons.length; i++) {
+      const btn = mobileControlButtons[i];
+      const dir = btn.dataset.control;
+      if (!dir) continue;
+      const rect = btn.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      if (
+        clientX >= rect.left - pad &&
+        clientX <= rect.right + pad &&
+        clientY >= rect.top - pad &&
+        clientY <= rect.bottom + pad
+      ) {
+        const cx = (rect.left + rect.right) * 0.5;
+        const cy = (rect.top + rect.bottom) * 0.5;
+        const dSq = (clientX - cx) * (clientX - cx) + (clientY - cy) * (clientY - cy);
+        if (dSq < bestDistSq) {
+          bestDistSq = dSq;
+          bestDir = dir;
+        }
+      }
+    }
+    return bestDir;
+  }
+
   function applyMobileTouchState() {
-    const allDirs = ['left', 'right', 'forward', 'backward'];
-    for (const dir of allDirs) {
+    let anyActive = false;
+    for (let i = 0; i < ALL_TOUCH_DIRS.length; i++) {
+      const dir = ALL_TOUCH_DIRS[i];
       let isPressed = activeTouchDirs.has(dir);
       if (!isPressed) {
         for (const pDir of activePointerDirs.values()) {
@@ -2210,15 +2075,25 @@ async function initApp() {
           }
         }
       }
+      if (isPressed) {
+        anyActive = true;
+      }
       if (physics.setTouchKey) {
         physics.setTouchKey(dir, isPressed);
       }
     }
-    for (const btn of mobileControlButtons) {
+    if (anyActive && audioSynth.setEnabled && !audioSynth.isEnabled?.()) {
+      const on = audioSynth.setEnabled(true);
+      updateAudioButtonUI(on);
+    }
+    for (let i = 0; i < mobileControlButtons.length; i++) {
+      const btn = mobileControlButtons[i];
       const dir = btn.dataset.control;
       const isPressed = Boolean(dir && physics.keys[dir]);
-      btn.classList.toggle('is-pressed', isPressed);
-      btn.setAttribute('aria-pressed', isPressed ? 'true' : 'false');
+      if (btn.classList.contains('is-pressed') !== isPressed) {
+        btn.classList.toggle('is-pressed', isPressed);
+        btn.setAttribute('aria-pressed', isPressed ? 'true' : 'false');
+      }
     }
   }
 
@@ -2228,7 +2103,8 @@ async function initApp() {
     if (physics.clearTouchKeys) {
       physics.clearTouchKeys();
     }
-    for (const btn of mobileControlButtons) {
+    for (let i = 0; i < mobileControlButtons.length; i++) {
+      const btn = mobileControlButtons[i];
       btn.classList.remove('is-pressed');
       btn.setAttribute('aria-pressed', 'false');
     }
@@ -2256,10 +2132,9 @@ async function initApp() {
       const touches = e.touches || [];
       for (let i = 0; i < touches.length; i++) {
         const t = touches[i];
-        const hitEl = document.elementFromPoint(t.clientX, t.clientY);
-        const btn = hitEl && hitEl.closest ? hitEl.closest('.mobile-ctrl-btn') : null;
-        if (btn && btn.dataset.control) {
-          activeTouchDirs.add(btn.dataset.control);
+        const dir = resolveButtonDirectionAtPoint(t.clientX, t.clientY);
+        if (dir) {
+          activeTouchDirs.add(dir);
         }
       }
       applyMobileTouchState();
@@ -2281,25 +2156,38 @@ async function initApp() {
       e.preventDefault();
     });
 
-    for (const btn of mobileControlButtons) {
+    for (let i = 0; i < mobileControlButtons.length; i++) {
+      const btn = mobileControlButtons[i];
       const dir = btn.dataset.control;
       if (!dir) continue;
 
       btn.addEventListener('pointerdown', (e) => {
-        if (e.pointerType === 'touch') return;
-        e.preventDefault();
+        if (e.cancelable) {
+          e.preventDefault();
+        }
         e.stopPropagation();
         try {
           btn.setPointerCapture(e.pointerId);
         } catch (_err) {
-          // Ignore pointer capture errors
+          // Ignore pointer capture restrictions
         }
         activePointerDirs.set(e.pointerId, dir);
         applyMobileTouchState();
       });
 
+      btn.addEventListener('pointermove', (e) => {
+        if (!activePointerDirs.has(e.pointerId)) return;
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        const resolvedDir = resolveButtonDirectionAtPoint(e.clientX, e.clientY) || dir;
+        if (activePointerDirs.get(e.pointerId) !== resolvedDir) {
+          activePointerDirs.set(e.pointerId, resolvedDir);
+          applyMobileTouchState();
+        }
+      });
+
       const releasePointer = (e) => {
-        if (e.pointerType === 'touch') return;
         if (activePointerDirs.has(e.pointerId)) {
           activePointerDirs.delete(e.pointerId);
           applyMobileTouchState();
@@ -2381,162 +2269,6 @@ async function initApp() {
         btnWelcomeStart.blur();
       }
     });
-  }
-
-  const btnWelcomeGithub = document.getElementById('btn-welcome-github');
-  const elWelcomeGithubText = document.getElementById('welcome-github-text');
-  const btnHudGithub = document.getElementById('btn-hud-github');
-  const btnFloatingGithub = document.getElementById('btn-floating-github-dl');
-  const elFloatingGithubText = document.getElementById('floating-github-text');
-  const btnFinishGithub = document.getElementById('btn-finish-github');
-  const btnFloatingInstallApk = document.getElementById('btn-floating-install-apk');
-  const btnWelcomeInstallApk = document.getElementById('btn-welcome-install-apk');
-  const elApkModal = document.getElementById('apk-install-modal');
-  const btnModalDownloadZip = document.getElementById('btn-modal-download-zip');
-  const btnModalClose = document.getElementById('btn-modal-close');
-  let isDownloadingGithubZip = false;
-  let deferredPwaPrompt = null;
-
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPwaPrompt = e;
-  });
-
-  window.addEventListener('appinstalled', () => {
-    deferredPwaPrompt = null;
-    if (elApkModal) elApkModal.classList.add('hidden');
-  });
-
-  async function handleInstallApkClick(e) {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    if (deferredPwaPrompt) {
-      try {
-        await deferredPwaPrompt.prompt();
-        const choice = await deferredPwaPrompt.userChoice;
-        if (choice && choice.outcome === 'accepted') {
-          deferredPwaPrompt = null;
-          return;
-        }
-      } catch (_err) {
-        // Fallback to modal + direct download
-      }
-    }
-    if (elApkModal) {
-      elApkModal.classList.remove('hidden');
-    }
-  }
-
-  if (btnFloatingInstallApk) {
-    btnFloatingInstallApk.addEventListener('click', handleInstallApkClick);
-  }
-  if (btnWelcomeInstallApk) {
-    btnWelcomeInstallApk.addEventListener('click', handleInstallApkClick);
-  }
-  if (btnModalClose && elApkModal) {
-    btnModalClose.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      elApkModal.classList.add('hidden');
-    });
-  }
-
-  const btnModalCopyWorkflow = document.getElementById('btn-modal-copy-workflow');
-  const elModalCopyWorkflowText = document.getElementById('modal-copy-workflow-text');
-  if (btnModalCopyWorkflow) {
-    btnModalCopyWorkflow.addEventListener('click', async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      try {
-        await navigator.clipboard.writeText(APK_WORKFLOW_YAML);
-        if (elModalCopyWorkflowText) {
-          elModalCopyWorkflowText.textContent = 'COPIED! PASTE IN GITHUB ACTIONS';
-        }
-      } catch (_err) {
-        if (elModalCopyWorkflowText) {
-          elModalCopyWorkflowText.textContent = 'DOWNLOADING WORKFLOW FILE...';
-        }
-        const blob = new Blob([APK_WORKFLOW_YAML], { type: 'text/yaml' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'build-apk.yml';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-      setTimeout(() => {
-        if (elModalCopyWorkflowText) {
-          elModalCopyWorkflowText.textContent = 'COPY APK WORKFLOW YAML';
-        }
-      }, 2800);
-    });
-  }
-
-  async function handleGithubDownload(e) {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    if (isDownloadingGithubZip) return;
-    isDownloadingGithubZip = true;
-    const origWelcomeText = elWelcomeGithubText
-      ? elWelcomeGithubText.textContent
-      : 'DOWNLOAD APK + GITHUB (.ZIP)';
-    const origFloatingText = elFloatingGithubText
-      ? elFloatingGithubText.textContent
-      : 'DOWNLOAD APK + GITHUB (.ZIP)';
-
-    if (btnWelcomeGithub) btnWelcomeGithub.disabled = true;
-    if (btnHudGithub) btnHudGithub.disabled = true;
-    if (btnFloatingGithub) btnFloatingGithub.disabled = true;
-    if (btnFinishGithub) btnFinishGithub.disabled = true;
-
-    try {
-      await downloadProjectForGitHub((status) => {
-        if (elWelcomeGithubText) elWelcomeGithubText.textContent = status;
-        if (elFloatingGithubText) elFloatingGithubText.textContent = status;
-      });
-    } catch (err) {
-      console.error('GitHub ZIP export error:', err);
-      if (elWelcomeGithubText) elWelcomeGithubText.textContent = 'EXPORT FAILED — RETRY';
-      if (elFloatingGithubText) elFloatingGithubText.textContent = 'EXPORT FAILED — RETRY';
-    } finally {
-      setTimeout(() => {
-        if (elWelcomeGithubText) elWelcomeGithubText.textContent = origWelcomeText;
-        if (elFloatingGithubText) elFloatingGithubText.textContent = origFloatingText;
-        if (btnWelcomeGithub) btnWelcomeGithub.disabled = false;
-        if (btnHudGithub) btnHudGithub.disabled = false;
-        if (btnFloatingGithub) btnFloatingGithub.disabled = false;
-        if (btnFinishGithub) btnFinishGithub.disabled = false;
-        isDownloadingGithubZip = false;
-      }, 1800);
-    }
-  }
-
-  if (btnWelcomeGithub) {
-    btnWelcomeGithub.addEventListener('click', handleGithubDownload);
-  }
-  if (btnHudGithub) {
-    btnHudGithub.addEventListener('click', handleGithubDownload);
-  }
-  if (btnFloatingGithub) {
-    btnFloatingGithub.addEventListener('click', handleGithubDownload);
-  }
-  if (btnFinishGithub) {
-    btnFinishGithub.addEventListener('click', handleGithubDownload);
-  }
-  if (btnModalDownloadZip) {
-    btnModalDownloadZip.addEventListener('click', (e) => {
-      if (elApkModal) elApkModal.classList.add('hidden');
-      handleGithubDownload(e);
-    });
-  }
-
-  if (urlParams.get('download') === '1' || urlParams.get('github') === '1' || urlParams.get('apk') === '1') {
-    setTimeout(() => handleGithubDownload(), 600);
   }
 
   if (btnFinishRaceAgain) {
@@ -2766,85 +2498,24 @@ async function initApp() {
   let screenshotFrameCounter = 0;
 
   // -------------------------------------------------------------------------
-  // 7. WINDOW RESIZE & 60FPS ANIMATION LOOP
+  // 7. WINDOW RESIZE & 60FPS DELTA-TIME ANIMATION LOOP (MOBILE OPTIMIZED)
   // -------------------------------------------------------------------------
   window.addEventListener('resize', () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    renderer.setPixelRatio(1);
     renderer.setSize(w, h);
-    composer.setSize(w, h);
-    const newDrawSize = renderer.getDrawingBufferSize(new THREE.Vector2());
-    fxaaPass.material.uniforms['resolution'].value.set(
-      1.0 / newDrawSize.x,
-      1.0 / newDrawSize.y
-    );
   });
 
   const clock = new THREE.Clock();
-  let currentFocusDistance = activeCameraMode === 7 ? 1.85 : activeCameraMode === 8 ? 0.42 : 0.12;
-
-  // Pre-allocated vectors & 3D probe points for zero-GC exact view-space DOF
-  // autofocus
-  const _dofCamDir = new THREE.Vector3();
-  const _dofVec = new THREE.Vector3();
-  const _dofKartPos = new THREE.Vector3();
-  const _dofNdc = new THREE.Vector3();
-  const deskDofProbePoints = [
-    new THREE.Vector3(-0.16, 0.024, 0.23),     // G915 Keyboard front-center
-    new THREE.Vector3(-0.28, 0.024, 0.23),     // G915 Keyboard front-left
-    new THREE.Vector3(-0.02, 0.024, 0.23),     // G915 Keyboard front-right
-    new THREE.Vector3(-0.16, 0.028, 0.15),     // G915 Keyboard rear
-    new THREE.Vector3(0.325, 0.032, 0.135),    // Gaming Mouse top
-    new THREE.Vector3(0.24, 0.004, 0.24),      // Mousepad front-left corner
-    new THREE.Vector3(0.42, 0.004, 0.24),      // Mousepad front-right corner
-    new THREE.Vector3(-0.158, 0.068, -0.118),  // Ginger Cat figurine
-    new THREE.Vector3(-0.025, 0.105, -0.045),  // Fifine AM8 Microphone head
-    new THREE.Vector3(0.355, 0.125, -0.098),   // White Key-Light Lamp column
-    new THREE.Vector3(-0.34, 0.145, -0.045),   // BoYata Laptop Stand
-    new THREE.Vector3(-0.42, 0.045, 0.12),     // Stacked Art Books
-  ];
-
-  function computeExactViewDepth(worldPt) {
-    return _dofVec.subVectors(worldPt, camera.position).dot(_dofCamDir);
-  }
-
-  function computeNearestVisibleObjectDepth(kartWorldPt) {
-    camera.updateMatrixWorld();
-    const minValidZ = camera.near + 0.003;
-    let bestZ = Infinity;
-
-    const testCandidate = (pt) => {
-      const vz = _dofVec.subVectors(pt, camera.position).dot(_dofCamDir);
-      if (vz <= minValidZ || vz >= bestZ) return;
-      _dofNdc.copy(pt).project(camera);
-      if (Math.abs(_dofNdc.x) <= 0.88 && Math.abs(_dofNdc.y) <= 0.88) {
-        bestZ = vz;
-      }
-    };
-
-    // 1. Test the kart itself
-    testCandidate(kartWorldPt);
-
-    // 2. Test 360 points along the 3D coaster track spline
-    const samples = splineData.samples;
-    for (let i = 0; i < samples.length; i += 2) {
-      const p = samples[i].position;
-      _dofKartPos.set(p[0], p[1], p[2]);
-      testCandidate(_dofKartPos);
-    }
-
-    // 3. Test key surface points on the desk monuments
-    for (let i = 0; i < deskDofProbePoints.length; i++) {
-      testCandidate(deskDofProbePoints[i]);
-    }
-
-    return bestZ < Infinity ? bestZ : computeExactViewDepth(kartWorldPt);
-  }
 
   function animate() {
-    const dt = isScreenshotMode ? 1 / 60 : clock.getDelta();
+    // Clamp delta time so mobile background/tab-switch or minor frame hitches never cause
+    // physics jumps, freezing, or frame skipping
+    const rawDt = clock.getDelta();
+    const dt = isScreenshotMode ? 1 / 60 : Math.min(Math.max(rawDt, 0.001), 0.1);
     const elapsedTime =
       (isScreenshotMode ? screenshotFrameCounter / 60 : clock.getElapsedTime()) +
       requestedTimeOffset;
@@ -2852,7 +2523,7 @@ async function initApp() {
     // 0. Step Formula 1 5-Light Start Countdown if active
     stepF1StartCountdown(isScreenshotMode ? 0.0 : dt);
 
-    // 1. Step 60FPS Rapier3D + Banked Coaster Spline Physics
+    // 1. Step Sub-Stepped Rapier3D + Banked Coaster Spline Physics
     const st = physics.stepPhysics(dt);
 
     // 2. Sync 1:87 Micro-Kart Transform, Wheels, Helmeted Driver & Drift Sparks
@@ -2867,73 +2538,8 @@ async function initApp() {
       coaster.updateUnderTrackLed(elapsedTime, settings.trackGlowIntensity ?? 1.00);
     }
 
-    // 4. Update Camera (Chase / Visor POV / Diorama / Helicopter / Inspector / Course Pan / Room Panorama / Gemini 4 Dresser / Keyboard Heli)
+    // 4. Update Camera (Chase / Visor POV / Diorama / Helicopter / Inspector / Course Pan / Room Panorama)
     updateCamera(dt, elapsedTime, st);
-
-    // 4b. Dynamically Autofocus Depth of Field (BokehPass)
-    // Uses exact view-space Z projection ((P - camera.position) ·
-    // cameraForward) so BokehPass's `rawFactor = focus + viewZ` is 0.0000 on
-    // the focused target even when off-center in the frame! By default
-    // (`!settings.dofFocusNearest`), Mode 3 and all racing/panoramic views lock
-    // focus directly onto the car; when `#chk-dof-nearest` is checked, locks
-    // onto whichever visible object in the frame is closest to the camera.
-    camera.getWorldDirection(_dofCamDir);
-    _dofKartPos.copy(st.position).addScaledVector(st.normal, 0.0030);
-    const kartViewDepth = computeExactViewDepth(_dofKartPos);
-    const safeKartDepth = THREE.MathUtils.clamp(
-        kartViewDepth > camera.near + 0.002 ?
-            kartViewDepth :
-            camera.position.distanceTo(_dofKartPos),
-        0.003, 2.2);
-
-    let targetFocusDist;
-    if (activeCameraMode === 7) {
-      targetFocusDist = 1.85;
-    } else if (activeCameraMode === 8) {
-      targetFocusDist = 0.42;
-    } else if (activeCameraMode === 5) {
-      targetFocusDist = THREE.MathUtils.clamp(
-        camera.position.distanceTo(orbitControls.target),
-        0.025,
-        2.5
-      );
-    } else if (settings.dofFocusNearest) {
-      targetFocusDist = THREE.MathUtils.clamp(
-          computeNearestVisibleObjectDepth(_dofKartPos), 0.003, 2.2);
-    } else if (activeCameraMode === 2) {
-      targetFocusDist = 0.042;
-    } else {
-      // Modes 1, 3, 4, 6, 9: Lock Depth of Field directly onto the car's exact
-      // view-space depth!
-      targetFocusDist = safeKartDepth;
-    }
-    currentFocusDistance = isScreenshotMode ?
-        targetFocusDist :
-        THREE.MathUtils.lerp(currentFocusDistance, targetFocusDist, 0.38);
-
-    const urlDofParam = urlParams.get('dof');
-    const dofScale =
-      urlDofParam !== null ? parseFloat(urlDofParam) : (settings.dofStrength ?? 0.35);
-    const isRoomCam = activeCameraMode === 5 || activeCameraMode === 7 || activeCameraMode === 8;
-    const is1PCam = activeCameraMode === 1 || activeCameraMode === 2;
-    const isCineDofCam =
-      activeCameraMode === 3 ||
-      activeCameraMode === 4 ||
-      activeCameraMode === 6 ||
-      activeCameraMode === 9;
-    const activeDofScale = dofScale > 0.01 && !isRoomCam ? dofScale : 0.0;
-    bokehPass.enabled = true;
-    if (bokehPass.uniforms) {
-      bokehPass.uniforms['focus'].value = currentFocusDistance;
-      bokehPass.uniforms['aperture'].value = isRoomCam ? 0.0 :
-          is1PCam      ? 0.0042 * activeDofScale :
-          isCineDofCam ? 0.018 * activeDofScale :
-                         0.008 * activeDofScale;
-      bokehPass.uniforms['maxblur'].value = isRoomCam ? 0.0 :
-          is1PCam      ? 0.0032 * Math.min(1.5, activeDofScale) :
-          isCineDofCam ? Math.min(0.0072, 0.0042 * activeDofScale) :
-                         0.0042 * activeDofScale;
-    }
 
     // 5. Update WebAudio Synth & HUD
     audioSynth.update(st);
@@ -2968,23 +2574,13 @@ async function initApp() {
         loadedGlbStatus.room;
       const elapsedMs = performance.now() - appInitTimestamp;
 
-      // In headless screenshot mode, let all 4 GLBs and web fonts finish
-      // loading before running heavy WebGL renders
       if ((!allFourGlbsLoaded && elapsedMs < 15000) ||
           (!window.__deskRacerFontsReady && elapsedMs < 3500)) {
         requestAnimationFrame(animate);
         return;
       }
 
-      renderer.info.autoReset = false;
-      renderer.info.reset();
-      composer.render();
-      window.__deskRacerStats = {
-        calls: renderer.info.render.calls,
-        triangles: renderer.info.render.triangles,
-        geometries: renderer.info.memory.geometries,
-        textures: renderer.info.memory.textures,
-      };
+      renderer.render(scene, camera);
       screenshotFrameCounter++;
       if (screenshotFrameCounter >= 2 || elapsedMs >= 20000) {
         document.body.id = 'screenshot-ready';
@@ -2994,16 +2590,8 @@ async function initApp() {
       return;
     }
 
-    // 6. Render with ACES Filmic Tone Mapping + Zero-Geometry-Pass BokehPass + UnrealBloomPass
-    renderer.info.autoReset = false;
-    renderer.info.reset();
-    composer.render();
-    window.__deskRacerStats = {
-      calls: renderer.info.render.calls,
-      triangles: renderer.info.render.triangles,
-      geometries: renderer.info.memory.geometries,
-      textures: renderer.info.memory.textures,
-    };
+    // 6. Direct single-pass WebGL render for locked 60 FPS on mobile GPUs
+    renderer.render(scene, camera);
 
     requestAnimationFrame(animate);
   }

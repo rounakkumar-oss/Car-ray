@@ -122,7 +122,23 @@ export function createDeskRacerHybridAudio(options = {}) {
   let nextSputterTime = 0;
   let sputterCount = 0;
 
-  let lastDiag = {};
+  let lastParamUpdateMs = 0;
+  let lastIdleGain = -1;
+  let lastCruiseGain = -1;
+  let lastCruiseRate = -1;
+  let lastShelfDb = -999;
+  let lastPresDb = -999;
+  let lastCutoff = -1;
+  let lastSubHz = -1;
+  let lastSubGain = -1;
+  let lastDriftGain = -1;
+  let lastDriftRate = -1;
+  let lastCurbGain = -1;
+  let lastCurbRate = -1;
+  let lastTargetF0 = 75;
+  let lastTargetCutoff = 6200;
+  let lastDecelFactor = 0;
+
   const rawBufferPromises = new Map();
   const decodedBufferCache = new Map();
   let preloadPromise = null;
@@ -343,6 +359,12 @@ export function createDeskRacerHybridAudio(options = {}) {
 
     thumpOsc.connect(thumpGain);
     thumpGain.connect(masterGain);
+    thumpOsc.onended = () => {
+      try {
+        thumpOsc.disconnect();
+        thumpGain.disconnect();
+      } catch (_) {}
+    };
     thumpOsc.start(tPop);
     thumpOsc.stop(tPop + dur + 0.01);
 
@@ -369,6 +391,12 @@ export function createDeskRacerHybridAudio(options = {}) {
 
       src.connect(g);
       g.connect(presencePeakFilter);
+      src.onended = () => {
+        try {
+          src.disconnect();
+          g.disconnect();
+        } catch (_) {}
+      };
       src.start(tPop, offset, sliceDur + 0.02);
     }
   }
@@ -521,87 +549,130 @@ export function createDeskRacerHybridAudio(options = {}) {
     const targetF0 = Math.round(122.0 * targetCruiseRate);
 
     const now = ctx.currentTime;
-    const timeConst = 0.035;
+    const timeConst = 0.04;
 
-    if (loopNodes.idle && loopNodes.cruise) {
-      const launchU =
-          Math.min(1.0, Math.max(0.0, (rawSpeed - 0.005) / (0.012 - 0.005)));
-      const idleGain = 0.96 * Math.cos(0.5 * Math.PI * launchU);
-      const cruiseGain = 0.96 * Math.sin(0.5 * Math.PI * launchU);
-      loopNodes.idle.gain.gain.setTargetAtTime(idleGain, now, timeConst);
-      loopNodes.idle.src.playbackRate.setTargetAtTime(1.0, now, timeConst);
-      loopNodes.cruise.gain.gain.setTargetAtTime(cruiseGain, now, timeConst);
-      loopNodes.cruise.src.playbackRate.setTargetAtTime(
-          targetCruiseRate, now, timeConst);
-    } else if (loopNodes.cruise) {
-      loopNodes.cruise.gain.gain.setTargetAtTime(0.96, now, timeConst);
-      loopNodes.cruise.src.playbackRate.setTargetAtTime(
-          targetCruiseRate, now, timeConst);
+    // Throttle WebAudio AudioParam automation updates (~36 Hz) and skip redundant updates
+    // to prevent audio thread automation queue bloat and frame stutters on mobile devices
+    if (nowMs - lastParamUpdateMs >= 26) {
+      lastParamUpdateMs = nowMs;
+
+      if (loopNodes.idle && loopNodes.cruise) {
+        const launchU =
+            Math.min(1.0, Math.max(0.0, (rawSpeed - 0.005) / (0.012 - 0.005)));
+        const idleGain = 0.96 * Math.cos(0.5 * Math.PI * launchU);
+        const cruiseGain = 0.96 * Math.sin(0.5 * Math.PI * launchU);
+        if (Math.abs(idleGain - lastIdleGain) > 0.003) {
+          lastIdleGain = idleGain;
+          loopNodes.idle.gain.gain.setTargetAtTime(idleGain, now, timeConst);
+        }
+        if (Math.abs(cruiseGain - lastCruiseGain) > 0.003) {
+          lastCruiseGain = cruiseGain;
+          loopNodes.cruise.gain.gain.setTargetAtTime(cruiseGain, now, timeConst);
+        }
+        if (Math.abs(targetCruiseRate - lastCruiseRate) > 0.002) {
+          lastCruiseRate = targetCruiseRate;
+          loopNodes.cruise.src.playbackRate.setTargetAtTime(
+              targetCruiseRate, now, timeConst);
+        }
+      } else if (loopNodes.cruise) {
+        if (Math.abs(0.96 - lastCruiseGain) > 0.003) {
+          lastCruiseGain = 0.96;
+          loopNodes.cruise.gain.gain.setTargetAtTime(0.96, now, timeConst);
+        }
+        if (Math.abs(targetCruiseRate - lastCruiseRate) > 0.002) {
+          lastCruiseRate = targetCruiseRate;
+          loopNodes.cruise.src.playbackRate.setTargetAtTime(
+              targetCruiseRate, now, timeConst);
+        }
+      }
+
+      // --- Formant-Compensating EQ + Hill/Curl Load Timbre Shift ---
+      const pitchAboveOne = Math.max(0.0, targetCruiseRate - 0.95);
+      const lugWarmth = Math.max(0.0, smoothHillAndCurlLoad) * 9.5;
+      const shelfDb = Math.min(
+          10.5,
+          userRumbleAmount *
+              (2.8 + 8.5 * pitchAboveOne + lugWarmth +
+               1.2 * Math.max(0, accelKick * 10)));
+      if (lowShelfFilter && Math.abs(shelfDb - lastShelfDb) > 0.12) {
+        lastShelfDb = shelfDb;
+        lowShelfFilter.gain.setTargetAtTime(shelfDb, now, 0.045);
+      }
+
+      if (presencePeakFilter) {
+        const presDb = Math.max(
+            -1.5,
+            (targetCruiseRate < 0.92 ? 2.4 : 2.0 - 3.0 * pitchAboveOne) -
+                Math.max(0.0, smoothHillAndCurlLoad) * 8.0);
+        if (Math.abs(presDb - lastPresDb) > 0.12) {
+          lastPresDb = presDb;
+          presencePeakFilter.gain.setTargetAtTime(presDb, now, 0.045);
+        }
+      }
+
+      const slowCurlDarken = Math.max(0.0, 0.96 - targetCruiseRate) * 9500;
+      const targetCutoff = Math.max(
+          2150,
+          Math.min(
+              6800,
+              6400 - 7200 * Math.max(0.0, targetCruiseRate - 1.04) -
+                  slowCurlDarken - 650 * decelFactor));
+      if (Math.abs(targetCutoff - lastCutoff) > 18) {
+        lastCutoff = targetCutoff;
+        engineBusFilter.frequency.setTargetAtTime(targetCutoff, now, 0.045);
+      }
+      lastTargetCutoff = targetCutoff;
+
+      if (rumbleSubOsc && rumbleOutGain) {
+        const subHz = Math.min(82.0, Math.max(40.0, targetF0 * 0.5));
+        if (Math.abs(subHz - lastSubHz) > 0.4) {
+          lastSubHz = subHz;
+          rumbleSubOsc.frequency.setTargetAtTime(subHz, now, 0.035);
+        }
+        const subGain = Math.min(
+            0.20,
+            0.075 * userRumbleAmount *
+                (0.85 + 0.35 * Math.min(1.0, clampedNorm) +
+                 Math.max(0.0, smoothHillAndCurlLoad) * 0.8));
+        if (Math.abs(subGain - lastSubGain) > 0.003) {
+          lastSubGain = subGain;
+          rumbleOutGain.gain.setTargetAtTime(subGain, now, 0.045);
+        }
+      }
+
+      // Tire Drift Scrub & FIA Curb Rumble loops
+      const targetDriftGain =
+          state.isDrifting ? 0.42 * Math.min(1.0, smoothNormSpeed / 0.30) : 0.0;
+      const targetCurbGain = (state.curbRumble || 0) > 0.05 ?
+          Math.min(0.48, state.curbRumble * 0.48) :
+          0.0;
+
+      if (loopNodes.drift) {
+        const driftRate = 0.92 + 0.18 * smoothNormSpeed;
+        if (Math.abs(targetDriftGain - lastDriftGain) > 0.004) {
+          lastDriftGain = targetDriftGain;
+          loopNodes.drift.gain.gain.setTargetAtTime(targetDriftGain, now, 0.04);
+        }
+        if (targetDriftGain > 0.001 && Math.abs(driftRate - lastDriftRate) > 0.005) {
+          lastDriftRate = driftRate;
+          loopNodes.drift.src.playbackRate.setTargetAtTime(driftRate, now, 0.05);
+        }
+      }
+      if (loopNodes.curb) {
+        const curbRate = 0.88 + 0.32 * smoothNormSpeed;
+        if (Math.abs(targetCurbGain - lastCurbGain) > 0.004) {
+          lastCurbGain = targetCurbGain;
+          loopNodes.curb.gain.gain.setTargetAtTime(targetCurbGain, now, 0.035);
+        }
+        if (targetCurbGain > 0.001 && Math.abs(curbRate - lastCurbRate) > 0.005) {
+          lastCurbRate = curbRate;
+          loopNodes.curb.src.playbackRate.setTargetAtTime(curbRate, now, 0.045);
+        }
+      }
     }
 
-    // --- Formant-Compensating EQ + Hill/Curl Load Timbre Shift ---
-    // 1. Low-Shelf (98 Hz): Boosts deep muffler chest rumble both at high pitch
-    // AND when lugging uphill/in spirals
-    const pitchAboveOne = Math.max(0.0, targetCruiseRate - 0.95);
-    const lugWarmth = Math.max(0.0, smoothHillAndCurlLoad) * 9.5;
-    const shelfDb = userRumbleAmount *
-        (2.8 + 8.5 * pitchAboveOne + lugWarmth +
-         1.2 * Math.max(0, accelKick * 10));
-    if (lowShelfFilter) {
-      lowShelfFilter.gain.setTargetAtTime(Math.min(10.5, shelfDb), now, 0.04);
-    }
-
-    // 2. Presence Peak (1.5 kHz): Softens during uphill/spiral deceleration so
-    // slowing down sounds noticeably darker/throatier
-    if (presencePeakFilter) {
-      const presDb = Math.max(
-          -1.5,
-          (targetCruiseRate < 0.92 ? 2.4 : 2.0 - 3.0 * pitchAboveOne) -
-              Math.max(0.0, smoothHillAndCurlLoad) * 8.0);
-      presencePeakFilter.gain.setTargetAtTime(presDb, now, 0.04);
-    }
-
-    // 3. Low-Pass Filter: Rolls down to ~2200-2800 Hz when decelerating into
-    // Cat/Lamp curls or lugging uphill,
-    //    and opens up bright (6000 Hz) on fast straightaways
-    const slowCurlDarken = Math.max(0.0, 0.96 - targetCruiseRate) * 9500;
-    const targetCutoff = Math.max(
-        2150,
-        Math.min(
-            6800,
-            6400 - 7200 * Math.max(0.0, targetCruiseRate - 1.04) -
-                slowCurlDarken - 650 * decelFactor));
-    engineBusFilter.frequency.setTargetAtTime(targetCutoff, now, 0.04);
-
-    // 4. Subtle Phase-Clean Sub-Bass Sine (<95 Hz) for physical chest weight
-    if (rumbleSubOsc && rumbleOutGain) {
-      const subHz = Math.min(82.0, Math.max(40.0, targetF0 * 0.5));
-      rumbleSubOsc.frequency.setTargetAtTime(subHz, now, 0.03);
-      const subGain = Math.min(
-          0.20,
-          0.075 * userRumbleAmount *
-              (0.85 + 0.35 * Math.min(1.0, clampedNorm) +
-               Math.max(0.0, smoothHillAndCurlLoad) * 0.8));
-      rumbleOutGain.gain.setTargetAtTime(subGain, now, 0.04);
-    }
-
-    // Tire Drift Scrub & FIA Curb Rumble loops
-    const targetDriftGain =
-        state.isDrifting ? 0.42 * Math.min(1.0, smoothNormSpeed / 0.30) : 0.0;
-    const targetCurbGain = (state.curbRumble || 0) > 0.05 ?
-        Math.min(0.48, state.curbRumble * 0.48) :
-        0.0;
-
-    if (loopNodes.drift) {
-      loopNodes.drift.gain.gain.setTargetAtTime(targetDriftGain, now, 0.04);
-      loopNodes.drift.src.playbackRate.setTargetAtTime(
-          0.92 + 0.18 * smoothNormSpeed, now, 0.05);
-    }
-    if (loopNodes.curb) {
-      loopNodes.curb.gain.gain.setTargetAtTime(targetCurbGain, now, 0.03);
-      loopNodes.curb.src.playbackRate.setTargetAtTime(
-          0.88 + 0.32 * smoothNormSpeed, now, 0.04);
-    }
+    lastTargetF0 = targetF0;
+    lastDecelFactor = decelFactor;
 
     // Subtle sputter scheduler (fires overrun exhaust pops when
     // braking/decelerating into Cat & Lamp curls or hills)
@@ -618,34 +689,6 @@ export function createDeskRacerHybridAudio(options = {}) {
         nextSputterTime = now + 0.35;
       }
     }
-
-    // Compute UI telemetry bar indicators for the current speed regime
-    const {wIdle, wCruise, wFlatout, wBoost} = computeCrispRegimeWeights(
-        75.0 + 129.0 * Math.min(1.0, clampedNorm) + 64.0 * smoothBoostBlend);
-    const wDecel = decelFactor * Math.min(1.0, smoothNormSpeed / 0.25) * 0.85;
-
-    lastDiag = {
-      stemsLoaded,
-      normSpeed: Number(smoothNormSpeed.toFixed(2)),
-      cruisePlaybackRate: Number(targetCruiseRate.toFixed(2)),
-      weights: {
-        idle: Number(wIdle.toFixed(2)),
-        cruise: Number(Math.max(wCruise, 0.95).toFixed(2)),
-        flatout: Number(wFlatout.toFixed(2)),
-        decel: Number(wDecel.toFixed(2)),
-        f1Boost: Number(wBoost.toFixed(2)),
-        rumble: Number(Math.min(
-                               1.0,
-                               userRumbleAmount *
-                                   (0.65 + 0.25 * Math.min(1.0, clampedNorm)))
-                           .toFixed(2)),
-        drift: Number(targetDriftGain.toFixed(2)),
-        curb: Number(targetCurbGain.toFixed(2)),
-      },
-      filterCutoffHz: Math.round(targetCutoff),
-      harmonicBridgeHz: targetF0,
-      sputterCount,
-    };
   }
 
   function playLapChime() {
@@ -906,7 +949,32 @@ export function createDeskRacerHybridAudio(options = {}) {
       userSputterAmount = Math.max(0.0, Math.min(2.5, Number(v)));
     },
     isEnabled: () => enabled,
-    getDiagnostics: () => lastDiag,
+    getDiagnostics: () => {
+      const clampedNorm = Math.min(1.08, smoothNormSpeed);
+      const {wIdle, wCruise, wFlatout, wBoost} = computeCrispRegimeWeights(
+          75.0 + 129.0 * Math.min(1.0, clampedNorm) + 64.0 * smoothBoostBlend);
+      const wDecel = lastDecelFactor * Math.min(1.0, smoothNormSpeed / 0.25) * 0.85;
+      return {
+        stemsLoaded,
+        normSpeed: Number(smoothNormSpeed.toFixed(2)),
+        cruisePlaybackRate: Number(Math.max(0.66, lastCruiseRate).toFixed(2)),
+        weights: {
+          idle: Number(wIdle.toFixed(2)),
+          cruise: Number(Math.max(wCruise, 0.95).toFixed(2)),
+          flatout: Number(wFlatout.toFixed(2)),
+          decel: Number(wDecel.toFixed(2)),
+          f1Boost: Number(wBoost.toFixed(2)),
+          rumble: Number(
+              Math.min(1.0, userRumbleAmount * (0.65 + 0.25 * Math.min(1.0, clampedNorm)))
+                  .toFixed(2)),
+          drift: Number(Math.max(0, lastDriftGain).toFixed(2)),
+          curb: Number(Math.max(0, lastCurbGain).toFixed(2)),
+        },
+        filterCutoffHz: Math.round(lastTargetCutoff),
+        harmonicBridgeHz: lastTargetF0,
+        sputterCount,
+      };
+    },
   };
 }
 

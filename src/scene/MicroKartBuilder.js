@@ -406,9 +406,10 @@ export function buildMicroKart() {
   }
 
   // Warm flickering fire light under rear exhaust/tires when sparks emit
-  // Controlled by the "Fire Downcast Light" slider in Settings (default 0.12x for subtle realism)
+  // Disabled as a dynamic PointLight to prevent mobile GPU fragment light-loop overhead
   const sparkFireLight = new THREE.PointLight(0xff6818, 0.0, 0.045, 0.0);
   sparkFireLight.position.set(0, 0.0028, -0.009);
+  sparkFireLight.visible = false;
   chassisGroup.add(sparkFireLight);
 
   let fireLightMultiplier = 0.12;
@@ -593,76 +594,41 @@ export function buildMicroKart() {
       uResolution: {value: new THREE.Vector2(1440, 900)},
     },
     transparent: true,
-    depthTest: false,
+    depthTest: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     vertexShader: /* glsl */ `
       uniform float uSparkScale;
-      uniform float uFocus;
-      uniform float uAperture;
-      uniform float uMaxBlur;
-      uniform vec2 uResolution;
       attribute vec3 color;
       attribute float aLife;
       attribute float aSize;
       varying vec3 vColor;
       varying float vLife;
-      varying float vViewZ;
-      varying float vDofFactor;
       void main() {
         vColor = color;
         vLife = aLife;
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        vViewZ = mvPosition.z;
         gl_Position = projectionMatrix * mvPosition;
 
         // Smooth ember size curve: blooms quickly then shrinks as the ember cools
         float lifeScale = smoothstep(0.0, 0.12, aLife) * (0.38 + 0.62 * pow(aLife, 0.7));
         float basePointSize = clamp((4.8 * uSparkScale * aSize * lifeScale) / max(0.05, -mvPosition.z), 0.0, 16.0);
-
-        // Evaluate optical Depth of Field from the spark's OWN 3D view-space depth (mvPosition.z)
-        // instead of the background wall behind it! Keep a generous 65mm in-focus sweet-spot around uFocus
-        // so whenever the car is in focus, the entire trailing spark plume stays 100% tack-sharp.
-        float rawFactor = uFocus + mvPosition.z;
-        float deadzone = max(0.065, uFocus * 0.28);
-        float absDiff = max(0.0, abs(rawFactor) - deadzone);
-        float normScale = 1.0 / max(0.22, uFocus * 1.15);
-        float cocUv = clamp(absDiff * (0.42 + 0.16 * normScale) * uAperture, 0.0, uMaxBlur);
-        float cocPx = cocUv * uResolution.y * 0.50;
-        vDofFactor = clamp(cocPx / max(1.0, basePointSize), 0.0, 4.0);
-
-        gl_PointSize = aLife > 0.01 ? clamp(basePointSize + cocPx, 0.0, 26.0) : 0.0;
+        gl_PointSize = aLife > 0.01 ? basePointSize : 0.0;
       }
     `,
     fragmentShader: /* glsl */ `
-      #include <common>
-      #include <packing>
-      uniform sampler2D tSceneDepth;
-      uniform float uNearClip;
-      uniform float uFarClip;
-      uniform vec2 uResolution;
       varying vec3 vColor;
       varying float vLife;
-      varying float vViewZ;
-      varying float vDofFactor;
       void main() {
         if (vLife <= 0.01) discard;
         vec2 uv = gl_PointCoord - vec2(0.5);
         float d = length(uv);
         if (d > 0.5) discard;
 
-        // Hardware depth occlusion against closer opaque 3D geometry (kart body, track, lamp column)
-        vec2 screenUv = gl_FragCoord.xy / max(vec2(1.0), uResolution);
-        float rawSceneDepth = texture2D(tSceneDepth, screenUv).x;
-        float sceneViewZ = perspectiveDepthToViewZ(rawSceneDepth, uNearClip, uFarClip);
-        if (sceneViewZ > vViewZ + 0.0015) discard;
-
-        // Soft circular radial fire-ember profile:
-        // When in focus (vDofFactor == 0.0), renders a razor-sharp incandescent core + tight ember glow.
-        float blurLerp = clamp(vDofFactor * 0.35, 0.0, 1.0);
-        float core = exp(-d * d * mix(34.0, 8.0, blurLerp));
-        float midFire = exp(-d * d * mix(10.5, 4.5, blurLerp)) * smoothstep(0.5, 0.08, d);
-        float outerHalo = pow(max(0.0, 1.0 - d * 2.0), mix(2.2, 1.3, blurLerp)) * 0.65;
+        // Soft circular radial fire-ember profile
+        float core = exp(-d * d * 34.0);
+        float midFire = exp(-d * d * 10.5) * smoothstep(0.5, 0.08, d);
+        float outerHalo = pow(max(0.0, 1.0 - d * 2.0), 2.2) * 0.65;
 
         // Temperature color shift as the spark cools over its lifetime (white-yellow -> fiery orange -> deep ember red)
         vec3 deepEmber = vec3(0.92, 0.16, 0.02);
@@ -670,11 +636,9 @@ export function buildMicroKart() {
         vec3 hotCenter = vec3(1.0, 0.96, 0.82);
 
         vec3 emberColor = mix(midFlame, hotCenter, clamp(core * 1.2, 0.0, 1.0));
-        float energyNorm = 1.0 / (1.0 + vDofFactor * 0.85);
-        // HDR intensity > 1.0 at center so UnrealBloomPass gives each spark a soft natural fire glow
-        vec3 finalRgb = emberColor * (1.85 * core + 1.15 * midFire + 0.65 * outerHalo) * energyNorm;
+        vec3 finalRgb = emberColor * (1.85 * core + 1.15 * midFire + 0.65 * outerHalo);
 
-        float alpha = clamp((core * 1.1 + midFire * 0.85 + outerHalo * 0.55) * vLife * energyNorm, 0.0, 1.0);
+        float alpha = clamp((core * 1.1 + midFire * 0.85 + outerHalo * 0.55) * vLife, 0.0, 1.0);
         if (alpha < 0.015) discard;
         gl_FragColor = vec4(finalRgb, alpha);
       }

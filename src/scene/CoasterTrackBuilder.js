@@ -774,8 +774,8 @@ export function buildCoasterTrack(splineData) {
   });
 
   const roadMesh = new THREE.Mesh(roadGeo, roadMat);
-  roadMesh.castShadow = true;
-  roadMesh.receiveShadow = true;
+  roadMesh.castShadow = false;
+  roadMesh.receiveShadow = false;
   roadMesh.name = 'CoasterAsphaltRoadbed';
   trackGroup.add(roadMesh);
 
@@ -872,8 +872,8 @@ export function buildCoasterTrack(splineData) {
   });
 
   const curbMesh = new THREE.Mesh(curbGeo, curbMat);
-  curbMesh.castShadow = true;
-  curbMesh.receiveShadow = true;
+  curbMesh.castShadow = false;
+  curbMesh.receiveShadow = false;
   trackGroup.add(curbMesh);
 
   // -------------------------------------------------------------------------
@@ -906,8 +906,8 @@ export function buildCoasterTrack(splineData) {
     new THREE.TubeGeometry(curveRight, 360, 0.0011, 8, true),
     silverSteelMat
   );
-  tubeLeft.castShadow = true;
-  tubeRight.castShadow = true;
+  tubeLeft.castShadow = false;
+  tubeRight.castShadow = false;
   trackGroup.add(tubeLeft, tubeRight);
 
   // -------------------------------------------------------------------------
@@ -934,8 +934,8 @@ export function buildCoasterTrack(splineData) {
   const maxChords = numColumns * 4;
   const chordGeo = new THREE.CylinderGeometry(0.00085, 0.00085, 1.0, 8);
   const chordInstanced = new THREE.InstancedMesh(chordGeo, silverSteelMat, maxChords);
-  chordInstanced.castShadow = true;
-  chordInstanced.receiveShadow = true;
+  chordInstanced.castShadow = false;
+  chordInstanced.receiveShadow = false;
 
   const footpadGeo = new THREE.CylinderGeometry(0.0048, 0.0055, 0.0022, 14);
   const footpadMat = new THREE.MeshStandardMaterial({
@@ -944,12 +944,12 @@ export function buildCoasterTrack(splineData) {
     metalness: 0.5,
   });
   const footpadInstanced = new THREE.InstancedMesh(footpadGeo, footpadMat, numColumns);
-  footpadInstanced.receiveShadow = true;
+  footpadInstanced.receiveShadow = false;
 
   // Cross-head saddle bracket directly under the track deck
   const saddleGeo = new THREE.BoxGeometry(0.024, 0.0022, 0.0055);
   const saddleInstanced = new THREE.InstancedMesh(saddleGeo, silverSteelMat, numColumns);
-  saddleInstanced.castShadow = true;
+  saddleInstanced.castShadow = false;
 
   // Horizontal lattice rings along column heights
   const ringGeo = new THREE.BoxGeometry(0.0072, 0.001, 0.0072);
@@ -1421,8 +1421,9 @@ export function buildCoasterTrack(splineData) {
   });
   const shadowProxyInstanced = new THREE.InstancedMesh(shadowProxyGeo, shadowProxyMat, numColumns);
   shadowProxyInstanced.name = 'TrussColumnShadowProxies';
-  shadowProxyInstanced.castShadow = true;
+  shadowProxyInstanced.castShadow = false;
   shadowProxyInstanced.receiveShadow = false;
+  shadowProxyInstanced.visible = false;
   for (let c = 0; c < numColumns; c++) {
     const s = samples[c * columnStep];
     const topPos = new THREE.Vector3(...s.position);

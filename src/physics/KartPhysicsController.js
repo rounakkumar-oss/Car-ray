@@ -333,11 +333,12 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
   let onRailImpactCallback = null;
 
   function computeActiveKeysStr() {
-    return (
-      [keys.forward && 'W', keys.left && 'A', keys.backward && 'S', keys.right && 'D']
-        .filter(Boolean)
-        .join('+') || 'NONE'
-    );
+    let s = '';
+    if (keys.forward) s = 'W';
+    if (keys.left) s = s ? s + '+A' : 'A';
+    if (keys.backward) s = s ? s + '+S' : 'S';
+    if (keys.right) s = s ? s + '+D' : 'D';
+    return s || 'NONE';
   }
 
   function computeRailZone(latOffset) {
@@ -550,10 +551,9 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
   }
 
   // -------------------------------------------------------------------------
-  // 60FPS PHYSICS STEP
+  // 60FPS SUB-STEPPED DELTA-TIME PHYSICS STEP
   // -------------------------------------------------------------------------
-  function stepPhysics(dt) {
-    const clampedDt = Math.min(dt, 0.05);
+  function stepSinglePhysicsSubstep(clampedDt) {
     const frame = sampleTrackAtArcLength(state.s);
     state.activeKeysStr = computeActiveKeysStr();
     state.signedCurvature = frame.signedCurvature;
@@ -1106,6 +1106,17 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     // Re-evaluate exact 3D pose & right-handed orientation quaternion on the banked spline
     syncPoseFromSpline();
 
+    return state;
+  }
+
+  function stepPhysics(dt) {
+    const safeDt = Math.min(Math.max(dt || 1 / 60, 0.001), 0.1);
+    const maxSubstep = 1 / 60;
+    const substeps = Math.min(4, Math.max(1, Math.ceil(safeDt / maxSubstep)));
+    const subDt = safeDt / substeps;
+    for (let i = 0; i < substeps; i++) {
+      stepSinglePhysicsSubstep(subDt);
+    }
     return state;
   }
 

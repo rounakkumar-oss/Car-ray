@@ -29,20 +29,7 @@ export function buildGoldenHourAtmosphere(scene) {
   const sunLight = new THREE.DirectionalLight(0xffb84d, 0.85 * defaultSunScale);
   // Angled from upper-left rear window (~38° diagonal down-and-right across desk)
   sunLight.position.set(-0.36, 0.68, -0.52);
-  sunLight.castShadow = true;
-  sunLight.shadow.mapSize.width = 2048;
-  sunLight.shadow.mapSize.height = 2048;
-  sunLight.shadow.camera.near = 0.08;
-  sunLight.shadow.camera.far = 2.4;
-  sunLight.shadow.camera.left = -0.55;
-  sunLight.shadow.camera.right = 0.55;
-  sunLight.shadow.camera.top = 0.48;
-  sunLight.shadow.camera.bottom = -0.42;
-  sunLight.shadow.bias = -0.00012;
-  sunLight.shadow.normalBias = 0.0006;
-  sunLight.shadow.radius = 1.15;
-  sunLight.shadow.autoUpdate = false;
-  sunLight.shadow.needsUpdate = true;
+  sunLight.castShadow = false;
   sunLight.visible = defaultSunScale > 0.005;
   atmosphereGroup.add(sunLight);
 
@@ -54,7 +41,7 @@ export function buildGoldenHourAtmosphere(scene) {
     1.2
   );
   windowGlowLight.position.set(0.0, 0.46, -0.42);
-  windowGlowLight.visible = defaultSunScale > 0.005;
+  windowGlowLight.visible = false;
   atmosphereGroup.add(windowGlowLight);
 
   // Warm Front-Left Fill Light
@@ -69,11 +56,11 @@ export function buildGoldenHourAtmosphere(scene) {
   // Golden-hour counter-rim (completely off at night so it never washes out desk/room shadows)
   const rimLight = new THREE.DirectionalLight(0xffa652, 0.22 * defaultSunScale);
   rimLight.position.set(-0.38, 0.48, 0.62);
-  rimLight.visible = defaultSunScale > 0.005;
+  rimLight.visible = false;
   atmosphereGroup.add(rimLight);
   const roomFillLight = rimLight;
 
-  // Primary Warm Key-Light Desk Lamp (Sector 4, casting crisp diagonal shadows across the desk!)
+  // Primary Warm Key-Light Desk Lamp (Sector 4, mobile-optimized with real-time shadows disabled)
   const lampTarget = new THREE.Object3D();
   lampTarget.position.set(-0.09, 0.0, 0.065);
   atmosphereGroup.add(lampTarget);
@@ -88,16 +75,7 @@ export function buildGoldenHourAtmosphere(scene) {
   );
   lampKeyLight.position.set(0.352, 0.355, -0.085);
   lampKeyLight.target = lampTarget;
-  lampKeyLight.castShadow = true;
-  lampKeyLight.shadow.mapSize.width = 2048;
-  lampKeyLight.shadow.mapSize.height = 2048;
-  lampKeyLight.shadow.camera.near = 0.06;
-  lampKeyLight.shadow.camera.far = 1.35;
-  lampKeyLight.shadow.bias = -0.00035;
-  lampKeyLight.shadow.normalBias = 0.0012;
-  lampKeyLight.shadow.radius = 1.15;
-  lampKeyLight.shadow.autoUpdate = false;
-  lampKeyLight.shadow.needsUpdate = true;
+  lampKeyLight.castShadow = false;
   atmosphereGroup.add(lampKeyLight);
 
   // Warm orange diffuser surface aura around the lamp head & corkscrew
@@ -478,8 +456,7 @@ export function buildGoldenHourAtmosphere(scene) {
   let lastMicScale = -1;
 
   function requestShadowMapUpdate() {
-    if (sunLight.visible) sunLight.shadow.needsUpdate = true;
-    lampKeyLight.shadow.needsUpdate = true;
+    // Real-time shadow maps disabled for 60 FPS mobile GPU optimization
   }
 
   function updateAtmosphere(
@@ -514,18 +491,14 @@ export function buildGoldenHourAtmosphere(scene) {
       Math.abs(micScale - lastMicScale) > 1e-5;
 
     if (lightingChanged) {
-      const prevHasSun = lastSunScale > 0.005;
       lastSunScale = sunScale;
       lastLampScale = lampScale;
       lastMicScale = micScale;
 
       sunLight.visible = hasSun;
-      windowGlowLight.visible = hasSun;
+      windowGlowLight.visible = false;
       goldenFillLight.visible = hasSun;
-      rimLight.visible = hasSun;
-      if (hasSun && !prevHasSun) {
-        sunLight.shadow.needsUpdate = true;
-      }
+      rimLight.visible = false;
 
       // Dark Cozy Night-Time Desk Lamp Key Light + High-Contrast Shadows
       sunLight.intensity = 0.85 * sunScale;
