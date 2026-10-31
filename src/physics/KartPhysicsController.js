@@ -1109,13 +1109,235 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     return state;
   }
 
+  // -------------------------------------------------------------------------
+  // MODE 2: GIANT HOUSE OPEN WORLD FREE-ROAM PHYSICS (14 CONNECTED ROOMS)
+  // -------------------------------------------------------------------------
+  let giantHouseRef = null;
+  let currentGameMode = 'track'; // 'track' | 'house'
+  let houseWorldYaw = 0.0; // 0 rad = facing +X (East along Grand Central Hallway)
+  let housePrevSurfaceY = 0.0;
+  const _houseSurfaceNormal = new THREE.Vector3(0, 1, 0);
+  const _houseSmoothedNormal = new THREE.Vector3(0, 1, 0);
+
+  function setGiantHouseWorld(houseWorld) {
+    giantHouseRef = houseWorld;
+  }
+
+  function resetHousePose() {
+    // Spawn in Room 12 (Grand Central Hallway) facing East (+X) toward the central stunt ramp
+    state.position.set(-0.65, 0.001, 0.0);
+    houseWorldYaw = 0.0;
+    housePrevSurfaceY = 0.0;
+    state.speed = 0.0;
+    state.lateralOffset = 0.0;
+    state.lateralVel = 0.0;
+    state.headingYaw = 0.0;
+    state.steerSmooth = 0.0;
+    state.steerAngle = 0.0;
+    state.steerInput = 0.0;
+    state.isDrifting = false;
+    state.driftAngle = 0.0;
+    state.boostActive = 0.0;
+    state.hopHeight = 0.0;
+    state.hopVel = 0.0;
+    state.curbRumble = 0.0;
+    state.countdownLocked = false;
+    state.tangent.set(Math.cos(houseWorldYaw), 0, Math.sin(houseWorldYaw));
+    state.normal.set(0, 1, 0);
+    state.right.crossVectors(state.tangent, state.normal).normalize();
+    _left.crossVectors(state.normal, state.tangent).normalize();
+    _rotMat.makeBasis(_left, state.normal, state.tangent);
+    state.quaternion.setFromRotationMatrix(_rotMat);
+    if (giantHouseRef && giantHouseRef.getRoomAt) {
+      const rm = giantHouseRef.getRoomAt(state.position.x, state.position.z);
+      state.currentRoomName = rm ? `${rm.code} · ${rm.name}` : '12 · GRAND CENTRAL HALLWAY';
+      state.currentRoomShort = rm ? rm.shortName : 'CENTRAL HALL';
+    }
+  }
+
+  function setGameMode(mode) {
+    const nextMode = mode === 'house' ? 'house' : 'track';
+    if (currentGameMode === nextMode) return currentGameMode;
+    currentGameMode = nextMode;
+    state.gameMode = currentGameMode;
+    if (currentGameMode === 'house') {
+      state.autopilot = false;
+      resetHousePose();
+    } else {
+      resetToStart();
+    }
+    return currentGameMode;
+  }
+
+  function stepHouseOpenWorldSubstep(clampedDt) {
+    state.activeKeysStr = computeActiveKeysStr();
+    if (state.railHitCooldown > 0) {
+      state.railHitCooldown = Math.max(0.0, state.railHitCooldown - clampedDt);
+    }
+
+    let throttle = 0.0;
+    if (keys.forward) throttle += 1.0;
+    if (keys.backward) throttle -= 1.0;
+    const turnRight = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+
+    // Calibrated speeds so speedometer reads up to ~105 KM/H while traversing the 9.6m x 9.6m house briskly
+    const maxSpeed = 0.265 * state.topSpeedMultiplier;
+    const reverseMax = -0.14 * state.topSpeedMultiplier;
+    const accelRate = 0.34;
+
+    if (throttle === 0) {
+      const decel = 0.42 * clampedDt;
+      if (Math.abs(state.speed) <= decel) {
+        state.speed = 0.0;
+      } else {
+        state.speed -= Math.sign(state.speed) * decel;
+      }
+    } else if (throttle > 0) {
+      const a = state.speed < -0.01 ? 0.95 : accelRate;
+      state.speed = Math.min(maxSpeed, state.speed + a * throttle * clampedDt);
+    } else {
+      const a = state.speed > 0.01 ? 0.95 : 0.24;
+      state.speed = Math.max(reverseMax, state.speed + a * throttle * clampedDt);
+    }
+
+    // Smooth steering & yaw rate
+    state.steerSmooth = THREE.MathUtils.lerp(
+      state.steerSmooth,
+      turnRight,
+      1.0 - Math.exp(-16.0 * clampedDt)
+    );
+    state.turnRight = turnRight;
+    state.steerAngle = -state.steerSmooth * 0.45;
+    state.steerInput = state.steerSmooth;
+
+    const speedSign = state.speed >= -0.005 ? 1.0 : -1.0;
+    const steerMobility = THREE.MathUtils.clamp(Math.abs(state.speed) / 0.035, 0.0, 1.0);
+    const yawRate = 2.45 * state.steerSmooth * steerMobility * speedSign;
+    houseWorldYaw += yawRate * clampedDt;
+
+    // Drift visual slip angle & sparks when turning hard at speed
+    if (Math.abs(state.steerSmooth) > 0.55 && Math.abs(state.speed) > 0.16) {
+      state.isDrifting = true;
+      state.driftDir = Math.sign(turnRight) || 1;
+      state.driftAngle = THREE.MathUtils.lerp(
+        state.driftAngle,
+        -state.driftDir * 0.16,
+        1.0 - Math.exp(-10.0 * clampedDt)
+      );
+    } else {
+      state.isDrifting = false;
+      state.driftDir = 0;
+      state.driftAngle = THREE.MathUtils.lerp(
+        state.driftAngle,
+        0.0,
+        1.0 - Math.exp(-12.0 * clampedDt)
+      );
+    }
+
+    // Advance world (X, Z) with 4.2x world travel multiplier so the RC car covers rooms with exciting pace
+    const worldStepDist = state.speed * 4.2 * clampedDt;
+    const fwdX = Math.cos(houseWorldYaw);
+    const fwdZ = Math.sin(houseWorldYaw);
+    let nextX = state.position.x + fwdX * worldStepDist;
+    let nextZ = state.position.z + fwdZ * worldStepDist;
+
+    // Resolve wall and furniture leg bounding-box collisions with smooth bounce
+    if (giantHouseRef && giantHouseRef.resolveCollisions) {
+      const col = giantHouseRef.resolveCollisions(
+        nextX,
+        nextZ,
+        state.position.y + state.hopHeight,
+        0.052
+      );
+      nextX = col.x;
+      nextZ = col.z;
+      if (col.hit) {
+        // Reflect heading slightly along wall tangent and damp speed smoothly
+        const dotN = fwdX * col.nx + fwdZ * col.nz;
+        if (dotN < -0.15) {
+          const slideX = fwdX - col.nx * dotN * 1.18;
+          const slideZ = fwdZ - col.nz * dotN * 1.18;
+          houseWorldYaw = Math.atan2(slideZ, slideX);
+          state.speed *= 0.72;
+          state.curbRumble = 0.75;
+          if (state.railHitCooldown <= 0.0) {
+            state.railHitCooldown = 0.25;
+            state.hopVel = Math.max(state.hopVel, 0.008);
+            if (onRailImpactCallback) onRailImpactCallback(0.45);
+          }
+        }
+      } else {
+        state.curbRumble = 0.0;
+      }
+    }
+
+    // Evaluate floor & ramp surface height + launch off ramp lips
+    let targetSurfaceY = 0.0;
+    _houseSurfaceNormal.set(0, 1, 0);
+    if (giantHouseRef && giantHouseRef.sampleFloorAndRamp) {
+      targetSurfaceY = giantHouseRef.sampleFloorAndRamp(nextX, nextZ, _houseSurfaceNormal);
+    }
+
+    // Detect driving off the top edge of a ramp -> convert drop into airborne hopHeight!
+    if (housePrevSurfaceY - targetSurfaceY > 0.03 && Math.abs(state.speed) > 0.06) {
+      state.hopHeight += housePrevSurfaceY - targetSurfaceY;
+      state.hopVel = Math.max(state.hopVel, Math.abs(state.speed) * 0.22);
+    }
+    housePrevSurfaceY = targetSurfaceY;
+
+    if (state.hopHeight > 0 || state.hopVel !== 0) {
+      state.hopHeight += state.hopVel * clampedDt;
+      state.hopVel -= 0.48 * clampedDt;
+      if (state.hopHeight <= 0) {
+        state.hopHeight = 0;
+        state.hopVel = 0;
+      }
+    }
+
+    state.position.set(nextX, targetSurfaceY + 0.001, nextZ);
+    state.altitudeMm = Math.round((state.position.y + state.hopHeight) * 1000);
+    state.bankDeg = 0.0;
+    state.downforceG = 1.0 + (state.speed * state.speed) / 0.25;
+
+    // Smooth surface normal & build right-handed orientation quaternion
+    _houseSmoothedNormal.lerp(_houseSurfaceNormal, 1.0 - Math.exp(-14.0 * clampedDt)).normalize();
+    state.normal.copy(_houseSmoothedNormal);
+    state.tangent
+      .set(Math.cos(houseWorldYaw), 0, Math.sin(houseWorldYaw))
+      .projectOnPlane(state.normal)
+      .normalize();
+    state.right.crossVectors(state.tangent, state.normal).normalize();
+
+    _left.crossVectors(state.normal, state.tangent).normalize();
+    _rotMat.makeBasis(_left, state.normal, state.tangent);
+    state.quaternion.setFromRotationMatrix(_rotMat);
+
+    if (giantHouseRef && giantHouseRef.getRoomAt) {
+      const rm = giantHouseRef.getRoomAt(nextX, nextZ);
+      if (rm) {
+        state.currentRoomName = `${rm.code} · ${rm.name}`;
+        state.currentRoomShort = rm.shortName;
+      }
+    }
+
+    return state;
+  }
+
+  state.gameMode = currentGameMode;
+  state.currentRoomName = '12 · GRAND CENTRAL HALLWAY';
+  state.currentRoomShort = 'CENTRAL HALL';
+
   function stepPhysics(dt) {
     const safeDt = Math.min(Math.max(dt || 1 / 60, 0.001), 0.1);
     const maxSubstep = 1 / 60;
     const substeps = Math.min(4, Math.max(1, Math.ceil(safeDt / maxSubstep)));
     const subDt = safeDt / substeps;
     for (let i = 0; i < substeps; i++) {
-      stepSinglePhysicsSubstep(subDt);
+      if (currentGameMode === 'house') {
+        stepHouseOpenWorldSubstep(subDt);
+      } else {
+        stepSinglePhysicsSubstep(subDt);
+      }
     }
     return state;
   }
@@ -1127,11 +1349,20 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     stepPhysics,
     sampleTrackAtArcLength,
     teleportToSector,
-    resetToStart,
+    resetToStart: () => {
+      if (currentGameMode === 'house') {
+        resetHousePose();
+      } else {
+        resetToStart();
+      }
+    },
     setAutopilot,
     setTouchKey,
     clearTouchKeys,
     notifyLightsOut,
+    setGiantHouseWorld,
+    setGameMode,
+    getGameMode: () => currentGameMode,
     onLapComplete: (cb) => {
       onLapCompleteCallback = cb;
     },

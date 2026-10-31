@@ -549,11 +549,11 @@ export function createDeskRacerHybridAudio(options = {}) {
     const targetF0 = Math.round(122.0 * targetCruiseRate);
 
     const now = ctx.currentTime;
-    const timeConst = 0.04;
+    const timeConst = 0.085;
 
-    // Throttle WebAudio AudioParam automation updates (~36 Hz) and skip redundant updates
-    // to prevent audio thread automation queue bloat and frame stutters on mobile devices
-    if (nowMs - lastParamUpdateMs >= 26) {
+    // Throttle WebAudio AudioParam automation updates to every 100ms (10 Hz) using setTargetAtTime()
+    // and skip redundant updates to eliminate audio-thread stuttering on Android/mobile devices
+    if (nowMs - lastParamUpdateMs >= 100) {
       lastParamUpdateMs = nowMs;
 
       if (loopNodes.idle && loopNodes.cruise) {
@@ -561,25 +561,25 @@ export function createDeskRacerHybridAudio(options = {}) {
             Math.min(1.0, Math.max(0.0, (rawSpeed - 0.005) / (0.012 - 0.005)));
         const idleGain = 0.96 * Math.cos(0.5 * Math.PI * launchU);
         const cruiseGain = 0.96 * Math.sin(0.5 * Math.PI * launchU);
-        if (Math.abs(idleGain - lastIdleGain) > 0.003) {
+        if (Math.abs(idleGain - lastIdleGain) > 0.005) {
           lastIdleGain = idleGain;
           loopNodes.idle.gain.gain.setTargetAtTime(idleGain, now, timeConst);
         }
-        if (Math.abs(cruiseGain - lastCruiseGain) > 0.003) {
+        if (Math.abs(cruiseGain - lastCruiseGain) > 0.005) {
           lastCruiseGain = cruiseGain;
           loopNodes.cruise.gain.gain.setTargetAtTime(cruiseGain, now, timeConst);
         }
-        if (Math.abs(targetCruiseRate - lastCruiseRate) > 0.002) {
+        if (Math.abs(targetCruiseRate - lastCruiseRate) > 0.004) {
           lastCruiseRate = targetCruiseRate;
           loopNodes.cruise.src.playbackRate.setTargetAtTime(
               targetCruiseRate, now, timeConst);
         }
       } else if (loopNodes.cruise) {
-        if (Math.abs(0.96 - lastCruiseGain) > 0.003) {
+        if (Math.abs(0.96 - lastCruiseGain) > 0.005) {
           lastCruiseGain = 0.96;
           loopNodes.cruise.gain.gain.setTargetAtTime(0.96, now, timeConst);
         }
-        if (Math.abs(targetCruiseRate - lastCruiseRate) > 0.002) {
+        if (Math.abs(targetCruiseRate - lastCruiseRate) > 0.004) {
           lastCruiseRate = targetCruiseRate;
           loopNodes.cruise.src.playbackRate.setTargetAtTime(
               targetCruiseRate, now, timeConst);
@@ -594,9 +594,9 @@ export function createDeskRacerHybridAudio(options = {}) {
           userRumbleAmount *
               (2.8 + 8.5 * pitchAboveOne + lugWarmth +
                1.2 * Math.max(0, accelKick * 10)));
-      if (lowShelfFilter && Math.abs(shelfDb - lastShelfDb) > 0.12) {
+      if (lowShelfFilter && Math.abs(shelfDb - lastShelfDb) > 0.2) {
         lastShelfDb = shelfDb;
-        lowShelfFilter.gain.setTargetAtTime(shelfDb, now, 0.045);
+        lowShelfFilter.gain.setTargetAtTime(shelfDb, now, timeConst);
       }
 
       if (presencePeakFilter) {
@@ -604,9 +604,9 @@ export function createDeskRacerHybridAudio(options = {}) {
             -1.5,
             (targetCruiseRate < 0.92 ? 2.4 : 2.0 - 3.0 * pitchAboveOne) -
                 Math.max(0.0, smoothHillAndCurlLoad) * 8.0);
-        if (Math.abs(presDb - lastPresDb) > 0.12) {
+        if (Math.abs(presDb - lastPresDb) > 0.2) {
           lastPresDb = presDb;
-          presencePeakFilter.gain.setTargetAtTime(presDb, now, 0.045);
+          presencePeakFilter.gain.setTargetAtTime(presDb, now, timeConst);
         }
       }
 
@@ -617,26 +617,26 @@ export function createDeskRacerHybridAudio(options = {}) {
               6800,
               6400 - 7200 * Math.max(0.0, targetCruiseRate - 1.04) -
                   slowCurlDarken - 650 * decelFactor));
-      if (Math.abs(targetCutoff - lastCutoff) > 18) {
+      if (Math.abs(targetCutoff - lastCutoff) > 28) {
         lastCutoff = targetCutoff;
-        engineBusFilter.frequency.setTargetAtTime(targetCutoff, now, 0.045);
+        engineBusFilter.frequency.setTargetAtTime(targetCutoff, now, timeConst);
       }
       lastTargetCutoff = targetCutoff;
 
       if (rumbleSubOsc && rumbleOutGain) {
         const subHz = Math.min(82.0, Math.max(40.0, targetF0 * 0.5));
-        if (Math.abs(subHz - lastSubHz) > 0.4) {
+        if (Math.abs(subHz - lastSubHz) > 0.6) {
           lastSubHz = subHz;
-          rumbleSubOsc.frequency.setTargetAtTime(subHz, now, 0.035);
+          rumbleSubOsc.frequency.setTargetAtTime(subHz, now, timeConst);
         }
         const subGain = Math.min(
             0.20,
             0.075 * userRumbleAmount *
                 (0.85 + 0.35 * Math.min(1.0, clampedNorm) +
                  Math.max(0.0, smoothHillAndCurlLoad) * 0.8));
-        if (Math.abs(subGain - lastSubGain) > 0.003) {
+        if (Math.abs(subGain - lastSubGain) > 0.005) {
           lastSubGain = subGain;
-          rumbleOutGain.gain.setTargetAtTime(subGain, now, 0.045);
+          rumbleOutGain.gain.setTargetAtTime(subGain, now, timeConst);
         }
       }
 
@@ -649,24 +649,24 @@ export function createDeskRacerHybridAudio(options = {}) {
 
       if (loopNodes.drift) {
         const driftRate = 0.92 + 0.18 * smoothNormSpeed;
-        if (Math.abs(targetDriftGain - lastDriftGain) > 0.004) {
+        if (Math.abs(targetDriftGain - lastDriftGain) > 0.006) {
           lastDriftGain = targetDriftGain;
-          loopNodes.drift.gain.gain.setTargetAtTime(targetDriftGain, now, 0.04);
+          loopNodes.drift.gain.gain.setTargetAtTime(targetDriftGain, now, timeConst);
         }
-        if (targetDriftGain > 0.001 && Math.abs(driftRate - lastDriftRate) > 0.005) {
+        if (targetDriftGain > 0.001 && Math.abs(driftRate - lastDriftRate) > 0.008) {
           lastDriftRate = driftRate;
-          loopNodes.drift.src.playbackRate.setTargetAtTime(driftRate, now, 0.05);
+          loopNodes.drift.src.playbackRate.setTargetAtTime(driftRate, now, timeConst);
         }
       }
       if (loopNodes.curb) {
         const curbRate = 0.88 + 0.32 * smoothNormSpeed;
-        if (Math.abs(targetCurbGain - lastCurbGain) > 0.004) {
+        if (Math.abs(targetCurbGain - lastCurbGain) > 0.006) {
           lastCurbGain = targetCurbGain;
-          loopNodes.curb.gain.gain.setTargetAtTime(targetCurbGain, now, 0.035);
+          loopNodes.curb.gain.gain.setTargetAtTime(targetCurbGain, now, timeConst);
         }
-        if (targetCurbGain > 0.001 && Math.abs(curbRate - lastCurbRate) > 0.005) {
+        if (targetCurbGain > 0.001 && Math.abs(curbRate - lastCurbRate) > 0.008) {
           lastCurbRate = curbRate;
-          loopNodes.curb.src.playbackRate.setTargetAtTime(curbRate, now, 0.045);
+          loopNodes.curb.src.playbackRate.setTargetAtTime(curbRate, now, timeConst);
         }
       }
     }

@@ -14,40 +14,34 @@ export function buildMicroKart() {
   chassisGroup.name = 'KartChassisBody';
   kartRoot.add(chassisGroup);
 
-  const redFairingMat = new THREE.MeshStandardMaterial({
+  const redFairingMat = new THREE.MeshLambertMaterial({
     color: 0xff2b1e,
-    roughness: 0.22,
-    metalness: 0.35,
+    emissive: new THREE.Color(0x3a0604),
+    emissiveIntensity: 0.35,
   });
 
-  const whiteStripeMat = new THREE.MeshStandardMaterial({
+  const whiteStripeMat = new THREE.MeshLambertMaterial({
     color: 0xf7f9fc,
-    roughness: 0.25,
-    metalness: 0.1,
+    emissive: new THREE.Color(0x20242c),
+    emissiveIntensity: 0.25,
   });
 
-  const carbonMat = new THREE.MeshStandardMaterial({
+  const carbonMat = new THREE.MeshLambertMaterial({
     color: 0x181b22,
-    roughness: 0.42,
-    metalness: 0.45,
   });
 
-  const chromeMat = new THREE.MeshStandardMaterial({
+  const chromeMat = new THREE.MeshLambertMaterial({
     color: 0xdce4f0,
-    roughness: 0.15,
-    metalness: 0.92,
   });
 
-  const goldRimMat = new THREE.MeshStandardMaterial({
+  const goldRimMat = new THREE.MeshLambertMaterial({
     color: 0xffbb44,
-    roughness: 0.25,
-    metalness: 0.85,
+    emissive: new THREE.Color(0x322004),
+    emissiveIntensity: 0.25,
   });
 
-  const tireRubberMat = new THREE.MeshStandardMaterial({
+  const tireRubberMat = new THREE.MeshLambertMaterial({
     color: 0x121419,
-    roughness: 0.82,
-    metalness: 0.05,
   });
 
   // Soft multi-layered local contact-shadow decal directly under the kart chassis & 4 tires
@@ -405,12 +399,10 @@ export function buildMicroKart() {
     tailLightGlowPlanes.push(tailGlowPlane);
   }
 
-  // Warm flickering fire light under rear exhaust/tires when sparks emit
-  // Disabled as a dynamic PointLight to prevent mobile GPU fragment light-loop overhead
+  // Detached stub light (zero PointLights in scene graph)
   const sparkFireLight = new THREE.PointLight(0xff6818, 0.0, 0.045, 0.0);
   sparkFireLight.position.set(0, 0.0028, -0.009);
   sparkFireLight.visible = false;
-  chassisGroup.add(sparkFireLight);
 
   let fireLightMultiplier = 0.12;
   let fireLightPreviewTimer = 0.0;
@@ -433,10 +425,8 @@ export function buildMicroKart() {
   chassisGroup.add(seat);
 
   // Driver Torso in Pearl White & Electric Blue Racing Suit
-  const suitMat = new THREE.MeshStandardMaterial({
+  const suitMat = new THREE.MeshLambertMaterial({
     color: 0xf0f4fa,
-    roughness: 0.35,
-    metalness: 0.08,
   });
   const torso = new THREE.Mesh(
     new THREE.BoxGeometry(0.0036, 0.0038, 0.0028),
@@ -452,11 +442,9 @@ export function buildMicroKart() {
   driverHead.position.set(0, 0.0078, -0.0004);
 
   const helmetShell = new THREE.Mesh(
-    new THREE.SphereGeometry(0.0022, 20, 18),
-    new THREE.MeshStandardMaterial({
+    new THREE.SphereGeometry(0.0022, 12, 10),
+    new THREE.MeshLambertMaterial({
       color: 0xffffff,
-      roughness: 0.14,
-      metalness: 0.25,
     })
   );
   helmetShell.scale.set(0.95, 1.0, 1.08);
@@ -465,13 +453,11 @@ export function buildMicroKart() {
 
   // Iridescent Gold/Blue Visor
   const visor = new THREE.Mesh(
-    new THREE.SphereGeometry(0.00225, 16, 12, -0.9, 1.8, 1.05, 0.75),
-    new THREE.MeshStandardMaterial({
+    new THREE.SphereGeometry(0.00225, 10, 8, -0.9, 1.8, 1.05, 0.75),
+    new THREE.MeshLambertMaterial({
       color: 0x1e6bff,
       emissive: new THREE.Color(0x1e6bff),
       emissiveIntensity: 0.65,
-      roughness: 0.08,
-      metalness: 0.9,
     })
   );
   visor.rotation.y = Math.PI / 2;
@@ -480,7 +466,7 @@ export function buildMicroKart() {
 
   // Steering Column & Rotating Steering Wheel
   const steeringWheel = new THREE.Mesh(
-    new THREE.TorusGeometry(0.0014, 0.00032, 8, 18),
+    new THREE.TorusGeometry(0.0014, 0.00032, 6, 12),
     carbonMat
   );
   steeringWheel.position.set(0, 0.0054, 0.0028);
@@ -499,7 +485,7 @@ export function buildMicroKart() {
     const wGroup = new THREE.Group();
 
     const tire = new THREE.Mesh(
-      new THREE.CylinderGeometry(wRadius, wRadius, wWidth, 20),
+      new THREE.CylinderGeometry(wRadius, wRadius, wWidth, 12),
       tireRubberMat
     );
     tire.rotation.z = Math.PI / 2;
@@ -507,7 +493,7 @@ export function buildMicroKart() {
     wGroup.add(tire);
 
     const rim = new THREE.Mesh(
-      new THREE.CylinderGeometry(wRadius * 0.62, wRadius * 0.62, wWidth * 1.04, 14),
+      new THREE.CylinderGeometry(wRadius * 0.62, wRadius * 0.62, wWidth * 1.04, 10),
       goldRimMat
     );
     rim.rotation.z = Math.PI / 2;
@@ -536,26 +522,20 @@ export function buildMicroKart() {
   }
 
   // -------------------------------------------------------------------------
-  // 4. MICRO-KART HIGH-INTENSITY 3D LED HEADLIGHT BEAM
+  // 4. MICRO-KART HEADLIGHT STUB (Detached so zero SpotLights exist in scene)
   // -------------------------------------------------------------------------
   const headlightTarget = new THREE.Object3D();
   headlightTarget.position.set(0, -0.008, 0.072);
-  chassisGroup.add(headlightTarget);
-
-  // Elevated 3D SpotLight origin (y = 0.016, decay = 0.0, intensity = 9.5,
-  // distance = 0.22) Using decay = 0.0 prevents d^-1.25 close-range blowout at
-  // millimeter scale while casting a bright warm-white xenon cone across curved
-  // ramps, spirals, curbs, rails, and desk props!
   const headlight =
-      new THREE.SpotLight(0xfff4dc, 9.5, 0.22, Math.PI * 0.34, 0.78, 0.0);
+      new THREE.SpotLight(0xfff4dc, 0.0, 0.22, Math.PI * 0.34, 0.78, 0.0);
   headlight.position.set(0, 0.016, 0.0085);
   headlight.target = headlightTarget;
-  chassisGroup.add(headlight);
+  headlight.visible = false;
 
   // -------------------------------------------------------------------------
-  // 5. REALISTIC GLOWING FIRE SPARKS EMITTER (Zero Lines, Soft Radial Fire Glow!)
+  // 5. REALISTIC GLOWING FIRE SPARKS EMITTER (Lightweight 64-particle pool)
   // -------------------------------------------------------------------------
-  const sparkCount = 160;
+  const sparkCount = 64;
   const sparkPositions = new Float32Array(sparkCount * 3);
   const sparkColors = new Float32Array(sparkCount * 3);
   const sparkLifeAttr = new Float32Array(sparkCount); // 1.0 = fresh hot ember, 0.0 = expired
@@ -704,9 +684,7 @@ export function buildMicroKart() {
       Math.abs(state.speed) > 0.005 ? Math.sin(performance.now() * 0.06) * 0.00018 : 0.0;
     chassisGroup.position.y = (state.hopHeight || 0.0) + idleBob;
 
-    // 4. Volumetric Mach-Diamond Exhaust Flames: active during turbo boost with
-    // independent left/right combustion crackle and high-frequency afterburner
-    // pulsing
+    // 4. Volumetric Mach-Diamond Exhaust Flames: active during turbo boost
     const isBoosting = state.boostActive > 0;
     const tSec = performance.now() * 0.001;
 
@@ -727,25 +705,18 @@ export function buildMicroKart() {
       }
     }
 
-    // 5. Emit & step realistic glowing fire sparks (scaled to 1:150 N-scale rear wheels!)
+    // 5. Emit & step realistic glowing fire sparks
     const kScale = kartRoot.scale.x || 0.58;
     sparkMat.uniforms.uSparkScale.value = kScale;
 
     const isEmitting =
       (state.isDrifting || isBoosting || state.curbRumble > 0.2 || Math.abs(state.steerInput || 0) > 0.32) &&
       Math.abs(state.speed) > 0.03;
-    const emitCount = isEmitting ? 6 : 0;
+    const emitCount = isEmitting ? 3 : 0;
 
-    // Flicker warm orange firelight onto the roadbed/desk when sparks are flying,
-    // scaled by the Settings "Fire Downcast Light" slider (fireLightMultiplier, default 0.12x)
     if (fireLightPreviewTimer > 0) {
       fireLightPreviewTimer = Math.max(0.0, fireLightPreviewTimer - dt);
     }
-    const showFireLight = isEmitting || fireLightPreviewTimer > 0;
-    const baseFireIntensity = 0.35 + Math.random() * 0.20;
-    sparkFireLight.intensity = showFireLight
-      ? baseFireIntensity * fireLightMultiplier
-      : THREE.MathUtils.lerp(sparkFireLight.intensity, 0.0, Math.min(1, dt * 12));
 
     if (emitCount > 0) {
       kartRoot.getWorldPosition(_worldPos);
@@ -777,7 +748,6 @@ export function buildMicroKart() {
         sparkLifeAttr[idx] = 1.0;
         sparkSizes[idx] = 0.65 + Math.random() * 1.15;
 
-        // Warm Fire Spark Palette: incandescent gold-orange (#ffaa22) to fiery amber-red (#ff4e08)
         sparkColors[idx * 3 + 0] = 1.0;
         sparkColors[idx * 3 + 1] = 0.36 + Math.random() * 0.46;
         sparkColors[idx * 3 + 2] = 0.04 + Math.random() * 0.14;
@@ -796,7 +766,6 @@ export function buildMicroKart() {
           sparkPositions[i * 3 + 0] += sparkVelocities[i].x * dt;
           sparkPositions[i * 3 + 1] += sparkVelocities[i].y * dt;
           sparkPositions[i * 3 + 2] += sparkVelocities[i].z * dt;
-          // Gentle air drag + micro-gravity + subtle turbulence flutter
           sparkVelocities[i].multiplyScalar(Math.max(0.88, 1.0 - 2.4 * dt));
           sparkVelocities[i].y -= 0.36 * dt;
         } else {
@@ -847,13 +816,11 @@ export function buildMicroKart() {
 
   function attachGlbKart(glbScene) {
     attachedGlbScene = glbScene;
-    // Ensure zero extra rotation on glbScene so +Z nose (Z_three = +0.0090) faces straight down +tangent
     glbScene.position.set(0, 0, 0);
     glbScene.rotation.set(0, 0, 0);
     glbScene.visible = !cockpitRoadOnly;
     kartShadowQuad.visible = !cockpitRoadOnly;
 
-    // Hide procedural body/wheels while keeping headlights, tail-light glow halo planes, and turbo flame cones
     for (const part of proceduralParts) {
       if (part) part.visible = false;
     }
@@ -868,151 +835,75 @@ export function buildMicroKart() {
       }
     });
 
-    function attachKartReadabilityRimShader(mat, cacheKey, minFloorStrength, topFillStrength, rimStrength) {
-      mat.customProgramCacheKey = () => cacheKey;
-      mat.onBeforeCompile = (shader) => {
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <dithering_fragment>',
-          `
-          vec3 kViewDir = normalize( vViewPosition );
-          float kNdotV = clamp( abs( dot( normal, kViewDir ) ), 0.0, 1.0 );
-          float kGrazing = pow( 1.0 - kNdotV, 2.15 );
-          float kTopFill = clamp( normal.y * 0.65 + normal.z * 0.35, 0.0, 1.0 );
-          vec3 minFloorRgb = diffuseColor.rgb * (${minFloorStrength.toFixed(3)} + ${topFillStrength.toFixed(3)} * kTopFill);
-          vec3 rimHighlightRgb = mix(diffuseColor.rgb, vec3(1.0, 0.97, 0.92), 0.48) * (kGrazing * ${rimStrength.toFixed(3)});
-          gl_FragColor.rgb = max(gl_FragColor.rgb, minFloorRgb) + rimHighlightRgb * (0.45 + 0.55 * kTopFill);
-          #include <dithering_fragment>
-          `
-        );
-      };
-    }
-
     const glbFrontWheels = [];
     const glbAllWheels = [];
     glbScene.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = false;
         child.receiveShadow = false;
+        child.frustumCulled = true;
         if (child.geometry && !child.geometry.attributes.normal) {
           child.geometry.computeVertexNormals();
         }
-        const mats = Array.isArray(child.material) ? child.material : [child.material];
-        for (const mat of mats) {
-          if (!mat) continue;
-          const mName = (mat.name || '').toLowerCase();
+        const origMats = Array.isArray(child.material) ? child.material : [child.material];
+        const newMats = origMats.map((oldMat) => {
+          if (!oldMat) return oldMat;
+          const mName = (oldMat.name || '').toLowerCase();
+          const lambert = new THREE.MeshLambertMaterial({
+            name: oldMat.name || '',
+            color: oldMat.color ? oldMat.color.clone() : new THREE.Color(0xffffff),
+            map: oldMat.map || null,
+            vertexColors: Boolean(oldMat.vertexColors),
+            transparent: Boolean(oldMat.transparent),
+            opacity: oldMat.opacity !== undefined ? oldMat.opacity : 1.0,
+            side: oldMat.side !== undefined ? oldMat.side : THREE.FrontSide,
+          });
           if (mName.includes('visor')) {
-            // Unmistakable deep jet-black helmet visor shield & recessed exhaust bores
-            if (mat.color) mat.color.setHex(0x050608);
-            mat.roughness = 0.14;
-            mat.metalness = 0.08;
-            mat.envMapIntensity = 0.22;
-            if (mat.emissive) mat.emissive.setHex(0x000000);
-            mat.emissiveIntensity = 0.0;
-            mat.needsUpdate = true;
+            lambert.color.setHex(0x050608);
+            lambert.emissive.setHex(0x000000);
+            lambert.emissiveIntensity = 0.0;
           } else if (mName.includes('helmet') || mName.includes('white')) {
-            // Crisp Pearl White for the smooth full-face racing helmet, shoulder stripes, wing trailing-edge stripe & flush painted "4"
-            if (mat.color) mat.color.setHex(0xf4f6fa);
-            mat.roughness = 0.20;
-            mat.metalness = 0.08;
-            mat.envMapIntensity = 0.95;
-            if (mat.emissive) mat.emissive.setHex(0x181c24);
-            mat.emissiveIntensity = 0.12;
-            attachKartReadabilityRimShader(mat, 'kart_white_rim_v1', 0.22, 0.28, 0.18);
-            mat.needsUpdate = true;
+            lambert.color.setHex(0xf4f6fa);
+            lambert.emissive.setHex(0x282e3b);
+            lambert.emissiveIntensity = 0.35;
           } else if (mName.includes('crimson') || mName.includes('red')) {
-            // Reflective metallic crimson racing body & constant-width helmet stripe with readability floor + grazing rim
-            if (mat.color) mat.color.setHex(0xe01b24);
-            mat.roughness = 0.20;
-            mat.metalness = 0.48;
-            mat.envMapIntensity = 1.35;
-            attachKartReadabilityRimShader(mat, 'kart_crimson_rim_v1', 0.28, 0.34, 0.26);
-            mat.needsUpdate = true;
+            lambert.color.setHex(0xe01b24);
+            lambert.emissive.setHex(0x4a080c);
+            lambert.emissiveIntensity = 0.42;
           } else if (mName.includes('gold')) {
-            // Warm racing gold shoulder stripes & brushed brass/gold central muffler cans
-            if (mat.color) mat.color.setHex(0xf0be3c);
-            mat.roughness = 0.24;
-            mat.metalness = 0.78;
-            mat.envMapIntensity = 1.15;
-            attachKartReadabilityRimShader(mat, 'kart_gold_rim_v1', 0.24, 0.30, 0.24);
-            mat.needsUpdate = true;
+            lambert.color.setHex(0xf0be3c);
+            lambert.emissive.setHex(0x4a360c);
+            lambert.emissiveIntensity = 0.38;
           } else if (mName.includes('gunmetal')) {
-            // Lighter anodized titanium/silver-grey (#3e4756) for louvered engine cover, spoiler wing & headlamp bezels
-            if (mat.color) mat.color.setHex(0x3e4756);
-            mat.roughness = 0.26;
-            mat.metalness = 0.58;
-            mat.envMapIntensity = 1.30;
-            attachKartReadabilityRimShader(mat, 'kart_gunmetal_rim_v1', 0.28, 0.36, 0.30);
-            mat.needsUpdate = true;
+            lambert.color.setHex(0x3e4756);
+            lambert.emissive.setHex(0x161a22);
+            lambert.emissiveIntensity = 0.38;
           } else if (mName.includes('suit')) {
-            if (mat.color) mat.color.setHex(0x2a303c);
-            mat.roughness = 0.50;
-            mat.metalness = 0.12;
-            mat.envMapIntensity = 0.85;
-            attachKartReadabilityRimShader(mat, 'kart_suit_rim_v1', 0.20, 0.24, 0.16);
-            mat.needsUpdate = true;
+            lambert.color.setHex(0x2a303c);
+            lambert.emissive.setHex(0x0d1016);
+            lambert.emissiveIntensity = 0.32;
           } else if (mName.includes('tire') || mName.includes('rubber')) {
-            if (mat.color) mat.color.setHex(0x16191e);
-            mat.roughness = 0.72;
-            mat.metalness = 0.06;
-            mat.envMapIntensity = 0.65;
-            attachKartReadabilityRimShader(mat, 'kart_tire_rim_v1', 0.14, 0.18, 0.14);
-            mat.needsUpdate = true;
+            lambert.color.setHex(0x16191e);
+            lambert.emissive.setHex(0x06080b);
+            lambert.emissiveIntensity = 0.25;
           } else if (mName.includes('headlight')) {
-            if (mat.color) mat.color.setHex(0xffffff);
-            if (mat.emissive) mat.emissive.setHex(0xfff4d8);
-            mat.emissiveIntensity = 2.2;
-            mat.roughness = 0.08;
-            mat.needsUpdate = true;
+            lambert.color.setHex(0xffffff);
+            lambert.emissive.setHex(0xfff4d8);
+            lambert.emissiveIntensity = 2.2;
           } else if (mName.includes('rainlight') || mName.includes('taillight')) {
-            if (mat.color) mat.color.setHex(0xff0010);
-            if (mat.emissive) mat.emissive.setHex(0xff0018);
-            mat.emissiveIntensity = 1.35;
-            mat.roughness = 0.08;
-            mat.toneMapped = false;
-            mat.customProgramCacheKey = () => 'tail_led_ruby_glow_v1';
-            mat.onBeforeCompile = (shader) => {
-              shader.vertexShader = shader.vertexShader.replace(
-                '#include <common>',
-                `#include <common>\nvarying vec3 vLedLocalPos;`
-              );
-              shader.vertexShader = shader.vertexShader.replace(
-                '#include <begin_vertex>',
-                `#include <begin_vertex>\nvLedLocalPos = position;`
-              );
-              shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <common>',
-                `#include <common>\nvarying vec3 vLedLocalPos;`
-              );
-              shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <dithering_fragment>',
-                `
-                // Ruby-red segmented LED lens gradient: deep crimson bevel edge (#e60018) to hot ruby core (#ff2a44)
-                float ax = abs(vLedLocalPos.x);
-                float uCluster = clamp((ax - 0.00218) / 0.00212, 0.0, 1.0);
-                float segU = fract(uCluster * 3.0) - 0.5;
-                float rowCenterY = vLedLocalPos.y > 0.00276 ? 0.00309 : 0.00244;
-                float segV = clamp((vLedLocalPos.y - rowCenterY) / 0.00025, -1.0, 1.0);
-                float edgeDist = max(abs(segU) * 2.0, abs(segV));
-                float diodeCore = exp(- (segU * segU * 7.5 + segV * segV * 2.8));
-                float rimShade = smoothstep(1.0, 0.25, edgeDist);
-                vec3 deepCrimson = vec3(0.58, 0.0, 0.014);
-                vec3 hotRubyCore = vec3(1.42, 0.0, 0.048);
-                vec3 rubyLedRgb = mix(deepCrimson, hotRubyCore, clamp(diodeCore * 0.85 + rimShade * 0.25, 0.0, 1.0));
-                gl_FragColor = vec4(rubyLedRgb, 1.0);
-                #include <dithering_fragment>
-                `
-              );
-            };
-            mat.needsUpdate = true;
+            lambert.color.setHex(0xff0018);
+            lambert.emissive.setHex(0xff1428);
+            lambert.emissiveIntensity = 1.85;
+            lambert.toneMapped = false;
           } else if (mName.includes('chrome')) {
-            if (mat.color) mat.color.setHex(0x7d8796);
-            mat.roughness = 0.30;
-            mat.metalness = 0.82;
-            mat.envMapIntensity = 0.65;
-            attachKartReadabilityRimShader(mat, 'kart_chrome_rim_v2', 0.14, 0.18, 0.12);
-            mat.needsUpdate = true;
+            lambert.color.setHex(0x7d8796);
+            lambert.emissive.setHex(0x22262e);
+            lambert.emissiveIntensity = 0.32;
           }
-        }
+          if (oldMat.dispose) oldMat.dispose();
+          return lambert;
+        });
+        child.material = Array.isArray(child.material) ? newMats : newMats[0];
       }
       if (child.name === 'Wheel_FL' || child.name === 'Wheel_FR') {
         glbFrontWheels.push(child);

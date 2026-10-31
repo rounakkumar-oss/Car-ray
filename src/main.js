@@ -1,38 +1,58 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 import { buildProceduralDeskDiorama } from './scene/DeskDioramaBuilder.js';
 import { buildCoasterTrack } from './scene/CoasterTrackBuilder.js';
 import { buildMicroKart } from './scene/MicroKartBuilder.js';
 import { buildGoldenHourAtmosphere } from './scene/GoldenHourAtmosphere.js';
 import { buildRoomEnvironment } from './scene/RoomEnvironmentBuilder.js';
+import { buildGiantHouseWorld } from './scene/GiantHouseBuilder.js';
+import { createProceduralPMREMEnvironment } from './scene/ProceduralTextures.js';
 import { createKartPhysicsController } from './physics/KartPhysicsController.js';
 import { createWebAudioSynth } from './audio/WebAudioSynth.js';
 
 async function initApp() {
+  const widescreenStage = document.getElementById('widescreen-stage');
   const container = document.getElementById('canvas-container');
 
+  function getStageDimensions() {
+    if (widescreenStage) {
+      const rect = widescreenStage.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        return { width: Math.round(rect.width), height: Math.round(rect.height) };
+      }
+    }
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = Math.min(vw, Math.round((vh * 16) / 9));
+    const h = Math.min(vh, Math.round((vw * 9) / 16));
+    return { width: Math.max(320, w), height: Math.max(180, h) };
+  }
+
   // -------------------------------------------------------------------------
-  // 1. THREE.JS SCENE & MOBILE-OPTIMIZED HIGH-PERFORMANCE RENDERER
+  // 1. THREE.JS SCENE & MOBILE-OPTIMIZED HIGH-PERFORMANCE 16:9 RENDERER
   // -------------------------------------------------------------------------
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x181312);
-  scene.fog = new THREE.FogExp2(0x181312, 0.018);
+  scene.fog = new THREE.FogExp2(0x181312, 0.14);
 
+  const initDims = getStageDimensions();
   const camera = new THREE.PerspectiveCamera(
     54,
-    window.innerWidth / window.innerHeight,
+    16 / 9,
     0.002, // 2mm near plane for 1:87 HO micro-scale closeups!
-    12.0
+    4.2    // Shortened far plane with matching fog so distant objects are culled on mobile GPUs
   );
 
   const renderer = new THREE.WebGLRenderer({
     antialias: false,
     powerPreference: 'high-performance',
   });
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+  renderer.setSize(initDims.width, initDims.height);
+  renderer.domElement.style.width = '100%';
+  renderer.domElement.style.height = '100%';
   const urlParams = new URLSearchParams(window.location.search);
   const isScreenshotUrl = urlParams.get('screenshot') === '1';
   const isScreenshotMode = isScreenshotUrl;
@@ -56,17 +76,15 @@ async function initApp() {
     }
   }
 
-  renderer.setPixelRatio(1);
   renderer.shadowMap.enabled = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.68 + 0.08 * 1.15;
   container.appendChild(renderer.domElement);
 
-  // Subtle 1-time PMREM studio environment so dark metallic/satin surfaces (monitor, BoYata, G915) have crisp reflections
-  const pmremGenerator = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
-  pmremGenerator.dispose();
-  scene.environmentIntensity = 0.08;
+  // Procedural PMREMGenerator environment map so PBR metals, glass, marble, and screens
+  // have realistic specular reflections at zero per-frame cost
+  scene.environment = createProceduralPMREMEnvironment(renderer);
+  scene.environmentIntensity = 0.72;
 
   const bloomPass = null;
   const bokehPass = { enabled: false, uniforms: null };
@@ -96,7 +114,7 @@ async function initApp() {
   }
 
   // -------------------------------------------------------------------------
-  // 3. BUILD WARM NIGHT-TIME ATMOSPHERE, DESK MONUMENTS, COASTER TRACK, 1:87 KART & BEDROOM
+  // 3. BUILD WARM NIGHT-TIME ATMOSPHERE, DESK MONUMENTS, COASTER TRACK, 1:87 KART & GIANT HOUSE
   // -------------------------------------------------------------------------
   const settings = {
     sunIntensity: 0.0,
@@ -111,7 +129,7 @@ async function initApp() {
     droneKartScale: false,
     panoKart100: true,
   };
-  scene.environmentIntensity = 0.08 + 0.55 * settings.sunIntensity;
+  scene.environmentIntensity = 0.68 + 0.55 * settings.sunIntensity;
 
   const atmosphere = buildGoldenHourAtmosphere(scene);
   const diorama = buildProceduralDeskDiorama(manifest);
@@ -130,6 +148,11 @@ async function initApp() {
   }
   scene.add(coaster.debugGroup);
 
+  // Build Mode 2: Giant House Open World (14 Connected Rooms & Stunt Ramps)
+  const giantHouse = buildGiantHouseWorld();
+  giantHouse.houseGroup.visible = false;
+  scene.add(giantHouse.houseGroup);
+
   const microKart = buildMicroKart();
   microKart.kartRoot.scale.setScalar(0.38);
   scene.add(microKart.kartRoot);
@@ -137,19 +160,30 @@ async function initApp() {
     scene.add(microKart.sparkPoints);
   }
 
+  let activeGameMode = 'track'; // 'track' (Neon Track Racing) | 'house' (Giant House Open World)
+  let activeCameraMode = 1; // 1: Close Chase, 2: Far Chase, 3: Hood/Cockpit, 4: Top-Down Heli
+
   function syncKartScaleForCamera(mode) {
-    const is1P = mode === 1 || mode === 2;
-    const targetScale = is1P
+    if (activeGameMode === 'house') {
+      // RC Car scale inside the 14-Room Giant House Open World
+      microKart.kartRoot.scale.setScalar(3.6);
+      return;
+    }
+    const isClose = mode === 1 || mode === 3;
+    const isFarChase = mode === 2;
+    const targetScale = isClose
       ? 0.38
-      : settings.panoKart100
-        ? 1.00
-        : settings.droneKartScale
-          ? 0.78
-          : 0.58;
+      : isFarChase
+        ? 0.46
+        : settings.panoKart100
+          ? 1.00
+          : settings.droneKartScale
+            ? 0.78
+            : 0.58;
     microKart.kartRoot.scale.setScalar(targetScale);
   }
 
-  // Helper to free GPU geometry buffers of hidden procedural fallback groups once a GLB replaces them
+  // Helper to free GPU geometry and material buffers of hidden procedural fallback groups once a GLB replaces them
   function disposeGroupGeometries(group) {
     if (!group) return;
     group.traverse((child) => {
@@ -158,6 +192,29 @@ async function initApp() {
       }
     });
   }
+
+  // Enforces shadow-free rendering and frustum culling across the hierarchy while preserving
+  // rich THREE.MeshStandardMaterial & THREE.MeshPhysicalMaterial PBR reflections and bump/roughness maps.
+  function optimizeSceneHierarchyForMobile(rootObj) {
+    if (!rootObj) return;
+    rootObj.traverse((child) => {
+      if (!child.isMesh) return;
+      child.castShadow = false;
+      child.receiveShadow = false;
+      if (
+        !child.isInstancedMesh &&
+        child.name !== 'KartDriftSparks' &&
+        child.name !== 'GoldenHourDustMotes'
+      ) {
+        child.frustumCulled = true;
+      }
+      if (child.geometry && !child.geometry.boundingSphere) {
+        child.geometry.computeBoundingSphere();
+      }
+    });
+  }
+
+  optimizeSceneHierarchyForMobile(scene);
 
   // Optional GLB Loader (Hybrid Architecture: seamlessly loads GLBs if/when present)
   const gltfLoader = new GLTFLoader();
@@ -177,25 +234,18 @@ async function initApp() {
   glbContainerGroup.name = 'LoadedGLBAssetsGroup';
   scene.add(glbContainerGroup);
 
-  // Bedroom furniture nodes (NeatUpholsteredBed, BoucleDeskChair, WalnutDresserAndGemini4Vignette,
-  // BedroomDoorAndThermostat) are kept visible in ALL camera modes (1..8) with Three.js frustum culling
-  // enabled so the bed, chair, dresser, and door are always visible when the kart turns toward them in
-  // 1P Views 1 & 2, while only inside-volume GodRayCurtain planes are hidden in 1P.
   const highPolyRoomFurnitureNodes = [];
 
   function sync1PRoomAndCurtainVisibility(mode) {
-    const is1P = mode === 1 || mode === 2;
+    const is1P = mode === 1 || mode === 2 || mode === 3;
     for (const node of highPolyRoomFurnitureNodes) {
-      node.visible = true;
+      node.visible = activeGameMode === 'track';
     }
     if (roomEnv.roomContactAoGroup) {
-      roomEnv.roomContactAoGroup.visible = true;
-    }
-    if (roomEnv.edisonPointLight) {
-      roomEnv.edisonPointLight.visible = true;
+      roomEnv.roomContactAoGroup.visible = activeGameMode === 'track';
     }
     if (atmosphere.godRayCurtainGroup) {
-      atmosphere.godRayCurtainGroup.visible = !is1P;
+      atmosphere.godRayCurtainGroup.visible = activeGameMode === 'track' && !is1P;
     }
   }
 
@@ -216,7 +266,6 @@ async function initApp() {
     }
   }
 
-  let activeCameraMode = 1; // Default: 1:150 Low Chase Cam
   let glbPollInterval = null;
   const settledGlbStatus = {
     desk: false,
@@ -287,6 +336,8 @@ async function initApp() {
     });
   }
 
+  initObjectTextures(giantHouse.houseGroup);
+
   /**
    * Forces WebGL to upload all textures, vertex/index buffers (VBOs/IBOs), and compile + link
    * all active shader variants across all 360° sectors of the desk & room using a single
@@ -301,8 +352,6 @@ async function initApp() {
         tryInitTex(scene.environment);
       }
 
-      // Temporarily reveal race-time dynamic meshes (F1 start light pods, boost exhaust cones,
-      // drift/boost sparks) so their shaders & VBOs are resident before Lap 1 begins
       const prevSparkVis = microKart.sparkPoints ? microKart.sparkPoints.visible : true;
       if (microKart.sparkPoints) {
         microKart.sparkPoints.visible = true;
@@ -320,6 +369,10 @@ async function initApp() {
       if (atmosphere.godRayCurtainGroup && !atmosphere.godRayCurtainGroup.visible) {
         tempShownObjects.push(atmosphere.godRayCurtainGroup);
         atmosphere.godRayCurtainGroup.visible = true;
+      }
+      if (giantHouse.houseGroup && !giantHouse.houseGroup.visible) {
+        tempShownObjects.push(giantHouse.houseGroup);
+        giantHouse.houseGroup.visible = true;
       }
       const isCountdownCurrentlyActive =
         typeof f1CountdownState !== 'undefined' && f1CountdownState && f1CountdownState.active;
@@ -361,14 +414,11 @@ async function initApp() {
       const prevTarget = renderer.getRenderTarget();
       const prevAutoClear = renderer.autoClear;
 
-      // Single 64x64 off-screen draw pass with frustumCulled=false compiles all visible shaders
-      // and uploads all VBOs/IBOs across 360° with negligible fragment cost
       warmupTarget = new THREE.WebGLRenderTarget(64, 64);
       renderer.setRenderTarget(warmupTarget);
       renderer.autoClear = true;
       renderer.render(scene, camera);
 
-      // Restore all saved states so the visible scene is 100.0% untouched
       for (const [obj, wasCulled] of savedFrustumCulled.entries()) {
         obj.frustumCulled = wasCulled;
       }
@@ -444,6 +494,7 @@ async function initApp() {
       });
       try {
         onLoaded(gltf.scene);
+        optimizeSceneHierarchyForMobile(gltf.scene);
         initObjectTextures(gltf.scene);
       } catch (err) {
         console.error(`GLB onLoaded warning for ${key}:`, err);
@@ -465,7 +516,6 @@ async function initApp() {
         }
       }
       if (isCircuitReady) {
-        // If the user started early before this GLB settled, warm up the newly added GLB now
         warmUpSceneOnGpu();
       } else {
         checkCircuitReady();
@@ -566,10 +616,8 @@ async function initApp() {
   }
 
   checkAndLoadGlbModels();
-  // Poll gently until all 4 GLBs are loaded
   glbPollInterval = setInterval(checkAndLoadGlbModels, 10000);
 
-  // Generous safety fallback only if a network request genuinely stalls
   setTimeout(() => {
     if (!isCircuitReady) {
       settledGlbStatus.desk = true;
@@ -581,13 +629,14 @@ async function initApp() {
   }, 15000);
 
   // -------------------------------------------------------------------------
-  // 4. INITIALIZE RAPIER3D WORLD & 60FPS BANKED COASTER VEHICLE CONTROLLER
+  // 4. INITIALIZE RAPIER3D WORLD & 60FPS BANKED COASTER + GIANT HOUSE CONTROLLER
   // -------------------------------------------------------------------------
   const physics = await createKartPhysicsController(
     splineData,
     manifest,
     coaster.roadGeo
   );
+  physics.setGiantHouseWorld(giantHouse);
 
   let camShakeTimer = 0.0;
   let camShakeIntensity = 0.0;
@@ -603,7 +652,7 @@ async function initApp() {
   }
 
   // -------------------------------------------------------------------------
-  // 5. CAMERA MODES (1-4, WITH 6 ALIAS -> 4) & SMOOTH CHASE / POV / DIORAMA / HELI INTERPOLATION
+  // 5. CAMERA MODES (1-4 IN-GAME SWITCHER) & GAME MODE SWITCHER (TRACK vs GIANT HOUSE)
   // -------------------------------------------------------------------------
   const initSt = physics.state;
   const camCurrentPos = initSt.position
@@ -617,6 +666,9 @@ async function initApp() {
   const camCurrentUp = new THREE.Vector3(0, 1, 0);
   const camForward = initSt.tangent.clone();
   const _camTargetForward = new THREE.Vector3();
+  const _camDesiredPos = new THREE.Vector3();
+  const _camDesiredLook = new THREE.Vector3();
+  const _camBlendedUp = new THREE.Vector3();
 
   const visorOverlay = document.getElementById('helmet-visor-overlay');
   const hudCornerVignette = document.getElementById('hud-corner-vignette');
@@ -626,68 +678,23 @@ async function initApp() {
   const hudMinimapWidget = document.querySelector('.hud-minimap-widget');
   const hudSpeedoGauge = document.querySelector('.hud-speedo-gauge');
   const hudLapWidget = document.getElementById('hud-lap-widget');
+  const hudHouseRoomBanner = document.getElementById('hud-house-room-banner');
+  const hudHouseRoomName = document.getElementById('hud-house-room-name');
+  const btnSwitchCamera = document.getElementById('btn-switch-camera');
+  const hudCameraLabel = document.getElementById('hud-camera-label');
+  const btnSwitchGameMode = document.getElementById('btn-switch-game-mode');
+  const hudModeSwitchLabel = document.getElementById('hud-mode-switch-label');
+  const btnModeTrack = document.getElementById('btn-mode-track');
+  const btnModeHouse = document.getElementById('btn-mode-house');
   const camButtons = document.querySelectorAll('.cam-pill');
-  let coursePanElapsed = 0.0;
 
-  // -------------------------------------------------------------------------
-  // CINEMATIC COURSE PAN (MODE 6, HOTKEY 6) — C2-SMOOTH 64-SAMPLE CRANE LOOP
-  // -------------------------------------------------------------------------
-  // 8 wide, graceful cinema crane waypoints staying 100% inside obstacle-free airspace
-  // (Z >= +0.058m across the middle of the desk and high above the side monuments)
-  const rawCoursePanPos = [
-    new THREE.Vector3(-0.08, 0.125, 0.295), // 0: Front Keyboard Viaduct & Start/Finish Grid
-    new THREE.Vector3(-0.34, 0.165, 0.245), // 1: Sweeping West past the G915 Keyboard
-    new THREE.Vector3(-0.44, 0.235, 0.125), // 2: Ascending smoothly in front of BoYata Laptop Stand
-    new THREE.Vector3(-0.28, 0.255, 0.060), // 3: High open airspace framing BoYata & Ginger Cat Helix
-    new THREE.Vector3( 0.00, 0.245, 0.058), // 4: Center-high crane sweep framing Cat Helix & Blue Mic
-    new THREE.Vector3( 0.28, 0.255, 0.065), // 5: High open airspace framing White Lamp 360° Corkscrew
-    new THREE.Vector3( 0.44, 0.205, 0.165), // 6: Descending gracefully around the outer Lamp Spiral
-    new THREE.Vector3( 0.26, 0.145, 0.275), // 7: Sweeping around the Razer Mousepad C-Turn back to Start
-  ];
-  const rawCoursePanLook = [
-    new THREE.Vector3(-0.12, 0.035, 0.145), // 0: Start/Finish Gantry & Keyboard Viaduct
-    new THREE.Vector3(-0.30, 0.085, 0.045), // 1: Sector 1 BoYata Climb
-    new THREE.Vector3(-0.32, 0.135, -0.055), // 2: BoYata Laptop Stand Summit
-    new THREE.Vector3(-0.16, 0.105, -0.115), // 3: Giant Ginger Cat 360° Helix
-    new THREE.Vector3(-0.01, 0.105, -0.110), // 4: Glowing Blue Microphone Valley
-    new THREE.Vector3( 0.23, 0.125, -0.125), // 5: White Key-Light Lamp 360° Corkscrew
-    new THREE.Vector3( 0.31, 0.055, 0.065), // 6: Lamp Exit Ramp to Mousepad
-    new THREE.Vector3( 0.18, 0.032, 0.145), // 7: Gaming Mouse C-Turn & Front Straight
-  ];
+  const CAMERA_MODE_LABELS = {
+    1: '1: CLOSE CHASE',
+    2: '2: FAR CHASE',
+    3: '3: HOOD / COCKPIT',
+    4: '4: TOP-DOWN HELI',
+  };
 
-  // Sample closed CatmullRomCurve3 at 64 uniform periodic points and apply 4 passes of circular
-  // [0.25, 0.5, 0.25] Gaussian smoothing so the camera path has zero curvature spikes or kinks.
-  function buildSmoothedClosedCatmullCurve(rawWaypoints, sampleCount = 64, passes = 4) {
-    const baseCurve = new THREE.CatmullRomCurve3(rawWaypoints, true, 'centripetal', 0.5);
-    let pts = [];
-    for (let i = 0; i < sampleCount; i++) {
-      pts.push(baseCurve.getPointAt(i / sampleCount));
-    }
-    for (let p = 0; p < passes; p++) {
-      const nextPts = new Array(sampleCount);
-      for (let i = 0; i < sampleCount; i++) {
-        const prev = pts[(i - 1 + sampleCount) % sampleCount];
-        const curr = pts[i];
-        const next = pts[(i + 1) % sampleCount];
-        nextPts[i] = new THREE.Vector3(
-          0.25 * prev.x + 0.5 * curr.x + 0.25 * next.x,
-          0.25 * prev.y + 0.5 * curr.y + 0.25 * next.y,
-          0.25 * prev.z + 0.5 * curr.z + 0.25 * next.z
-        );
-      }
-      pts = nextPts;
-    }
-    return new THREE.CatmullRomCurve3(pts, true, 'centripetal', 0.5);
-  }
-
-  const coursePanPosCurve = buildSmoothedClosedCatmullCurve(rawCoursePanPos, 64, 4);
-  const coursePanLookCurve = buildSmoothedClosedCatmullCurve(rawCoursePanLook, 64, 4);
-
-  const _camDesiredPos = new THREE.Vector3();
-  const _camDesiredLook = new THREE.Vector3();
-  const _camBlendedUp = new THREE.Vector3();
-
-  // Initialize 1P room & curtain visibility for default Mode 1
   sync1PRoomAndCurtainVisibility(activeCameraMode);
 
   function setCameraMode(rawMode) {
@@ -696,26 +703,37 @@ async function initApp() {
     sync1PRoomAndCurtainVisibility(mode);
     syncKartScaleForCamera(mode);
     if (microKart.setCockpitRoadOnly) {
-      microKart.setCockpitRoadOnly(mode === 2);
+      // Camera 3 is Hood / Cockpit First-Person Cam
+      microKart.setCockpitRoadOnly(mode === 3);
     }
     if (diorama.setMonitorHighScoresVisible) {
       diorama.setMonitorHighScoresVisible(mode === 8);
     }
     if (hudBrandLogo) {
-      const userHidLogo = (chkHideLogoEl && chkHideLogoEl.checked) ||
-          urlParams.get('hidelogo') === '1';
+      const userHidLogo =
+        (chkHideLogoEl && chkHideLogoEl.checked) || urlParams.get('hidelogo') === '1';
       hudBrandLogo.classList.toggle('hidden', userHidLogo || mode === 8);
     }
 
-    const targetNear = mode === 3 || mode === 8 ? 0.0004 :
-        mode === 1 || mode === 2                ? 0.0018 :
-                                                  0.025;
-    const targetFov = mode === 1 || mode === 2 ? 41.5 : 46;
+    const isHouse = activeGameMode === 'house';
+    const targetNear = isHouse
+      ? 0.006
+      : mode === 5 || mode === 7 || mode === 8
+        ? 0.0008
+        : mode === 1 || mode === 2 || mode === 3
+          ? 0.0018
+          : 0.004;
+    const targetFar = isHouse ? 13.5 : 4.2;
+    const targetFov =
+      mode === 1 ? 42.5 : mode === 2 ? 48.0 : mode === 3 ? 44.0 : mode === 4 ? 50.0 : 46.0;
+
     if (
       Math.abs(camera.near - targetNear) > 1e-6 ||
+      Math.abs(camera.far - targetFar) > 1e-3 ||
       Math.abs(camera.fov - targetFov) > 1e-3
     ) {
       camera.near = targetNear;
+      camera.far = targetFar;
       camera.fov = targetFov;
       camera.updateProjectionMatrix();
     }
@@ -724,46 +742,28 @@ async function initApp() {
       btn.classList.toggle('active', Number(btn.dataset.cam) === mode);
     });
 
+    if (hudCameraLabel) {
+      hudCameraLabel.textContent = CAMERA_MODE_LABELS[mode] || `CAM ${mode}`;
+    }
+
     if (visorOverlay) {
       visorOverlay.classList.add('hidden');
     }
-    const hideRacingHud = mode !== 1 && mode !== 2;
-    if (hudCornerVignette)
-      hudCornerVignette.classList.toggle('hidden', hideRacingHud);
+
+    // Keep racing HUD visible across all 4 gameplay camera angles (1..4)
+    const hideRacingHud = mode > 4;
+    if (hudCornerVignette) hudCornerVignette.classList.toggle('hidden', hideRacingHud);
     if (hudBottomBar) hudBottomBar.classList.toggle('hidden', hideRacingHud);
     if (hudMinimapWidget) hudMinimapWidget.classList.toggle('hidden', hideRacingHud);
     if (hudSpeedoGauge) hudSpeedoGauge.classList.toggle('hidden', hideRacingHud);
-    if (hudLapWidget) hudLapWidget.classList.toggle('hidden', hideRacingHud);
+    if (hudLapWidget) {
+      hudLapWidget.classList.toggle('hidden', hideRacingHud || activeGameMode === 'house');
+    }
+    if (hudHouseRoomBanner) {
+      hudHouseRoomBanner.classList.toggle('hidden', hideRacingHud || activeGameMode !== 'house');
+    }
 
-    if (mode === 4) {
-      // Mode 4: Helicopter Cam (Obstacle-Free Keyboard Heli 2 — Kart-Locked Aerial Heli in 100% obstacle-free front-upper airspace)
-      orbitControls.enabled = false;
-      camCurrentPos.set(0.08, 0.255, 0.305);
-      camCurrentLookAt.copy(physics.state.position);
-      camCurrentUp.set(0, 1, 0);
-      camera.up.set(0, 1, 0);
-      camera.position.copy(camCurrentPos);
-      camera.lookAt(camCurrentLookAt);
-    } else if (mode === 9) {
-      // Mode 9: Smooth Keyboard Helicopter Cam — Spins over the Logitech G915 Keyboard in 100% obstacle-free airspace
-      orbitControls.enabled = false;
-      camCurrentPos.set(-0.12 + 0.175, 0.235, 0.255);
-      camCurrentLookAt.set(-0.02, 0.075, -0.055);
-      camCurrentUp.set(0, 1, 0);
-      camera.up.set(0, 1, 0);
-      camera.position.copy(camCurrentPos);
-      camera.lookAt(camCurrentLookAt);
-    } else if (mode === 3) {
-      // Mode 3: Full Desk Diorama Cam (1.0mm near plane so zooming right into the road never clips!)
-      orbitControls.enabled = true;
-      orbitControls.minDistance = 0.003;
-      orbitControls.maxDistance = 3.2;
-      camera.up.set(0, 1, 0);
-      camera.position.set(0.015, 0.43, 0.55);
-      orbitControls.target.set(0.0, 0.075, -0.045);
-      orbitControls.update();
-    } else if (mode === 5) {
-      // Mode 5: Free Orbit & Chair/Bed Inspector Cam (Matches V5.5 Chair & Bed Close-Up!)
+    if (mode === 5) {
       orbitControls.enabled = true;
       orbitControls.maxDistance = 3.8;
       camera.up.set(0, 1, 0);
@@ -773,7 +773,6 @@ async function initApp() {
       camCurrentPos.copy(camera.position);
       camCurrentLookAt.copy(orbitControls.target);
     } else if (mode === 7) {
-      // Mode 7: Room Panorama Cam (V5.5 Wide North-West corner overview capturing Grey Bed + Organic Duvet, Desk + Coaster Track, Smooth Bouclé Chair, 3D Rectangular Wardrobe, and South Wall Walnut Cabinet + Door)
       orbitControls.enabled = true;
       orbitControls.maxDistance = 3.8;
       camera.up.set(0, 1, 0);
@@ -783,9 +782,6 @@ async function initApp() {
       camCurrentPos.copy(camera.position);
       camCurrentLookAt.copy(orbitControls.target);
     } else if (mode === 8) {
-      // Mode 8: Monitor High Scores Cam — Faces the turned-on LG 27" computer
-      // monitor screen straight-on with full OrbitControls pan/orbit/zoom
-      // enabled just like Mode 3!
       orbitControls.enabled = true;
       orbitControls.minDistance = 0.003;
       orbitControls.maxDistance = 3.2;
@@ -797,12 +793,158 @@ async function initApp() {
       camCurrentLookAt.copy(orbitControls.target);
     } else {
       orbitControls.enabled = false;
+      // Snap camera interpolation near target when switching between angles 1..4
+      const st = physics.state;
+      const scaleMult = activeGameMode === 'house' ? 7.2 : 1.0;
+      if (mode === 1) {
+        camCurrentPos
+          .copy(st.position)
+          .addScaledVector(st.tangent, -0.0154 * scaleMult)
+          .addScaledVector(st.normal, 0.0074 * scaleMult);
+        camCurrentLookAt
+          .copy(st.position)
+          .addScaledVector(st.tangent, 0.024 * scaleMult)
+          .addScaledVector(st.normal, 0.003 * scaleMult);
+      } else if (mode === 2) {
+        camCurrentPos
+          .copy(st.position)
+          .addScaledVector(st.tangent, -0.032 * scaleMult)
+          .addScaledVector(st.normal, 0.0165 * scaleMult);
+        camCurrentLookAt
+          .copy(st.position)
+          .addScaledVector(st.tangent, 0.028 * scaleMult)
+          .addScaledVector(st.normal, 0.004 * scaleMult);
+      } else if (mode === 3) {
+        camCurrentPos
+          .copy(st.position)
+          .addScaledVector(st.tangent, 0.0022 * scaleMult)
+          .addScaledVector(st.normal, 0.0034 * scaleMult);
+        camCurrentLookAt
+          .copy(st.position)
+          .addScaledVector(st.tangent, 0.032 * scaleMult)
+          .addScaledVector(st.normal, 0.0026 * scaleMult);
+      } else if (mode === 4) {
+        camCurrentPos
+          .copy(st.position)
+          .addScaledVector(st.tangent, -0.055 * scaleMult)
+          .addScaledVector(st.normal, 0.088 * scaleMult);
+        camCurrentLookAt
+          .copy(st.position)
+          .addScaledVector(st.tangent, 0.018 * scaleMult);
+      }
+      camCurrentUp.set(0, 1, 0);
+      camera.up.set(0, 1, 0);
+      camera.position.copy(camCurrentPos);
+      camera.lookAt(camCurrentLookAt);
     }
+  }
+
+  function cycleCameraMode() {
+    const nextMode = activeCameraMode >= 4 ? 1 : activeCameraMode + 1;
+    setCameraMode(nextMode);
+  }
+
+  if (btnSwitchCamera) {
+    btnSwitchCamera.addEventListener('click', (e) => {
+      e.stopPropagation();
+      cycleCameraMode();
+      btnSwitchCamera.blur();
+    });
   }
 
   camButtons.forEach((btn) => {
     btn.addEventListener('click', () => setCameraMode(Number(btn.dataset.cam)));
   });
+
+  function setActiveGameMode(nextMode) {
+    const mode = nextMode === 'house' ? 'house' : 'track';
+    activeGameMode = mode;
+    const isHouse = mode === 'house';
+
+    // Toggle 3D world groups between Mode 1 (Neon Track) and Mode 2 (Giant House Open World)
+    giantHouse.houseGroup.visible = isHouse;
+    diorama.root.visible = !isHouse && !loadedGlbStatus.desk;
+    if (diorama.nightGlowGroup) diorama.nightGlowGroup.visible = !isHouse;
+    roomEnv.roomRoot.visible = !isHouse;
+    coaster.trackGroup.visible = !isHouse && !loadedGlbStatus.track;
+    if (coaster.underTrackLedGroup) coaster.underTrackLedGroup.visible = !isHouse;
+    coaster.debugGroup.visible = false;
+    glbContainerGroup.visible = !isHouse;
+
+    // Adjust scene background and fog for the spacious 14-Room Giant House vs cozy Neon Track
+    if (isHouse) {
+      scene.background.setHex(0x161c28);
+      scene.fog.color.setHex(0x161c28);
+      scene.fog.density = 0.042;
+    } else {
+      scene.background.setHex(0x181312);
+      scene.fog.color.setHex(0x181312);
+      scene.fog.density = 0.14;
+    }
+
+    cancelF1StartCountdown();
+    hideFinishOverlay();
+    hideLapSplit();
+    physics.setGameMode(mode);
+
+    // Sync HUD & Start Dialog Mode Selector UI
+    if (hudModeSwitchLabel) {
+      hudModeSwitchLabel.textContent = isHouse
+        ? 'MODE: GIANT HOUSE (14 ROOMS)'
+        : 'MODE: NEON TRACK';
+    }
+    if (btnSwitchGameMode) {
+      btnSwitchGameMode.classList.toggle('is-house-mode', isHouse);
+    }
+    if (btnModeTrack) {
+      btnModeTrack.classList.toggle('active', !isHouse);
+      btnModeTrack.setAttribute('aria-pressed', !isHouse ? 'true' : 'false');
+    }
+    if (btnModeHouse) {
+      btnModeHouse.classList.toggle('active', isHouse);
+      btnModeHouse.setAttribute('aria-pressed', isHouse ? 'true' : 'false');
+    }
+    if (hudLapWidget) {
+      hudLapWidget.classList.toggle('hidden', isHouse || activeCameraMode > 4);
+    }
+    if (hudHouseRoomBanner) {
+      hudHouseRoomBanner.classList.toggle('hidden', !isHouse || activeCameraMode > 4);
+    }
+    if (hudHouseRoomName && physics.state.currentRoomName) {
+      hudHouseRoomName.textContent = physics.state.currentRoomName;
+    }
+
+    syncKartScaleForCamera(activeCameraMode);
+    setCameraMode(activeCameraMode);
+    updateWelcomeWarmupUI();
+    lastMinimapKx = -9999;
+    lastMinimapKy = -9999;
+    drawMinimapRadar(physics.state);
+  }
+
+  if (btnModeTrack) {
+    btnModeTrack.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveGameMode('track');
+    });
+  }
+  if (btnModeHouse) {
+    btnModeHouse.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveGameMode('house');
+    });
+  }
+  if (btnSwitchGameMode) {
+    btnSwitchGameMode.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const targetMode = activeGameMode === 'track' ? 'house' : 'track';
+      setActiveGameMode(targetMode);
+      if (targetMode === 'house') {
+        hideWelcomeDialog();
+      }
+      btnSwitchGameMode.blur();
+    });
+  }
 
   const heldNonDigitKeys = new Set();
   let lastNonDigitKeyTime = 0;
@@ -826,11 +968,14 @@ async function initApp() {
       if (e.code === 'KeyM') {
         const on = audioSynth.toggle();
         updateAudioButtonUI(on);
+      } else if (e.code === 'KeyC' && !e.repeat) {
+        cycleCameraMode();
+      } else if (e.code === 'KeyG' && !e.repeat) {
+        setActiveGameMode(activeGameMode === 'track' ? 'house' : 'track');
       }
       return;
     }
 
-    // Reconcile OS-swallowed modifier keyups (e.g. after macOS Cmd+Shift+3 screenshot shortcut)
     if (!e.metaKey) {
       heldNonDigitKeys.delete('MetaLeft');
       heldNonDigitKeys.delete('MetaRight');
@@ -848,7 +993,6 @@ async function initApp() {
       heldNonDigitKeys.delete('AltRight');
     }
 
-    // Only switch cameras when keys 1, 2, 3, 4 (or 6 alias -> 4) are pressed in complete isolation
     if (
       e.metaKey ||
       e.ctrlKey ||
@@ -874,7 +1018,6 @@ async function initApp() {
 
   function updateCamera(dt, elapsedTime, st) {
     if (
-      activeCameraMode === 3 ||
       activeCameraMode === 5 ||
       activeCameraMode === 7 ||
       activeCameraMode === 8
@@ -882,7 +1025,6 @@ async function initApp() {
       orbitControls.maxDistance = 3.8;
       camera.up.set(0, 1, 0);
       orbitControls.update();
-      // Clamp OrbitControls camera position inside the V5.5 bedroom walls and outside the 3D wardrobe box
       camera.position.x = THREE.MathUtils.clamp(camera.position.x, -2.02, 1.28);
       camera.position.y = THREE.MathUtils.clamp(camera.position.y, -0.64, 1.65);
       camera.position.z = THREE.MathUtils.clamp(camera.position.z, -0.30, 2.48);
@@ -894,62 +1036,21 @@ async function initApp() {
       return;
     }
 
-    if (activeCameraMode === 4 || activeCameraMode === 6) {
-      // Mode 4 (and alias 6): Smooth Keyboard Helicopter Cam 2 —
-      // 1) NEVER loses sight of the car (keeps camera Z >= 0.268m strictly in front of the frontmost
-      //    track straightaway Z = 0.255m so the kart never passes behind/under the lens, and locks
-      //    lookAt 78% onto st.position so the kart stays centered inside the frame on every turn).
-      // 2) NEVER collides with objects (flies inside the 100% obstacle-free front-upper airspace
-      //    X in [-0.26m, +0.24m], Y in [0.248m, 0.285m], Z in [+0.268m, +0.360m], high above the
-      //    keyboard/mousepad/cat and well in front of the LG monitor and mic stand).
-      const heliAngle = elapsedTime * 0.34;
-      const desiredX = THREE.MathUtils.clamp(
-        -0.04 + st.position.x * 0.38 + Math.cos(heliAngle) * 0.13,
-        -0.26,
-        0.24
-      );
-      const desiredY =
-        0.252 +
-        Math.sin(heliAngle * 2.0) * 0.011 +
-        Math.max(0.0, st.position.y - 0.065) * 0.35;
-      const desiredZ = THREE.MathUtils.clamp(
-        Math.max(0.268, st.position.z + 0.135) + Math.sin(heliAngle) * 0.038,
-        0.268,
-        0.360
-      );
-      _camDesiredPos.set(desiredX, desiredY, desiredZ);
-
-      // Lock lookAt 78% onto the kart's live 3D position so we never lose sight of the car
-      // at the far left (books/lamp) or far right (cat helix) extremes of the track
-      _camDesiredLook.set(
-        THREE.MathUtils.lerp(-0.015, st.position.x, 0.78),
-        THREE.MathUtils.lerp(0.072, st.position.y + 0.01, 0.78),
-        THREE.MathUtils.lerp(-0.045, st.position.z, 0.78)
-      );
-
-      const smoothPos = isScreenshotMode ? 1.0 : 1.0 - Math.exp(-dt * 6.5);
-      const smoothLook = isScreenshotMode ? 1.0 : 1.0 - Math.exp(-dt * 9.5);
-      camCurrentPos.lerp(_camDesiredPos, smoothPos);
-      camCurrentLookAt.lerp(_camDesiredLook, smoothLook);
-      camera.up.set(0, 1, 0);
-      camera.position.copy(camCurrentPos);
-      camera.lookAt(camCurrentLookAt);
-      return;
+    // Compute kart-anchored forward unit vector
+    if (activeGameMode === 'house') {
+      _camTargetForward.copy(st.tangent).normalize();
+    } else {
+      _camTargetForward
+        .copy(st.tangent)
+        .applyAxisAngle(st.normal, (st.headingYaw || 0.0) * 0.40)
+        .normalize();
     }
-
-    // Compute kart-anchored forward unit vector directly from C2-smoothed st.tangent + 40% of st.headingYaw
-    // (both already smoothed in KartPhysicsController.js) so the camera and kart have ZERO phase desync!
-    _camTargetForward
-      .copy(st.tangent)
-      .applyAxisAngle(st.normal, (st.headingYaw || 0.0) * 0.40)
-      .normalize();
     camForward.copy(_camTargetForward);
 
     const carViewMode = urlParams.get('carview');
     if (carViewMode) {
       const stRight = _camDesiredPos.crossVectors(camForward, st.normal).normalize();
       if (carViewMode === 'front') {
-        // Front 3/4 macro inspection of the front hood ("4" decal, headlamps, white helmet & sleek wedge nose)
         _camDesiredPos
           .copy(st.position)
           .addScaledVector(camForward, 0.0155)
@@ -960,7 +1061,6 @@ async function initApp() {
           .addScaledVector(camForward, 0.0005)
           .addScaledVector(st.normal, 0.0028);
       } else if (carViewMode === 'rear') {
-        // Rear 3/4 macro inspection of the twin-cylinder rear engine bay, dual chrome tailpipes, rear wing & LED backlights
         _camDesiredPos
           .copy(st.position)
           .addScaledVector(camForward, -0.0145)
@@ -971,7 +1071,6 @@ async function initApp() {
           .addScaledVector(camForward, -0.0012)
           .addScaledVector(st.normal, 0.0030);
       } else {
-        // Side-front profile
         _camDesiredPos
           .copy(st.position)
           .addScaledVector(camForward, 0.0110)
@@ -987,23 +1086,24 @@ async function initApp() {
       return;
     }
 
-    // Subtle 1P guardrail impact camera shake (±0.8mm decayed over 0.18s)
+    const scaleMult = activeGameMode === 'house' ? 7.2 : 1.0;
+
+    // Subtle guardrail/wall impact camera shake
     let shakeRight = 0.0;
     let shakeUp = 0.0;
     if (camShakeTimer > 0.0 && !isScreenshotMode) {
       camShakeTimer = Math.max(0.0, camShakeTimer - dt);
       const shakeDecay = (camShakeTimer / 0.18) * camShakeIntensity;
-      shakeRight = Math.sin(elapsedTime * 95.0) * 0.0008 * shakeDecay;
-      shakeUp = Math.cos(elapsedTime * 125.0) * 0.0008 * shakeDecay;
+      shakeRight = Math.sin(elapsedTime * 95.0) * 0.0008 * scaleMult * shakeDecay;
+      shakeUp = Math.cos(elapsedTime * 125.0) * 0.0008 * scaleMult * shakeDecay;
     }
 
     if (activeCameraMode === 1) {
-      // 1:150 N-Scale Low Chase Cam (0.38x kart scale, slightly less zoomed in at 15.4mm behind, 7.4mm above,
-      // looking 24mm ahead and 3.0mm up with 41.5° FOV)
+      // Angle 1: Default Close Chase Cam (Close behind the driver's helmet)
       _camDesiredPos
         .copy(st.position)
-        .addScaledVector(camForward, -0.0154)
-        .addScaledVector(st.normal, 0.0074 + st.hopHeight * 0.38);
+        .addScaledVector(camForward, -0.0154 * scaleMult)
+        .addScaledVector(st.normal, 0.0074 * scaleMult + st.hopHeight * 0.38);
       if (shakeRight !== 0.0 || shakeUp !== 0.0) {
         _camDesiredPos
           .addScaledVector(st.right, shakeRight)
@@ -1012,8 +1112,8 @@ async function initApp() {
 
       _camDesiredLook
         .copy(st.position)
-        .addScaledVector(camForward, 0.024)
-        .addScaledVector(st.normal, 0.0030 + st.hopHeight * 0.22);
+        .addScaledVector(camForward, 0.024 * scaleMult)
+        .addScaledVector(st.normal, 0.0030 * scaleMult + st.hopHeight * 0.22);
 
       const smoothUp = isScreenshotMode ? 1.0 : 1.0 - Math.exp(-dt * 16.0);
       _camBlendedUp
@@ -1022,19 +1122,54 @@ async function initApp() {
         .normalize();
       camCurrentUp.lerp(_camBlendedUp, smoothUp).normalize();
 
-      camCurrentPos.copy(_camDesiredPos);
-      camCurrentLookAt.copy(_camDesiredLook);
+      if (activeGameMode === 'house') {
+        const smoothFollow = isScreenshotMode ? 1.0 : 1.0 - Math.exp(-dt * 18.0);
+        camCurrentPos.lerp(_camDesiredPos, smoothFollow);
+        camCurrentLookAt.lerp(_camDesiredLook, smoothFollow);
+      } else {
+        camCurrentPos.copy(_camDesiredPos);
+        camCurrentLookAt.copy(_camDesiredLook);
+      }
 
       camera.up.copy(camCurrentUp);
-      camera.position.copy(_camDesiredPos);
-      camera.lookAt(_camDesiredLook);
+      camera.position.copy(camCurrentPos);
+      camera.lookAt(camCurrentLookAt);
     } else if (activeCameraMode === 2) {
-      // 1:150 N-Scale Pure Road Cockpit POV Cam (41.5° FOV, positioned at +2.2mm forward in front of the helmet visor
-      // and 3.4mm above track surface, looking 32mm ahead and 2.6mm up — kart mesh hidden so only the road is visible!)
+      // Angle 2: Far Chase Cam (Higher and further back for a wider view of the car and environment)
       _camDesiredPos
         .copy(st.position)
-        .addScaledVector(camForward, 0.0022)
-        .addScaledVector(st.normal, 0.0034 + st.hopHeight * 0.38);
+        .addScaledVector(camForward, -0.032 * scaleMult)
+        .addScaledVector(st.normal, 0.0165 * scaleMult + st.hopHeight * 0.45);
+      if (shakeRight !== 0.0 || shakeUp !== 0.0) {
+        _camDesiredPos
+          .addScaledVector(st.right, shakeRight)
+          .addScaledVector(st.normal, shakeUp);
+      }
+
+      _camDesiredLook
+        .copy(st.position)
+        .addScaledVector(camForward, 0.028 * scaleMult)
+        .addScaledVector(st.normal, 0.0038 * scaleMult + st.hopHeight * 0.25);
+
+      const smoothPos = isScreenshotMode ? 1.0 : 1.0 - Math.exp(-dt * 14.0);
+      const smoothUp = isScreenshotMode ? 1.0 : 1.0 - Math.exp(-dt * 14.0);
+      _camBlendedUp
+        .set(0, 0.72, 0)
+        .addScaledVector(st.normal, 0.28)
+        .normalize();
+      camCurrentUp.lerp(_camBlendedUp, smoothUp).normalize();
+      camCurrentPos.lerp(_camDesiredPos, smoothPos);
+      camCurrentLookAt.lerp(_camDesiredLook, smoothPos);
+
+      camera.up.copy(camCurrentUp);
+      camera.position.copy(camCurrentPos);
+      camera.lookAt(camCurrentLookAt);
+    } else if (activeCameraMode === 3) {
+      // Angle 3: Hood / Cockpit First-Person Cam (View directly from the front of the car / driver's eye level)
+      _camDesiredPos
+        .copy(st.position)
+        .addScaledVector(camForward, 0.0022 * scaleMult)
+        .addScaledVector(st.normal, 0.0034 * scaleMult + st.hopHeight * 0.38);
       if (shakeRight !== 0.0 || shakeUp !== 0.0) {
         _camDesiredPos
           .addScaledVector(st.right, shakeRight)
@@ -1042,8 +1177,8 @@ async function initApp() {
       }
       _camDesiredLook
         .copy(st.position)
-        .addScaledVector(camForward, 0.032)
-        .addScaledVector(st.normal, 0.0026);
+        .addScaledVector(camForward, 0.032 * scaleMult)
+        .addScaledVector(st.normal, 0.0026 * scaleMult);
 
       const smoothVisor = isScreenshotMode ? 1.0 : 1.0 - Math.exp(-dt * 24.0);
       camCurrentUp.lerp(st.normal, smoothVisor).normalize();
@@ -1054,10 +1189,48 @@ async function initApp() {
       camera.up.copy(camCurrentUp);
       camera.position.copy(_camDesiredPos);
       camera.lookAt(_camDesiredLook);
+    } else if (activeCameraMode === 4 || activeCameraMode === 6) {
+      // Angle 4: Top-Down / Helicopter Angled Cam (High overhead angled view following the car)
+      if (activeGameMode === 'house') {
+        _camDesiredPos
+          .copy(st.position)
+          .addScaledVector(camForward, -0.34)
+          .add(new THREE.Vector3(0, 0.56, 0));
+        _camDesiredLook
+          .copy(st.position)
+          .addScaledVector(camForward, 0.14);
+      } else {
+        const heliAngle = elapsedTime * 0.34;
+        const desiredX = THREE.MathUtils.clamp(
+          -0.04 + st.position.x * 0.38 + Math.cos(heliAngle) * 0.13,
+          -0.26,
+          0.24
+        );
+        const desiredY =
+          0.252 +
+          Math.sin(heliAngle * 2.0) * 0.011 +
+          Math.max(0.0, st.position.y - 0.065) * 0.35;
+        const desiredZ = THREE.MathUtils.clamp(
+          Math.max(0.268, st.position.z + 0.135) + Math.sin(heliAngle) * 0.038,
+          0.268,
+          0.360
+        );
+        _camDesiredPos.set(desiredX, desiredY, desiredZ);
+        _camDesiredLook.set(
+          THREE.MathUtils.lerp(-0.015, st.position.x, 0.78),
+          THREE.MathUtils.lerp(0.072, st.position.y + 0.01, 0.78),
+          THREE.MathUtils.lerp(-0.045, st.position.z, 0.78)
+        );
+      }
+
+      const smoothPos = isScreenshotMode ? 1.0 : 1.0 - Math.exp(-dt * 7.5);
+      const smoothLook = isScreenshotMode ? 1.0 : 1.0 - Math.exp(-dt * 10.5);
+      camCurrentPos.lerp(_camDesiredPos, smoothPos);
+      camCurrentLookAt.lerp(_camDesiredLook, smoothLook);
+      camera.up.set(0, 1, 0);
+      camera.position.copy(camCurrentPos);
+      camera.lookAt(camCurrentLookAt);
     } else if (activeCameraMode === 9) {
-      // Mode 9: Smooth Keyboard Helicopter Cam — Spins smoothly in obstacle-free airspace
-      // over the Logitech G915 Keyboard (Z in [+0.18m, +0.33m], X in [-0.295m, +0.055m], Y ~ 0.235m),
-      // 100% clear of the LG Monitor Screen (Z < -0.16m) and Microphone Stand (Z < -0.045m)!
       const heliAngle = elapsedTime * 0.36;
       const kbCenterX = -0.12;
       const kbCenterZ = 0.255;
@@ -1068,7 +1241,6 @@ async function initApp() {
         0.235 + Math.sin(heliAngle * 2.0) * 0.012,
         kbCenterZ + Math.sin(heliAngle) * radiusZ
       );
-      // Smoothly frame the keyboard, central coaster track, and moving kart without pitching into the numpad
       _camDesiredLook.set(
         THREE.MathUtils.lerp(-0.02, st.position.x, 0.34),
         THREE.MathUtils.lerp(0.075, st.position.y + 0.012, 0.34),
@@ -1085,10 +1257,8 @@ async function initApp() {
   }
 
   // -------------------------------------------------------------------------
-  // 6. HUD TELEMETRY BINDINGS, TWEAKER CONTROLS & 2D SPLINE RADAR
+  // 6. HUD TELEMETRY BINDINGS, TWEAKER CONTROLS & 2D SPLINE / 14-ROOM HOUSE RADAR
   // -------------------------------------------------------------------------
-
-  // Autopilot & Audio buttons
   const btnAutopilot = document.getElementById('btn-toggle-autopilot');
   const txtAutopilot = document.getElementById('autopilot-btn-text');
   const elDriveMode = document.getElementById('hud-drive-mode');
@@ -1110,6 +1280,7 @@ async function initApp() {
   syncAutopilotUI(physics.state.autopilot);
   if (btnAutopilot) {
     btnAutopilot.addEventListener('click', () => {
+      if (activeGameMode === 'house') return;
       physics.setAutopilot(!physics.state.autopilot);
     });
   }
@@ -1159,6 +1330,9 @@ async function initApp() {
   document.querySelectorAll('.tp-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const sec = Number(btn.dataset.sector);
+      if (activeGameMode !== 'track') {
+        setActiveGameMode('track');
+      }
       physics.teleportToSector(sec);
     });
   });
@@ -1307,7 +1481,7 @@ async function initApp() {
   const chkDebug = document.getElementById('chk-spline-debug');
   if (chkDebug) {
     chkDebug.addEventListener('change', (e) => {
-      coaster.debugGroup.visible = e.target.checked;
+      coaster.debugGroup.visible = e.target.checked && activeGameMode === 'track';
     });
   }
 
@@ -1373,7 +1547,7 @@ async function initApp() {
     });
   }
 
-  // Initialize Sleek Angled 18-Segment Speedometer Bar (6 left-riser ticks + 12 upper-bar ticks)
+  // Initialize Sleek Angled 18-Segment Speedometer Bar
   const ticksGroup = document.getElementById('speedo-ticks-group');
   const speedoCasing = document.getElementById('speedo-bar-casing');
   const speedoSegEls = [];
@@ -1399,16 +1573,12 @@ async function initApp() {
   ];
 
   if (ticksGroup) {
-    // Outer knee vertex K = (66, 36)
     const kx = 66.0;
     const ky = 36.0;
-    // Left riser unit step (6 steps from bottom-left up-right to knee K)
     const ux = 7.2;
     const uy = -10.8;
-    // Upper bar unit step (12 steps from knee K up-right across above speed digits & KM/H)
     const vx = 16.4;
     const vy = -2.25;
-    // Shared inward thickness offset vector at the knee so riser and top bar meet at an exact miter edge
     const wx = 10.5;
     const wy = 11.2;
 
@@ -1433,7 +1603,6 @@ async function initApp() {
 
     let svgMarkup = '';
     const pad = 0.13;
-    // 6 segments along the left diagonal riser (s = 0..5)
     for (let s = 0; s < 6; s++) {
       const s0 = s + pad;
       const s1 = s + 1.0 - pad;
@@ -1447,7 +1616,6 @@ async function initApp() {
       const q0y = p0y + wy;
       svgMarkup += `<polygon id="speedo-seg-${s}" class="speedo-seg" points="${p0x.toFixed(2)},${p0y.toFixed(2)} ${p1x.toFixed(2)},${p1y.toFixed(2)} ${q1x.toFixed(2)},${q1y.toFixed(2)} ${q0x.toFixed(2)},${q0y.toFixed(2)}" />`;
     }
-    // 12 segments along the upper bar (t = 0..11, seg index 6..17)
     for (let t = 0; t < 12; t++) {
       const idx = 6 + t;
       const t0 = t + pad;
@@ -1468,22 +1636,18 @@ async function initApp() {
     }
   }
 
-  // 2x Retina 3D Isometric-Tilted Track Minimap Renderer (Bottom-Left Racetrack
-  // & Cyan Glowing Dot) Uses a tall 3D oblique projection:
-  //   X2d = x - y * 0.08 + z * 0.04
-  //   Y2d = z * 1.05 - y * 1.58
-  // Exaggerating vertical elevation y by 1.58x (paired with z * 1.05 so each
-  // loop stays wide open) expands vertical spiral height to fill the 600x390
-  // canvas so the BoYata climb, Cat Helix, and multi-coil Lamp Corkscrew read
-  // immediately as tall 3D rollercoaster spirals rather than a flat map.
+  // 2x Retina Minimap Renderer (Supports Mode 1 Track Ribbon & Mode 2 14-Room Giant House Floorplan)
   const radarCanvas = document.getElementById('minimap-canvas');
   const radarCtx = radarCanvas ? radarCanvas.getContext('2d') : null;
   let radarBgCanvas = null;
+  let houseRadarBgCanvas = null;
 
   const projMinimapRawX = (x, y, z) => x - y * 0.36 + z * 0.08;
   const projMinimapRawY = (_x, y, z) => z * 1.08 - y * 1.48;
   let mapMinimapX = (x, _y, _z) => x;
   let mapMinimapY = (_x, _y, z) => z;
+  let mapHouseMinimapX = (x) => x;
+  let mapHouseMinimapY = (z) => z;
 
   if (radarCanvas) {
     radarBgCanvas = document.createElement('canvas');
@@ -1519,8 +1683,6 @@ async function initApp() {
     mapMinimapX = (x, y, z) => projMinimapRawX(x, y, z) * scale + offsetX;
     mapMinimapY = (x, y, z) => projMinimapRawY(x, y, z) * scale + offsetY;
 
-    // Precompute 2D projected vertices for smooth quadratic Bezier curve
-    // fitting
     const p2d = new Array(nPts);
     for (let i = 0; i < nPts; i++) {
       const pos = pts[i].position;
@@ -1549,7 +1711,6 @@ async function initApp() {
     bgCtx.lineJoin = 'round';
     bgCtx.lineCap = 'round';
 
-    // 1. Soft Ambient Drop Shadow beneath the full 3D track ribbon
     bgCtx.save();
     bgCtx.shadowColor = 'rgba(0, 0, 0, 0.90)';
     bgCtx.shadowBlur = 20;
@@ -1561,52 +1722,42 @@ async function initApp() {
     bgCtx.stroke();
     bgCtx.restore();
 
-    // 2. Multi-Tier Elevation-Sorted 3D Extruded Ribbon Rendering
-    // (Bottom-to-Top Painter's Algorithm) Each elevation tier draws:
-    //  (a) a dark bridge-shadow outer casing (19.0px),
-    //  (b) a 3D extruded cool-slate underside rim (+4.2px downward offset) to
-    //  give physical coaster depth, (c) a thick, smooth top ribbon (12.0px)
-    //  shaded from cool silver-white at desk level (#cdd8e8)
-    //      to pure bright white (#ffffff) at the highest spiral peaks!
     const elevTiers = [
-      {min: -1.0, max: 0.042, shade: '#cdd8e8', side: '#52637a'},
-      {min: 0.036, max: 0.068, shade: '#d8e2f0', side: '#5c6e87'},
-      {min: 0.062, max: 0.096, shade: '#e3ebf6', side: '#667a94'},
-      {min: 0.090, max: 0.128, shade: '#edf3fa', side: '#7186a1'},
-      {min: 0.122, max: 0.160, shade: '#f6f9fd', side: '#7d92ae'},
-      {min: 0.154, max: 1.0, shade: '#ffffff', side: '#8aa0bd'},
+      { min: -1.0, max: 0.042, shade: '#cdd8e8', side: '#52637a' },
+      { min: 0.036, max: 0.068, shade: '#d8e2f0', side: '#5c6e87' },
+      { min: 0.062, max: 0.096, shade: '#e3ebf6', side: '#667a94' },
+      { min: 0.090, max: 0.128, shade: '#edf3fa', side: '#7186a1' },
+      { min: 0.122, max: 0.160, shade: '#f6f9fd', side: '#7d92ae' },
+      { min: 0.154, max: 1.0, shade: '#ffffff', side: '#8aa0bd' },
     ];
 
-    const strokeElevationTier =
-        (minE, maxE, strokeStyle, lineWidth, yOffsetPx = 0.0) => {
-          bgCtx.strokeStyle = strokeStyle;
-          bgCtx.lineWidth = lineWidth;
-          bgCtx.beginPath();
-          let active = false;
-          for (let step = 0; step <= nPts + 2; step++) {
-            const i = step % nPts;
-            const prev = p2d[(i - 1 + nPts) % nPts];
-            const curr = p2d[i];
-            const next = p2d[(i + 1) % nPts];
-            if (curr.elev >= minE && curr.elev <= maxE) {
-              const startMidX = (prev.x + curr.x) * 0.5;
-              const startMidY = (prev.y + curr.y) * 0.5 + yOffsetPx;
-              const endMidX = (curr.x + next.x) * 0.5;
-              const endMidY = (curr.y + next.y) * 0.5 + yOffsetPx;
-              if (!active) {
-                bgCtx.moveTo(startMidX, startMidY);
-                active = true;
-              }
-              bgCtx.quadraticCurveTo(
-                  curr.x, curr.y + yOffsetPx, endMidX, endMidY);
-            } else {
-              active = false;
-            }
+    const strokeElevationTier = (minE, maxE, strokeStyle, lineWidth, yOffsetPx = 0.0) => {
+      bgCtx.strokeStyle = strokeStyle;
+      bgCtx.lineWidth = lineWidth;
+      bgCtx.beginPath();
+      let active = false;
+      for (let step = 0; step <= nPts + 2; step++) {
+        const i = step % nPts;
+        const prev = p2d[(i - 1 + nPts) % nPts];
+        const curr = p2d[i];
+        const next = p2d[(i + 1) % nPts];
+        if (curr.elev >= minE && curr.elev <= maxE) {
+          const startMidX = (prev.x + curr.x) * 0.5;
+          const startMidY = (prev.y + curr.y) * 0.5 + yOffsetPx;
+          const endMidX = (curr.x + next.x) * 0.5;
+          const endMidY = (curr.y + next.y) * 0.5 + yOffsetPx;
+          if (!active) {
+            bgCtx.moveTo(startMidX, startMidY);
+            active = true;
           }
-          bgCtx.stroke();
-        };
+          bgCtx.quadraticCurveTo(curr.x, curr.y + yOffsetPx, endMidX, endMidY);
+        } else {
+          active = false;
+        }
+      }
+      bgCtx.stroke();
+    };
 
-    // Base continuous pass first so tier boundaries never have hairline gaps
     bgCtx.strokeStyle = 'rgba(0, 0, 0, 0.82)';
     bgCtx.lineWidth = 19.0;
     traceSmoothClosedPath(bgCtx, p2d, 2.2);
@@ -1622,13 +1773,45 @@ async function initApp() {
     traceSmoothClosedPath(bgCtx, p2d, 0.0);
     bgCtx.stroke();
 
-    // Paint elevated tiers from lowest to highest so each upper spiral turn
-    // bridges cleanly over lower turns
     for (let t = 1; t < elevTiers.length; t++) {
       const tier = elevTiers[t];
       strokeElevationTier(tier.min, tier.max, 'rgba(0, 0, 0, 0.86)', 19.4, 2.2);
       strokeElevationTier(tier.min, tier.max, tier.side, 12.2, 4.0);
       strokeElevationTier(tier.min, tier.max, tier.shade, 12.0, 0.0);
+    }
+
+    // Build Pre-Rendered 14-Room Giant House Floorplan Minimap Canvas
+    houseRadarBgCanvas = document.createElement('canvas');
+    houseRadarBgCanvas.width = w;
+    houseRadarBgCanvas.height = h;
+    const hCtx = houseRadarBgCanvas.getContext('2d');
+    const hMinX = -3.6;
+    const hMaxX = 6.0;
+    const hMinZ = -3.6;
+    const hMaxZ = 6.0;
+    const hScale = Math.min((w - 56) / (hMaxX - hMinX), (h - 32) / (hMaxZ - hMinZ));
+    const hOffX = (w - (hMaxX - hMinX) * hScale) * 0.5 - hMinX * hScale;
+    const hOffY = (h - (hMaxZ - hMinZ) * hScale) * 0.5 - hMinZ * hScale;
+    mapHouseMinimapX = (x) => x * hScale + hOffX;
+    mapHouseMinimapY = (z) => z * hScale + hOffY;
+
+    for (const r of giantHouse.rooms) {
+      const rx = mapHouseMinimapX(r.cx - 1.16);
+      const ry = mapHouseMinimapY(r.cz - 1.16);
+      const rw = 2.32 * hScale;
+      const rh = 2.32 * hScale;
+      hCtx.fillStyle = 'rgba(12, 22, 36, 0.78)';
+      hCtx.fillRect(rx, ry, rw, rh);
+      hCtx.strokeStyle = 'rgba(130, 215, 255, 0.55)';
+      hCtx.lineWidth = 2.2;
+      hCtx.strokeRect(rx, ry, rw, rh);
+
+      hCtx.fillStyle = '#d8f3ff';
+      hCtx.font = '700 13px "Orbitron", sans-serif';
+      hCtx.textAlign = 'center';
+      hCtx.textBaseline = 'middle';
+      const shortTag = r.shortName.split(' ')[0];
+      hCtx.fillText(shortTag, rx + rw * 0.5, ry + rh * 0.5);
     }
   }
 
@@ -1637,8 +1820,13 @@ async function initApp() {
 
   function drawMinimapRadar(st) {
     if (!radarCtx || !radarCanvas) return;
-    const kx = mapMinimapX(st.position.x, st.position.y, st.position.z);
-    const ky = mapMinimapY(st.position.x, st.position.y, st.position.z);
+    const isHouse = activeGameMode === 'house';
+    const kx = isHouse
+      ? mapHouseMinimapX(st.position.x)
+      : mapMinimapX(st.position.x, st.position.y, st.position.z);
+    const ky = isHouse
+      ? mapHouseMinimapY(st.position.z)
+      : mapMinimapY(st.position.x, st.position.y, st.position.z);
     if (
       Math.abs(kx - lastMinimapKx) < 0.15 &&
       Math.abs(ky - lastMinimapKy) < 0.15
@@ -1651,12 +1839,12 @@ async function initApp() {
     const w = radarCanvas.width;
     const h = radarCanvas.height;
     radarCtx.clearRect(0, 0, w, h);
-    if (radarBgCanvas) {
-      radarCtx.drawImage(radarBgCanvas, 0, 0);
+    const bgSource = isHouse ? houseRadarBgCanvas : radarBgCanvas;
+    if (bgSource) {
+      radarCtx.drawImage(bgSource, 0, 0);
     }
 
     radarCtx.save();
-    // Cyan glowing dot for live track progress (scaled for 2x Retina canvas)
     const haloGrad = radarCtx.createRadialGradient(kx, ky, 3.0, kx, ky, 26.0);
     haloGrad.addColorStop(0.0, 'rgba(0, 240, 255, 0.90)');
     haloGrad.addColorStop(0.45, 'rgba(0, 224, 255, 0.44)');
@@ -1666,19 +1854,16 @@ async function initApp() {
     radarCtx.arc(kx, ky, 26.0, 0, Math.PI * 2);
     radarCtx.fill();
 
-    // Crisp dark ring around dot for contrast against thick white track
     radarCtx.fillStyle = 'rgba(0, 12, 22, 0.55)';
     radarCtx.beginPath();
     radarCtx.arc(kx, ky, 12.2, 0, Math.PI * 2);
     radarCtx.fill();
 
-    // Bright electric-cyan dot body
     radarCtx.fillStyle = '#00e8ff';
     radarCtx.beginPath();
     radarCtx.arc(kx, ky, 10.2, 0, Math.PI * 2);
     radarCtx.fill();
 
-    // Crisp ice-cyan center core
     radarCtx.fillStyle = '#dcfdff';
     radarCtx.beginPath();
     radarCtx.arc(kx, ky, 4.8, 0, Math.PI * 2);
@@ -1775,6 +1960,7 @@ async function initApp() {
   }
 
   physics.onLapComplete((lapTime, bestLap, completedLapNum, totalTime, isFinish) => {
+    if (activeGameMode !== 'track') return;
     if (isFinish) {
       const finalTotal =
         totalTime ?? physics.state.finishTotalTime ?? physics.state.totalRaceTime ?? lapTime;
@@ -1788,6 +1974,7 @@ async function initApp() {
 
   if (physics.onRaceFinish) {
     physics.onRaceFinish((totalTime, _lapTimes, bestLap) => {
+      if (activeGameMode !== 'track') return;
       showFinishOverlay(totalTime, bestLap, true);
     });
   }
@@ -1801,11 +1988,11 @@ async function initApp() {
     }
   });
 
-  // Formula 1 5-Light Start Sequence State (Triggered by pressing Enter)
+  // Formula 1 5-Light Start Sequence State
   const f1CountdownState = {
     active: false,
     elapsed: 0.0,
-    stepDuration: 0.85, // 0.85s per light (5 lights right-to-left = 4.25s total before Lights Out!)
+    stepDuration: 0.85,
     lastStepIndex: -1,
   };
 
@@ -1825,6 +2012,16 @@ async function initApp() {
   function startF1StartCountdown() {
     hideFinishOverlay();
     hideLapSplit();
+    if (activeGameMode === 'house') {
+      // Giant House Open World starts free-roam driving immediately with zero countdown lock
+      cancelF1StartCountdown();
+      physics.setAutopilot(false);
+      physics.resetToStart();
+      physics.state.countdownLocked = false;
+      physics.state.raceClockActive = true;
+      return;
+    }
+
     physics.setAutopilot(false);
     const btnAutoText = document.getElementById('autopilot-btn-text');
     if (btnAutoText) btnAutoText.textContent = 'Manual WASD Racing';
@@ -1837,7 +2034,7 @@ async function initApp() {
     f1CountdownState.lastStepIndex = 1;
 
     if (coaster.setF1StartLights) {
-      coaster.setF1StartLights(1); // Rightmost light (#1) turns RED immediately
+      coaster.setF1StartLights(1);
     }
     if (audioSynth.playF1CountdownBeep) {
       audioSynth.playF1CountdownBeep(false);
@@ -1857,33 +2054,30 @@ async function initApp() {
       if (stepIdx !== f1CountdownState.lastStepIndex) {
         f1CountdownState.lastStepIndex = stepIdx;
         if (coaster.setF1StartLights) {
-          coaster.setF1StartLights(stepIdx); // Lights 1..stepIdx from right to left turn RED
+          coaster.setF1StartLights(stepIdx);
         }
         if (audioSynth.playF1CountdownBeep) {
-          audioSynth.playF1CountdownBeep(
-              false);  // Same tone for each red lamp (2..5)
+          audioSynth.playF1CountdownBeep(false);
         }
         if (elF1Countdown) {
-          elF1Countdown.textContent = String(6 - stepIdx); // 5, 4, 3, 2, 1
+          elF1Countdown.textContent = String(6 - stepIdx);
           elF1Countdown.classList.remove('hidden');
         }
       }
     } else {
-      // All 5 lights have turned red from right to left -> LIGHTS OUT AND AWAY WE GO!
       f1CountdownState.active = false;
       f1CountdownState.lastStepIndex = -1;
       if (coaster.setF1StartLights) {
-        coaster.setF1StartLights(0); // All 5 lights turn OFF simultaneously
+        coaster.setF1StartLights(0);
       }
       if (audioSynth.playF1CountdownBeep) {
-        audioSynth.playF1CountdownBeep(
-            true);  // High beep once all lights are off!
+        audioSynth.playF1CountdownBeep(true);
       }
       if (elF1Countdown) {
         elF1Countdown.classList.add('hidden');
       }
       physics.state.countdownLocked = false;
-      physics.state.raceClockActive = true; // Lap timer immediately starts ticking!
+      physics.state.raceClockActive = true;
       if (physics.notifyLightsOut) {
         physics.notifyLightsOut();
       }
@@ -1915,10 +2109,12 @@ async function initApp() {
 
   function updateWelcomeWarmupUI() {
     if (isScreenshotMode || !btnWelcomeStart) return;
-    if (isCircuitReady) {
+    const readyLabel =
+      activeGameMode === 'house' ? 'START FREE ROAM' : 'START TIME TRIAL';
+    if (isCircuitReady || activeGameMode === 'house') {
       btnWelcomeStart.classList.remove('is-warming-up', 'is-queued');
       if (elWelcomeProgressFill) elWelcomeProgressFill.style.width = '100%';
-      if (elWelcomeStartText) elWelcomeStartText.textContent = 'START TIME TRIAL';
+      if (elWelcomeStartText) elWelcomeStartText.textContent = readyLabel;
       if (elWelcomeEnterKbd) elWelcomeEnterKbd.textContent = 'ENTER ↵';
       focusWelcomeStartButton();
       return;
@@ -1958,8 +2154,6 @@ async function initApp() {
   updateWelcomeWarmupUI();
   focusWelcomeStartButton();
 
-  // Ensure moving the cursor into the preview iframe while Welcome Dialog is open pulls keyboard
-  // focus away from any parent toolbar button (e.g. Reload) so Enter always starts the race
   window.addEventListener(
     'pointermove',
     () => {
@@ -1974,7 +2168,6 @@ async function initApp() {
     { passive: true }
   );
 
-  // Hide welcome dialog in headless screenshot mode unless ?welcome=1 is explicitly requested
   if (
     elWelcomeOverlay &&
     urlParams.get('screenshot') === '1' &&
@@ -1998,7 +2191,6 @@ async function initApp() {
   const activeTouchDirs = new Set();
   const activePointerDirs = new Map();
 
-  // Disable mobile screen scrolling, pinch-zooming, context menus, and text selection globally
   const preventDefaultIfCancelable = (e) => {
     if (e.cancelable) {
       e.preventDefault();
@@ -2027,14 +2219,11 @@ async function initApp() {
   );
 
   function resolveButtonDirectionAtPoint(clientX, clientY) {
-    // 1. Direct DOM hit check
     const hitEl = document.elementFromPoint(clientX, clientY);
     const hitBtn = hitEl && hitEl.closest ? hitEl.closest('.mobile-ctrl-btn') : null;
     if (hitBtn && hitBtn.dataset.control) {
       return hitBtn.dataset.control;
     }
-    // 2. Forgiving bounding-box hit test (+18px padding) so thumb micro-drift while holding
-    //    never drops continuous acceleration or steering
     const pad = 18;
     let bestDir = null;
     let bestDistSq = Infinity;
@@ -2330,19 +2519,21 @@ async function initApp() {
   let lastLapCurr = -1;
   let lastLapTimerStr = '';
   let lastVisorStr = '';
+  let lastRoomNameStr = '';
 
   function updateHUD(st) {
-    if (activeCameraMode !== 1 && activeCameraMode !== 2) return;
-    // 1:150 N-Scale Speed in km/h (calibrated so 0.204 m/s cruise = 75 km/h, 0.289 m/s boost = 106 km/h)
+    if (activeCameraMode > 4) return;
     const absSpeed = Math.abs(st.speed);
-    const scaleKmh = Math.round(absSpeed * 102.35 * 3.6);
+    const scaleKmh =
+      activeGameMode === 'house'
+        ? Math.round(absSpeed * 12.2 * 3.6)
+        : Math.round(absSpeed * 102.35 * 3.6);
 
     if (elScaleSpeed && scaleKmh !== lastScaleKmh) {
       lastScaleKmh = scaleKmh;
       elScaleSpeed.textContent = String(scaleKmh);
     }
 
-    // Light up 0..18 angled speed segments (white -> ice-cyan -> electric cyan)
     const activeSegs =
       scaleKmh <= 0 ? 0 : Math.min(18, Math.max(1, Math.round((scaleKmh / 104.0) * 18)));
     if (activeSegs !== lastActiveSegs && speedoSegEls.length === 18) {
@@ -2364,38 +2555,43 @@ async function initApp() {
       }
     }
 
-    // Top-Right Lap Counter (LAP 1/3) & Continuous 3-Lap Total Timer (MM:SS.CC with rock-solid fixed-width digit spans)
-    const isPAutoMode = Boolean(st.autopilot && !st.victoryCruise);
-    const lapDisplay = isPAutoMode ? 1 : Math.min(3, Math.max(1, st.lapCount || 1));
-    if (elLapCurr && lapDisplay !== lastLapCurr) {
-      lastLapCurr = lapDisplay;
-      elLapCurr.textContent = String(lapDisplay);
-    }
-    if (elLapTimer) {
-      const displayTime = isPAutoMode
-        ? 0.0
-        : st.raceFinished && st.finishTotalTime != null
-          ? st.finishTotalTime
-          : st.totalRaceTime !== undefined
-            ? st.totalRaceTime
-            : st.currentLapTime;
-      const timerStr = formatLapTimerMMSSCC(displayTime);
-      if (timerStr !== lastLapTimerStr) {
-        lastLapTimerStr = timerStr;
-        // timerStr format: "MM:SS.CC" -> indices [0, 1, 3, 4, 6, 7]
-        const digitIndices = [0, 1, 3, 4, 6, 7];
-        for (let d = 0; d < 6; d++) {
-          const spanEl = lapDigitEls[d];
-          const ch = timerStr[digitIndices[d]];
-          if (spanEl && spanEl.textContent !== ch) {
-            spanEl.textContent = ch;
+    if (activeGameMode === 'house') {
+      if (hudHouseRoomName && st.currentRoomName && st.currentRoomName !== lastRoomNameStr) {
+        lastRoomNameStr = st.currentRoomName;
+        hudHouseRoomName.textContent = st.currentRoomName;
+      }
+    } else {
+      const isPAutoMode = Boolean(st.autopilot && !st.victoryCruise);
+      const lapDisplay = isPAutoMode ? 1 : Math.min(3, Math.max(1, st.lapCount || 1));
+      if (elLapCurr && lapDisplay !== lastLapCurr) {
+        lastLapCurr = lapDisplay;
+        elLapCurr.textContent = String(lapDisplay);
+      }
+      if (elLapTimer) {
+        const displayTime = isPAutoMode
+          ? 0.0
+          : st.raceFinished && st.finishTotalTime != null
+            ? st.finishTotalTime
+            : st.totalRaceTime !== undefined
+              ? st.totalRaceTime
+              : st.currentLapTime;
+        const timerStr = formatLapTimerMMSSCC(displayTime);
+        if (timerStr !== lastLapTimerStr) {
+          lastLapTimerStr = timerStr;
+          const digitIndices = [0, 1, 3, 4, 6, 7];
+          for (let d = 0; d < 6; d++) {
+            const spanEl = lapDigitEls[d];
+            const ch = timerStr[digitIndices[d]];
+            if (spanEl && spanEl.textContent !== ch) {
+              spanEl.textContent = ch;
+            }
           }
+          elLapTimer.setAttribute('aria-label', timerStr);
         }
-        elLapTimer.setAttribute('aria-label', timerStr);
       }
     }
 
-    if (elVisorInline && activeCameraMode === 2) {
+    if (elVisorInline && activeCameraMode === 3) {
       const visorStr = `${scaleKmh} KM/H | BANK ${st.bankDeg.toFixed(1)}° | ${st.downforceG.toFixed(2)}G`;
       if (visorStr !== lastVisorStr) {
         lastVisorStr = visorStr;
@@ -2407,8 +2603,11 @@ async function initApp() {
   }
 
   // -------------------------------------------------------------------------
-  // URL QUERY PARAMETERS (?cam=1..4/6, ?sector=1..6, ?s=..., ?finish=1, ?dof=..., and ?screenshot=1)
+  // URL QUERY PARAMETERS (?mode=house|track, ?cam=1..4/6, ?sector=1..6, ?s=..., ?finish=1)
   // -------------------------------------------------------------------------
+  if (urlParams.get('mode') === 'house') {
+    setActiveGameMode('house');
+  }
   if (urlParams.has('sector')) {
     const requestedSector = parseInt(urlParams.get('sector'), 10);
     if (requestedSector >= 1 && requestedSector <= 6) {
@@ -2498,22 +2697,25 @@ async function initApp() {
   let screenshotFrameCounter = 0;
 
   // -------------------------------------------------------------------------
-  // 7. WINDOW RESIZE & 60FPS DELTA-TIME ANIMATION LOOP (MOBILE OPTIMIZED)
+  // 7. 16:9 WIDESCREEN RESIZE & 60FPS DELTA-TIME ANIMATION LOOP (MOBILE OPTIMIZED)
   // -------------------------------------------------------------------------
-  window.addEventListener('resize', () => {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    camera.aspect = w / h;
+  function handleStageResize() {
+    const dims = getStageDimensions();
+    camera.aspect = 16 / 9;
     camera.updateProjectionMatrix();
-    renderer.setPixelRatio(1);
-    renderer.setSize(w, h);
-  });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    renderer.setSize(dims.width, dims.height);
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
+  }
+
+  window.addEventListener('resize', handleStageResize);
+  handleStageResize();
 
   const clock = new THREE.Clock();
+  let lastHudUpdateMs = 0;
 
   function animate() {
-    // Clamp delta time so mobile background/tab-switch or minor frame hitches never cause
-    // physics jumps, freezing, or frame skipping
     const rawDt = clock.getDelta();
     const dt = isScreenshotMode ? 1 / 60 : Math.min(Math.max(rawDt, 0.001), 0.1);
     const elapsedTime =
@@ -2523,46 +2725,49 @@ async function initApp() {
     // 0. Step Formula 1 5-Light Start Countdown if active
     stepF1StartCountdown(isScreenshotMode ? 0.0 : dt);
 
-    // 1. Step Sub-Stepped Rapier3D + Banked Coaster Spline Physics
+    // 1. Step Sub-Stepped Physics (Mode 1 Neon Track OR Mode 2 Giant House Open World)
     const st = physics.stepPhysics(dt);
 
-    // 2. Sync 1:87 Micro-Kart Transform, Wheels, Helmeted Driver & Drift Sparks
+    // 2. Sync Micro-Kart Transform, Wheels, Helmeted Driver & Drift Sparks
     microKart.kartRoot.position.copy(st.position);
     microKart.kartRoot.quaternion.copy(st.quaternion);
     microKart.updateWheels(dt, st.speed, st.steerAngle);
     microKart.updateKartVisuals(dt, st);
 
-    // 3. Update Warm Night-Time Lamp Key Lighting, Under-Track Orange/Purple/Blue LEDs & #1E6BFF Mic Aura
+    // 3. Update Atmosphere & Under-Track LEDs
     atmosphere.updateAtmosphere(elapsedTime, settings, renderer, bloomPass, scene, diorama);
-    if (coaster.updateUnderTrackLed) {
+    if (activeGameMode === 'track' && coaster.updateUnderTrackLed) {
       coaster.updateUnderTrackLed(elapsedTime, settings.trackGlowIntensity ?? 1.00);
     }
 
-    // 4. Update Camera (Chase / Visor POV / Diorama / Helicopter / Inspector / Course Pan / Room Panorama)
+    // 4. Update Camera (1: Close Chase, 2: Far Chase, 3: Hood/Cockpit, 4: Top-Down Heli)
     updateCamera(dt, elapsedTime, st);
 
-    // 5. Update WebAudio Synth & HUD
+    // 5. Update WebAudio Synth (throttled internally to 100ms) & HUD (throttled to 5 Hz / 200ms via direct DOM refs)
     audioSynth.update(st);
-    updateHUD(st);
+    const nowMs = performance.now();
+    if (isScreenshotMode || nowMs - lastHudUpdateMs >= 200) {
+      lastHudUpdateMs = nowMs;
+      updateHUD(st);
+    }
 
     if (isScreenshotMode) {
       if (window.__deskRacerFontsReady === undefined) {
         window.__deskRacerFontsReady = false;
         if (document.fonts && document.fonts.ready) {
-          Promise
-              .all([
-                document.fonts.load('italic 900 48px "Orbitron"'),
-                document.fonts.load('italic 900 84px "Orbitron"'),
-                document.fonts.load('44px "Press Start 2P"'),
-                document.fonts.load('38px "Press Start 2P"'),
-                document.fonts.ready,
-              ])
-              .then(() => {
-                window.__deskRacerFontsReady = true;
-              })
-              .catch(() => {
-                window.__deskRacerFontsReady = true;
-              });
+          Promise.all([
+            document.fonts.load('italic 900 48px "Orbitron"'),
+            document.fonts.load('italic 900 84px "Orbitron"'),
+            document.fonts.load('44px "Press Start 2P"'),
+            document.fonts.load('38px "Press Start 2P"'),
+            document.fonts.ready,
+          ])
+            .then(() => {
+              window.__deskRacerFontsReady = true;
+            })
+            .catch(() => {
+              window.__deskRacerFontsReady = true;
+            });
         } else {
           window.__deskRacerFontsReady = true;
         }
@@ -2574,8 +2779,10 @@ async function initApp() {
         loadedGlbStatus.room;
       const elapsedMs = performance.now() - appInitTimestamp;
 
-      if ((!allFourGlbsLoaded && elapsedMs < 15000) ||
-          (!window.__deskRacerFontsReady && elapsedMs < 3500)) {
+      if (
+        (!allFourGlbsLoaded && elapsedMs < 15000) ||
+        (!window.__deskRacerFontsReady && elapsedMs < 3500)
+      ) {
         requestAnimationFrame(animate);
         return;
       }

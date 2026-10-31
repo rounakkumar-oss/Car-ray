@@ -882,81 +882,23 @@ const edisonWallGlowUniforms = {
  */
 function attachSouthWallOrangeGradientShader(
   mat,
-  glowUniforms = edisonWallGlowUniforms,
+  _glowUniforms = edisonWallGlowUniforms,
   surfaceBounceWeight = 1.0
 ) {
   if (!mat || mat.userData?.hasSouthWallOrangeGradient) return;
   mat.userData = mat.userData || {};
   mat.userData.hasSouthWallOrangeGradient = true;
-
-  const weightStr = Number(surfaceBounceWeight).toFixed(3);
-  mat.customProgramCacheKey = () => `south_wall_edison_3d_bounce_v3_${weightStr}`;
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uEdisonGlowScale = glowUniforms.uEdisonGlowScale;
-
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <common>',
-      `#include <common>
-varying vec3 vRoomWallWorldPos;
-varying vec3 vRoomWallWorldNormal;`
-    );
-
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <worldpos_vertex>',
-      `#include <worldpos_vertex>
-vRoomWallWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-vRoomWallWorldNormal = normalize(mat3(modelMatrix) * objectNormal);`
-    );
-
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <common>',
-      `#include <common>
-uniform float uEdisonGlowScale;
-varying vec3 vRoomWallWorldPos;
-varying vec3 vRoomWallWorldNormal;`
-    );
-
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <dithering_fragment>',
-      `{
-  float sScale = clamp(uEdisonGlowScale / 1.15, 0.0, 1.8);
-  float surfWeight = ${weightStr};
-
-  // Continuous 3D world-space warm orange radiance & bounce field centered at the Edison bulb
-  // Evaluates identically across both sides of every wall-to-wall and wall-to-ceiling corner seam!
-  vec3 dGlow = vec3(
-    (vRoomWallWorldPos.x - (-0.24)) * 0.54,
-    (vRoomWallWorldPos.y - 0.25) * 0.65,
-    (vRoomWallWorldPos.z - 2.44) * 0.66
-  );
-  float r3d = length(dGlow);
-  float zFalloff = smoothstep(0.65, 2.55, vRoomWallWorldPos.z);
-
-  float core3d = exp(-r3d * r3d * 5.6) * zFalloff;
-  float mid3d  = exp(-r3d * r3d * 1.18) * zFalloff;
-  float wide3d = exp(-r3d * 0.88) * (zFalloff * zFalloff);
-
-  vec3 edisonLinear = (
-    vec3(0.310, 0.035, 0.0018) * wide3d +
-    vec3(0.500, 0.094, 0.0045) * mid3d +
-    vec3(0.750, 0.265, 0.0280) * core3d
-  ) * sScale * surfWeight;
-
-  float glowStrength = clamp((wide3d * 0.78 + mid3d * 0.55 + core3d * 0.45) * surfWeight, 0.0, 0.94);
-  // Warm bounce light only ADDS and warms the surface — never darkens gl_FragColor.rgb!
-  vec3 warmedWall = max(gl_FragColor.rgb, edisonLinear) + gl_FragColor.rgb * vec3(0.42, 0.16, 0.03) * glowStrength;
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, warmedWall, glowStrength);
-}
-#include <dithering_fragment>`
-    );
-  };
+  if (mat.emissive) {
+    mat.emissive.setHex(0x221004);
+    mat.emissiveIntensity = 0.14 * surfaceBounceWeight;
+  }
   mat.needsUpdate = true;
 }
 
 /**
- * Builds a sculpted 44x44 rectangular pinched-corner cotton pillow BufferGeometry.
+ * Builds a lightweight 16x16 rectangular pinched-corner cotton pillow BufferGeometry.
  */
-function createPinchedPillowGeometry(nu = 44, nv = 44) {
+function createPinchedPillowGeometry(nu = 16, nv = 16) {
   const hw = 0.305;
   const hl = 0.215;
   const halfThickTop = 0.082;
@@ -1050,8 +992,8 @@ function buildProceduralBed(bedGreyFabricMat, crispWhiteDuvetMat, darkWalnutMat)
   // 4. Generous Overhanging Organic Draped White Duvet (56x56 sculpted cloth grid)
   //    Spans X in [-2.015, -0.625] (half_w = 0.695m around cx_bed = -1.320m) and Z in [-0.045, +1.610],
   //    dropping down by -0.215m * (edge_drape ** 1.65) to Y = -0.465m to cover the side of the mattress!
-  const segX = 56;
-  const segZ = 56;
+  const segX = 24;
+  const segZ = 24;
   const x0 = -2.015;
   const x1 = -0.625;
   const cxBed = -1.320;
@@ -1132,8 +1074,8 @@ function buildProceduralBed(bedGreyFabricMat, crispWhiteDuvetMat, darkWalnutMat)
   sculptedDuvet.receiveShadow = true;
   bedGroup.add(sculptedDuvet);
 
-  // 5. Two Sculpted 44x44 Rectangular Pinched-Corner Cotton Pillows
-  const pillowGeo = createPinchedPillowGeometry(44, 44);
+  // 5. Two Sculpted 16x16 Rectangular Pinched-Corner Cotton Pillows
+  const pillowGeo = createPinchedPillowGeometry(16, 16);
   const pillowSpecs = [
     { px: -1.635, yawDeg: 4.0 },
     { px: -1.005, yawDeg: -3.5 },
@@ -2082,22 +2024,19 @@ export function buildRoomEnvironment(scene, settings = {}) {
   buildRoomContactShadows(roomContactAoGroup, contactAoTex);
 
   // -------------------------------------------------------------------------
-  // C. LOCALIZED COZY EDISON GLOBE LAMP & DESK RGB BLUE SPILL ON BLANKETS
-  //    (`edisonPointLight` + `roomBounceLight`)
+  // C. DETACHED STUB POINT LIGHTS (Zero PointLights in scene graph for mobile 60 FPS)
   // -------------------------------------------------------------------------
-  const edisonPointLight = new THREE.PointLight(0xff6810, 0.85, 2.85, 1.65);
+  const edisonPointLight = new THREE.PointLight(0xff6810, 0.0, 2.85, 1.65);
   edisonPointLight.name = 'EdisonGlobeAmberPointLight';
   edisonPointLight.position.set(-0.24, 0.225, 2.30);
   edisonPointLight.castShadow = false;
-  roomRoot.add(edisonPointLight);
+  edisonPointLight.visible = false;
 
-  // Repurposed into a localized Desk RGB Blue Spill Light shifted toward the bed
-  // casting rich electric-blue light onto the adjacent blankets and pillows without spilling onto the laptop stand
-  const roomBounceLight = new THREE.PointLight(0x1278ff, 0.85, 1.32, 1.75);
+  const roomBounceLight = new THREE.PointLight(0x1278ff, 0.0, 1.32, 1.75);
   roomBounceLight.name = 'DeskRgbBlueSpillPointLight';
   roomBounceLight.position.set(-0.76, 0.13, 0.08);
   roomBounceLight.castShadow = false;
-  roomRoot.add(roomBounceLight);
+  roomBounceLight.visible = false;
 
   let lastSunScale = -1;
   let lastLampScale = -1;

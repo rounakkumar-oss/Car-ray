@@ -1427,47 +1427,8 @@ export function buildProceduralDeskDiorama(manifest) {
   }
 
   function attachMonitorScreenSubtleReflection(mat) {
-    if (!mat || mat.userData._hasMonitorSubtleReflection) return;
+    if (!mat) return;
     mat.userData._hasMonitorSubtleReflection = true;
-    mat.onBeforeCompile = (shader) => {
-      shader.vertexShader =
-        `varying vec3 vScreenWorldPos;\nvarying vec3 vScreenWorldNormal;\n` +
-        shader.vertexShader.replace(
-          '#include <worldpos_vertex>',
-          `#include <worldpos_vertex>
-           vScreenWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-           vScreenWorldNormal = normalize(mat3(modelMatrix) * objectNormal);`
-        );
-      shader.fragmentShader =
-          `varying vec3 vScreenWorldPos;\nvarying vec3 vScreenWorldNormal;\n` +
-          shader.fragmentShader.replace(
-              '#include <dithering_fragment>',
-              `vec3 V = normalize(cameraPosition - vScreenWorldPos);
-           vec3 N = normalize(vScreenWorldNormal);
-           float frontFaceMask = smoothstep(0.35, 0.75, N.z);
-           float ndotv = clamp(dot(N, V), 0.0, 1.0);
-           float fresnel = 0.05 + 0.28 * pow(1.0 - ndotv, 2.4);
-           // View-dependent reflection vector off the front monitor glass
-           vec3 R = reflect(-V, vec3(0.0, 0.0, 1.0));
-           // Soft satin specular reflection lobes from the scene's actual light sources:
-           // 1) Warm Key-Light Desk Lamp on the right (0.35, 0.35, -0.09)
-           vec3 toLamp = normalize(vec3(0.35, 0.35, -0.09) - vScreenWorldPos);
-           float lampSpec = pow(max(0.0, dot(R, toLamp)), 3.2);
-           // 2) Electric-Blue Fifine Mic RGB Ring (-0.03, 0.11, -0.08) & Cyan G915 Keyboard (-0.15, 0.02, 0.12)
-           vec3 toMic = normalize(vec3(-0.03, 0.11, -0.08) - vScreenWorldPos);
-           float micSpec = pow(max(0.0, dot(R, toMic)), 2.8);
-           vec3 toKb = normalize(vec3(-0.15, 0.02, 0.14) - vScreenWorldPos);
-           float kbSpec = pow(max(0.0, dot(R, toKb)), 2.6);
-           // 3) Subtle diagonal satin-glass sheen across the 27" IPS panel
-           float diagCoord = (vScreenWorldPos.x - 0.01) * 1.35 + (vScreenWorldPos.y - 0.255) * 1.15;
-           float diagBand = exp(-pow((diagCoord + 0.06) / 0.24, 2.0)) * 0.55
-                          + exp(-pow((diagCoord - 0.18) / 0.16, 2.0)) * 0.30;
-           vec3 glassSheen = vec3(0.024, 0.036, 0.062) * (0.25 + 0.65 * diagBand)
-                           + vec3(0.085, 0.048, 0.020) * lampSpec
-                           + vec3(0.018, 0.062, 0.125) * (micSpec * 0.65 + kbSpec * 0.45);
-           gl_FragColor.rgb = mix(vec3(0.010, 0.012, 0.018), gl_FragColor.rgb + glassSheen * (0.45 + 0.85 * fresnel), frontFaceMask);
-           #include <dithering_fragment>`);
-    };
   }
 
   // Illuminated IPS Display Screen (matte anti-glare IPS coating with zero harsh point-light specular blobs)
@@ -1575,8 +1536,8 @@ export function buildProceduralDeskDiorama(manifest) {
     frontDomeLength = 0.010,
     rearBevelLength = 0.002,
   }) {
-    const segXY = 22;
-    const segZ = 24;
+    const segXY = 10;
+    const segZ = 12;
     const geo = new THREE.BoxGeometry(1, 1, 1, segXY, segXY, segZ);
     const posAttr = geo.attributes.position;
     const normAttr = geo.attributes.normal;
@@ -2310,7 +2271,7 @@ export function buildProceduralDeskDiorama(manifest) {
     }
   }
   const mousepadBorderCurve = new THREE.CatmullRomCurve3(borderPts, true, 'centripetal', 0.05);
-  const mousepadBorderGeo = new THREE.TubeGeometry(mousepadBorderCurve, 180, 0.00225, 16, true);
+  const mousepadBorderGeo = new THREE.TubeGeometry(mousepadBorderCurve, 72, 0.00225, 6, true);
   const mousepadBorderMat = new THREE.ShaderMaterial({
     name: 'Mat_MousepadCyanRGB',
     toneMapped: false,
@@ -2611,65 +2572,9 @@ export function buildProceduralDeskDiorama(manifest) {
     });
 
     function attachPropUnderTrackGlow(mat) {
-      if (!mat || mat.userData._hasPropTrackGlowHook) return;
+      if (!mat) return;
       mat.userData._hasPropTrackGlowHook = true;
-      mat.onBeforeCompile = (shader) => {
-        shader.uniforms.uTrackLedTime = sharedUnderTrackUniforms.uTime;
-        shader.uniforms.uTrackLedIntensity = sharedUnderTrackUniforms.uIntensity;
-        shader.uniforms.uTrackGlowFieldTex = sharedUnderTrackUniforms.uGlowFieldTex;
-        shader.vertexShader =
-          `varying vec3 vPropWorldPos;\nvarying vec3 vPropWorldNormal;\n` +
-          shader.vertexShader.replace(
-            '#include <worldpos_vertex>',
-            `#include <worldpos_vertex>
-             vPropWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-             vPropWorldNormal = normalize(mat3(modelMatrix) * objectNormal);`
-          );
-        shader.fragmentShader =
-          `uniform float uTrackLedTime;
-           uniform float uTrackLedIntensity;
-           uniform sampler2D uTrackGlowFieldTex;
-           varying vec3 vPropWorldPos;
-           varying vec3 vPropWorldNormal;
-           vec3 evalTrackLedPalette(float phaseNorm, float timeSec) {
-             float p = fract(phaseNorm - timeSec * 0.055 + 0.08);
-             float seg = p * 4.0;
-             int idx = int(floor(seg));
-             float f = smoothstep(0.0, 1.0, fract(seg));
-             vec3 cPink   = vec3(1.00, 0.05, 0.55);
-             vec3 cPurple = vec3(0.54, 0.03, 1.00);
-             vec3 cBlue   = vec3(0.00, 0.54, 1.00);
-             vec3 cViolet = vec3(0.66, 0.05, 1.00);
-             if (idx == 0) return mix(cPink, cPurple, f);
-             if (idx == 1) return mix(cPurple, cBlue, f);
-             if (idx == 2) return mix(cBlue, cViolet, f);
-             return mix(cViolet, cPink, f);
-           }\n` +
-          shader.fragmentShader.replace(
-            '#include <dithering_fragment>',
-            `vec2 fieldUv = vec2((vPropWorldPos.x - (-0.58)) / 1.16, (vPropWorldPos.z - (-0.34)) / 0.68);
-             if (fieldUv.x >= 0.0 && fieldUv.x <= 1.0 && fieldUv.y >= 0.0 && fieldUv.y <= 1.0 && vPropWorldPos.y >= 0.0008 && vPropWorldPos.y <= 0.195) {
-               vec4 tField = texture2D(uTrackGlowFieldTex, fieldUv);
-               float tWeight = tField.r;
-               if (tWeight > 0.01) {
-                 float sinP = tField.g * 2.0 - 1.0;
-                 float cosP = tField.b * 2.0 - 1.0;
-                 float sNorm = atan(sinP, cosP) / 6.2831853 + 0.5;
-                 vec3 tCol = evalTrackLedPalette(sNorm, uTrackLedTime);
-                 float normalUp = clamp(vPropWorldNormal.y * 0.55 + 0.45, 0.15, 1.0);
-                 float hMask = smoothstep(0.0008, 0.004, vPropWorldPos.y) * (1.0 - smoothstep(0.13, 0.195, vPropWorldPos.y));
-                 vec3 surfTint = 0.22 + 0.78 * clamp(gl_FragColor.rgb * 2.2, 0.0, 1.0);
-                 gl_FragColor.rgb += tCol * surfTint * (pow(tWeight, 1.18) * normalUp * hMask * 0.32 * uTrackLedIntensity);
-               }
-             }
-             #include <dithering_fragment>`
-          );
-      };
     }
-
-    // Attach under-track RGB glow to the Fifine AM8 body & low-profile boom arm materials
-    attachPropUnderTrackGlow(fifineAnodizedBodyMat);
-    attachPropUnderTrackGlow(fifineSilverTrimMat);
 
     glbScene.traverse((child) => {
       if (!child.isMesh || !child.material) return;

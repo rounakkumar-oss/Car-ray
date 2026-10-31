@@ -52,10 +52,10 @@ export function getTrackAsphaltV4Textures() {
     return cachedV4TrackTextures;
   }
 
-  const w = 512;
-  const h = 512;
+  const w = 256;
+  const h = 256;
 
-  // 1. 100% Isotropic Crushed-Basalt Pebble Albedo
+  // 1. 100% Isotropic Crushed-Basalt Pebble Albedo (256x256 for fast mobile GPU sampling)
   const albedoCanvas = document.createElement('canvas');
   albedoCanvas.width = w;
   albedoCanvas.height = h;
@@ -63,23 +63,6 @@ export function getTrackAsphaltV4Textures() {
   const aImg = aCtx.createImageData(w, h);
   const aData = aImg.data;
 
-  // 2. Tangent-Space Normal Map (100% Isotropic 3D Pebble Micro-Relief)
-  const normCanvas = document.createElement('canvas');
-  normCanvas.width = w;
-  normCanvas.height = h;
-  const nCtx = normCanvas.getContext('2d');
-  const nImg = nCtx.createImageData(w, h);
-  const nData = nImg.data;
-
-  // 3. Physically Calibrated Roughness Map (0.94 binder valleys, 0.62 basalt stones)
-  const roughCanvas = document.createElement('canvas');
-  roughCanvas.width = w;
-  roughCanvas.height = h;
-  const rCtx = roughCanvas.getContext('2d');
-  const rImg = rCtx.createImageData(w, h);
-  const rData = rImg.data;
-
-  // Purely isotropic 2D integer hash + bilinear value noise (zero trigonometric wave interference!)
   function hash2i(ix, iy) {
     let n = (ix * 374761393 + iy * 668265263) ^ 0x5bf03635;
     n = (n ^ (n >>> 13)) * 1274126177;
@@ -95,10 +78,10 @@ export function getTrackAsphaltV4Textures() {
     const fy = sy - iy;
     const ux = fx * fx * (3.0 - 2.0 * fx);
     const uy = fy * fy * (3.0 - 2.0 * fy);
-    const x0 = ix & 511;
-    const x1 = (ix + 1) & 511;
-    const y0 = iy & 511;
-    const y1 = (iy + 1) & 511;
+    const x0 = ix & 255;
+    const x1 = (ix + 1) & 255;
+    const y0 = iy & 255;
+    const y1 = (iy + 1) & 255;
     const c00 = hash2i(x0, y0);
     const c10 = hash2i(x1, y0);
     const c01 = hash2i(x0, y1);
@@ -107,9 +90,9 @@ export function getTrackAsphaltV4Textures() {
   }
 
   function pebbleHeight(px, py) {
-    const n1 = valueNoise2D(px, py, 3.2);
-    const n2 = valueNoise2D(px + 113, py + 257, 1.7);
-    const n3 = hash2i(px & 511, py & 511);
+    const n1 = valueNoise2D(px, py, 2.4);
+    const n2 = valueNoise2D(px + 113, py + 257, 1.3);
+    const n3 = hash2i(px & 255, py & 255);
     const pebble = Math.pow(Math.max(0, (n1 - 0.34) * 1.52), 1.28);
     const grit = Math.pow(Math.max(0, (n2 - 0.44) * 1.82), 1.38);
     return THREE.MathUtils.clamp(0.16 + 0.50 * pebble + 0.26 * grit + 0.08 * n3, 0.0, 1.0);
@@ -118,66 +101,27 @@ export function getTrackAsphaltV4Textures() {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = (y * w + x) * 4;
-
       const h0 = pebbleHeight(x, y);
-      const hx = pebbleHeight(x + 1, y);
-      const hy = pebbleHeight(x, y + 1);
+      const baseVal = 15 + h0 * 66;
 
-      // High-contrast dark crushed-basalt granular asphalt (#0d0f13 binder -> #545e6e mineral grains)
-      const baseVal = 13 + h0 * 64;
-
-      aData[idx + 0] = Math.round(THREE.MathUtils.clamp(baseVal, 10, 94));
-      aData[idx + 1] = Math.round(THREE.MathUtils.clamp(baseVal + 2, 11, 97));
-      aData[idx + 2] = Math.round(THREE.MathUtils.clamp(baseVal + 4, 13, 104));
+      aData[idx + 0] = Math.round(THREE.MathUtils.clamp(baseVal, 10, 96));
+      aData[idx + 1] = Math.round(THREE.MathUtils.clamp(baseVal + 2, 11, 99));
+      aData[idx + 2] = Math.round(THREE.MathUtils.clamp(baseVal + 4, 13, 106));
       aData[idx + 3] = 255;
-
-      // Crisp isotropic 3D mineral grain slopes
-      const stoneDx = (hx - h0) * 3.3;
-      const stoneDy = (hy - h0) * 3.3;
-      const nx = THREE.MathUtils.clamp(stoneDx * 0.5 + 0.5, 0.10, 0.90);
-      const ny = THREE.MathUtils.clamp(stoneDy * 0.5 + 0.5, 0.10, 0.90);
-
-      nData[idx + 0] = Math.round(nx * 255);
-      nData[idx + 1] = Math.round(ny * 255);
-      nData[idx + 2] = 240;
-      nData[idx + 3] = 255;
-
-      const roughVal = THREE.MathUtils.clamp(
-        0.94 - 0.34 * (h0 - 0.24),
-        0.60,
-        0.96
-      );
-      const rByte = Math.round(roughVal * 255);
-      rData[idx + 0] = rByte;
-      rData[idx + 1] = rByte;
-      rData[idx + 2] = rByte;
-      rData[idx + 3] = 255;
     }
   }
   aCtx.putImageData(aImg, 0, 0);
-  nCtx.putImageData(nImg, 0, 0);
-  rCtx.putImageData(rImg, 0, 0);
 
   const trackAsphaltAlbedoTex = new THREE.CanvasTexture(albedoCanvas);
   trackAsphaltAlbedoTex.colorSpace = THREE.SRGBColorSpace;
   trackAsphaltAlbedoTex.wrapS = THREE.RepeatWrapping;
   trackAsphaltAlbedoTex.wrapT = THREE.RepeatWrapping;
-  trackAsphaltAlbedoTex.anisotropy = 16;
-
-  const trackAsphaltNormalTex = new THREE.CanvasTexture(normCanvas);
-  trackAsphaltNormalTex.wrapS = THREE.RepeatWrapping;
-  trackAsphaltNormalTex.wrapT = THREE.RepeatWrapping;
-  trackAsphaltNormalTex.anisotropy = 16;
-
-  const trackAsphaltRoughnessTex = new THREE.CanvasTexture(roughCanvas);
-  trackAsphaltRoughnessTex.wrapS = THREE.RepeatWrapping;
-  trackAsphaltRoughnessTex.wrapT = THREE.RepeatWrapping;
-  trackAsphaltRoughnessTex.anisotropy = 16;
+  trackAsphaltAlbedoTex.anisotropy = 2;
 
   cachedV4TrackTextures = {
     trackAsphaltAlbedoTex,
-    trackAsphaltNormalTex,
-    trackAsphaltRoughnessTex,
+    trackAsphaltNormalTex: null,
+    trackAsphaltRoughnessTex: null,
   };
 
   return cachedV4TrackTextures;
@@ -493,32 +437,53 @@ export function calibrateTrackCoasterGlb(glbScene) {
   if (!glbScene) return;
 
   const meshesToChunk = [];
+  const convertedMaterials = new Map();
+
+  function toLightweightLambert(mat) {
+    if (!mat) return mat;
+    if (mat.isMeshLambertMaterial || mat.isMeshBasicMaterial || mat.isShaderMaterial) {
+      return mat;
+    }
+    if (convertedMaterials.has(mat)) {
+      return convertedMaterials.get(mat);
+    }
+    const lambert = new THREE.MeshLambertMaterial({
+      name: mat.name || '',
+      color: mat.color ? mat.color.clone() : new THREE.Color(0xffffff),
+      map: mat.map || null,
+      emissive: mat.emissive ? mat.emissive.clone() : new THREE.Color(0x000000),
+      emissiveMap: mat.emissiveMap || null,
+      emissiveIntensity: mat.emissiveIntensity ?? 1.0,
+      vertexColors: Boolean(mat.vertexColors),
+      transparent: Boolean(mat.transparent),
+      opacity: mat.opacity ?? 1.0,
+      alphaMap: mat.alphaMap || null,
+      alphaTest: mat.alphaTest ?? 0.0,
+      side: mat.side ?? THREE.FrontSide,
+      depthWrite: mat.depthWrite ?? true,
+      depthTest: mat.depthTest ?? true,
+      polygonOffset: Boolean(mat.polygonOffset),
+      polygonOffsetFactor: mat.polygonOffsetFactor ?? 0,
+      polygonOffsetUnits: mat.polygonOffsetUnits ?? 0,
+      fog: mat.fog ?? true,
+      toneMapped: mat.toneMapped ?? true,
+    });
+    convertedMaterials.set(mat, lambert);
+    try {
+      mat.dispose();
+    } catch (_e) {
+      // Ignore disposal warnings
+    }
+    return lambert;
+  }
 
   glbScene.traverse((child) => {
     if (!child.isMesh) return;
     child.frustumCulled = true;
+    child.castShadow = false;
+    child.receiveShadow = false;
 
     const meshName = child.name || '';
-    const isRibbonTrackMesh =
-      meshName.includes('CoasterRoadwayMesh') ||
-      meshName.includes('CoasterCurbsRed') ||
-      meshName.includes('CoasterCurbsWhite') ||
-      meshName.includes('CoasterSideRailsAndSpine');
-    const isCoasterMesh =
-      isRibbonTrackMesh ||
-      meshName.includes('CoasterLatticeTrussColumns') ||
-      meshName.includes('StartFinishGantry') ||
-      meshName.includes('StartFinishTrussGantry');
-    if (isRibbonTrackMesh) {
-      child.castShadow = false;
-      child.receiveShadow = false;
-    } else if (meshName.includes('CoasterLatticeTrussColumns')) {
-      child.castShadow = true;
-      child.receiveShadow = false;
-    } else if (isCoasterMesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
-    }
     if (
       meshName.includes('CoasterCurbsRed') ||
       meshName.includes('CoasterCurbsWhite')
@@ -540,27 +505,20 @@ export function calibrateTrackCoasterGlb(glbScene) {
       meshesToChunk.push(child);
     }
 
-    const mats = Array.isArray(child.material) ? child.material : [child.material];
-    for (const mat of mats) {
-      if (!mat) continue;
+    const isArrayMat = Array.isArray(child.material);
+    const rawMats = isArrayMat ? child.material : [child.material];
+    const newMats = rawMats.map((rawMat) => {
+      if (!rawMat) return rawMat;
+      const mat = toLightweightLambert(rawMat);
       const matName = mat.name || '';
 
-      if (matName === 'Mat_MicroAsphalt' || (meshName.includes('CoasterRoadwayMesh') && matName !== 'Mat_LaneStripeWhite')) {
+      if (
+        matName === 'Mat_MicroAsphalt' ||
+        (meshName.includes('CoasterRoadwayMesh') && matName !== 'Mat_LaneStripeWhite')
+      ) {
         ensureContinuousRoadwayUVs(child.geometry, true);
-        const {
-          trackAsphaltAlbedoTex,
-          trackAsphaltNormalTex,
-          trackAsphaltRoughnessTex,
-        } = getTrackAsphaltV4Textures();
-        trackAsphaltAlbedoTex.anisotropy = 8;
-        trackAsphaltNormalTex.anisotropy = 8;
-        trackAsphaltRoughnessTex.anisotropy = 8;
+        const { trackAsphaltAlbedoTex } = getTrackAsphaltV4Textures();
         mat.map = trackAsphaltAlbedoTex;
-        mat.normalMap = trackAsphaltNormalTex;
-        mat.normalScale = new THREE.Vector2(0.52, 0.52);
-        mat.roughnessMap = trackAsphaltRoughnessTex;
-        mat.roughness = 0.82;
-        mat.metalness = 0.04;
         if (mat.color) mat.color.setHex(0xffffff);
         mat.needsUpdate = true;
       } else if (
@@ -570,10 +528,6 @@ export function calibrateTrackCoasterGlb(glbScene) {
         meshName.includes('CoasterCurbsRed') ||
         meshName.includes('CoasterCurbsWhite')
       ) {
-        mat.roughness = 0.78;
-        mat.metalness = 0.0;
-        mat.normalMap = null;
-        mat.roughnessMap = null;
         mat.needsUpdate = true;
       } else if (
         matName.includes('StartLight') ||
@@ -581,12 +535,9 @@ export function calibrateTrackCoasterGlb(glbScene) {
         matName === 'Mat_LightAmber' ||
         matName === 'Mat_LightRed'
       ) {
-        // Formula 1 Start Gantry: all 5 lights start OFF (dark smoked lens); dynamic F1 red light pods handle the countdown
         if (mat.color) mat.color.setHex(0x12151c);
         if (mat.emissive) mat.emissive.setHex(0x000000);
         mat.emissiveIntensity = 0.0;
-        mat.roughness = 0.22;
-        mat.metalness = 0.15;
         mat.needsUpdate = true;
       } else if (
         matName === 'Mat_BrushedSilverAluminum' ||
@@ -594,66 +545,15 @@ export function calibrateTrackCoasterGlb(glbScene) {
         meshName.includes('CoasterSideRailsAndSpine') ||
         meshName.includes('CoasterLatticeTrussColumns')
       ) {
-        const isTrussOnly = meshName.includes('CoasterLatticeTrussColumns') || matName === 'Mat_TrussSilver';
-        if (mat.color) mat.color.setHex(0x7a8494);
-        mat.roughness = 0.38;
-        mat.metalness = 0.82;
-        mat.envMapIntensity = 0.55;
-        if (!mat.userData._hasUnderTrackLedHook) {
-          mat.userData._hasUnderTrackLedHook = true;
-          mat.onBeforeCompile = (shader) => {
-            shader.uniforms.uTrackLedTime = sharedUnderTrackUniforms.uTime;
-            shader.uniforms.uTrackLedIntensity = sharedUnderTrackUniforms.uIntensity;
-            shader.uniforms.uTrackGlowFieldTex = sharedUnderTrackUniforms.uGlowFieldTex;
-            shader.vertexShader =
-              `varying vec3 vTrackLedWorldPos;\nvarying float vTrackLedNormalY;\n` +
-              shader.vertexShader.replace(
-                '#include <worldpos_vertex>',
-                `#include <worldpos_vertex>
-                 vTrackLedWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-                 vTrackLedNormalY = normalize(mat3(modelMatrix) * objectNormal).y;`
-              );
-            shader.fragmentShader =
-              `uniform float uTrackLedTime;
-               uniform float uTrackLedIntensity;
-               uniform sampler2D uTrackGlowFieldTex;
-               varying vec3 vTrackLedWorldPos;
-               varying float vTrackLedNormalY;
-               vec3 evalTrackLedPalette(float sNorm, float timeSec) {
-                 float p = fract(sNorm * 2.0 - timeSec * 0.055);
-                 float seg = p * 6.0;
-                 int idx = int(floor(seg));
-                 float f = smoothstep(0.0, 1.0, fract(seg));
-                 vec3 c0 = vec3(0.62, 0.06, 1.00);
-                 vec3 c1 = vec3(1.00, 0.08, 0.58);
-                 vec3 c2 = vec3(0.84, 0.10, 1.00);
-                 vec3 c3 = vec3(0.06, 0.46, 1.00);
-                 vec3 c4 = vec3(1.00, 0.14, 0.68);
-                 vec3 c5 = vec3(0.46, 0.08, 1.00);
-                 if (idx == 0) return mix(c0, c1, f);
-                 if (idx == 1) return mix(c1, c2, f);
-                 if (idx == 2) return mix(c2, c3, f);
-                 if (idx == 3) return mix(c3, c4, f);
-                 if (idx == 4) return mix(c4, c5, f);
-                 return mix(c5, c0, f);
-               }\n` +
-              shader.fragmentShader.replace(
-                '#include <dithering_fragment>',
-                `vec2 tFieldUv = clamp(vec2((vTrackLedWorldPos.x - (-0.58)) / 1.16, (vTrackLedWorldPos.z - (-0.34)) / 0.68), 0.0, 1.0);
-                 vec4 tField = texture2D(uTrackGlowFieldTex, tFieldUv);
-                 float sinP = tField.g * 2.0 - 1.0;
-                 float cosP = tField.b * 2.0 - 1.0;
-                 float sNorm = atan(sinP, cosP) / 6.2831853 + 0.5;
-                 vec3 ledCol = evalTrackLedPalette(sNorm, uTrackLedTime);
-                 float underMask = ${isTrussOnly ? '0.45' : 'smoothstep(0.35, -0.35, vTrackLedNormalY)'};
-                 gl_FragColor.rgb += ledCol * (0.14 * tField.r * underMask * uTrackLedIntensity);
-                 #include <dithering_fragment>`
-              );
-          };
-        }
+        if (mat.color) mat.color.setHex(0x8892a4);
+        if (mat.emissive) mat.emissive.setHex(0x180a2c);
+        mat.emissiveIntensity = 0.22;
         mat.needsUpdate = true;
       }
-    }
+      return mat;
+    });
+
+    child.material = isArrayMat ? newMats : newMats[0];
   });
 
   for (const m of meshesToChunk) {
@@ -668,10 +568,11 @@ export const sharedUnderTrackUniforms = {
 };
 
 /**
- * Builds the 720-sample C2-continuous 1:87 HO Micro-Coaster Track Ribbon,
+ * Builds the C2-continuous 1:87 HO Micro-Coaster Track Ribbon,
  * Alternating Red/White FIA Curbs, Side Guardrails, Twin Tubular Spine Rails,
- * 72 Silver Lattice Truss Support Columns, Start/Finish Gantry, and
+ * Instanced Silver Lattice Truss Support Columns, Start/Finish Gantry, and
  * Persistent Full-Track Orange / Purple / Blue Under-Track LED Strips + Desk Glow.
+ * Optimized with 50-70% reduced segment counts and MeshLambertMaterial for 60 FPS on mobile.
  */
 export function buildCoasterTrack(splineData) {
   const trackGroup = new THREE.Group();
@@ -680,17 +581,15 @@ export function buildCoasterTrack(splineData) {
   const samples = splineData.samples;
   cachedSplineSamples = samples;
   const N = samples.length; // 720 periodic samples
+  const TRACK_STEP = 2; // 50% segment reduction (360 segments instead of 720) for mobile GPU speed
+  const numSteps = Math.floor(N / TRACK_STEP);
   const halfWidth = (splineData.track_width_m || 0.022) * 0.5; // 0.011m (11mm half-width)
   const curbWidth = splineData.curb_width_m || 0.0017; // 1.7mm FIA curbs (1:150 scale)
-  const railHeight = (splineData.rail_height_m || 0.0018) * 0.52; // Lower-profile 0.94mm side guardrails matching 0.38x kart
+  const railHeight = (splineData.rail_height_m || 0.0018) * 0.52; // Lower-profile 0.94mm side guardrails
   const deckThickness = 0.0018;
 
   const gantryTex = createCheckeredGantryTexture();
-  const {
-    trackAsphaltAlbedoTex,
-    trackAsphaltNormalTex,
-    trackAsphaltRoughnessTex,
-  } = getTrackAsphaltV4Textures();
+  const { trackAsphaltAlbedoTex } = getTrackAsphaltV4Textures();
 
   const arcLen = new Float32Array(N + 1);
   for (let i = 0; i < N; i++) {
@@ -701,30 +600,27 @@ export function buildCoasterTrack(splineData) {
   const totalTrackArcLen = Math.max(1e-4, arcLen[N]);
 
   // -------------------------------------------------------------------------
-  // 1. CONTINUOUS BANKED MICRO-ASPHALT ROADBED RIBBON + UNDER-DECK SLAB
+  // 1. CONTINUOUS BANKED MICRO-ASPHALT ROADBED RIBBON + UNDER-DECK SLAB (360 segments)
   // -------------------------------------------------------------------------
   const roadPositions = [];
   const roadNormals = [];
   const roadUvs = [];
   const roadIndices = [];
 
-  for (let i = 0; i <= N; i++) {
-    const s = samples[i % N];
+  for (let step = 0; step <= numSteps; step++) {
+    const sampleIdx = Math.min(N, step * TRACK_STEP);
+    const s = samples[sampleIdx % N];
     const pos = new THREE.Vector3(...s.position);
     const right = new THREE.Vector3(...s.right);
     const normal = new THREE.Vector3(...s.normal);
 
-    const vCoord = arcLen[i] / 0.012;
+    const vCoord = arcLen[sampleIdx] / 0.012;
 
-    // Left & Right top asphalt vertices
     const pLeftTop = pos.clone().addScaledVector(right, -halfWidth);
     const pRightTop = pos.clone().addScaledVector(right, halfWidth);
-
-    // Left & Right bottom slab vertices
     const pLeftBot = pLeftTop.clone().addScaledVector(normal, -deckThickness);
     const pRightBot = pRightTop.clone().addScaledVector(normal, -deckThickness);
 
-    // Push 4 vertices per cross-section: [0: LeftTop, 1: RightTop, 2: RightBot, 3: LeftBot]
     roadPositions.push(
       pLeftTop.x, pLeftTop.y, pLeftTop.z,
       pRightTop.x, pRightTop.y, pRightTop.z,
@@ -746,13 +642,11 @@ export function buildCoasterTrack(splineData) {
       0, vCoord
     );
 
-    if (i < N) {
-      const base = i * 4;
-      const next = (i + 1) * 4;
-      // Top asphalt driving surface
+    if (step < numSteps) {
+      const base = step * 4;
+      const next = (step + 1) * 4;
       roadIndices.push(base + 0, base + 1, next + 1);
       roadIndices.push(base + 0, next + 1, next + 0);
-      // Bottom coaster deck belly
       roadIndices.push(base + 2, base + 3, next + 3);
       roadIndices.push(base + 2, next + 3, next + 2);
     }
@@ -764,23 +658,19 @@ export function buildCoasterTrack(splineData) {
   roadGeo.setAttribute('uv', new THREE.Float32BufferAttribute(roadUvs, 2));
   roadGeo.setIndex(roadIndices);
 
-  const roadMat = new THREE.MeshStandardMaterial({
+  const roadMat = new THREE.MeshLambertMaterial({
     map: trackAsphaltAlbedoTex,
-    normalMap: trackAsphaltNormalTex,
-    normalScale: new THREE.Vector2(0.52, 0.52),
-    roughnessMap: trackAsphaltRoughnessTex,
-    roughness: 0.82,
-    metalness: 0.04,
   });
 
   const roadMesh = new THREE.Mesh(roadGeo, roadMat);
   roadMesh.castShadow = false;
   roadMesh.receiveShadow = false;
+  roadMesh.frustumCulled = true;
   roadMesh.name = 'CoasterAsphaltRoadbed';
   trackGroup.add(roadMesh);
 
   // -------------------------------------------------------------------------
-  // 2. ALTERNATING RED & WHITE FIA CURBS + LOW-PROFILE SIDE GUARDRAILS
+  // 2. ALTERNATING RED & WHITE FIA CURBS + LOW-PROFILE SIDE GUARDRAILS (360 segments)
   // -------------------------------------------------------------------------
   const curbPositions = [];
   const curbNormals = [];
@@ -792,9 +682,11 @@ export function buildCoasterTrack(splineData) {
   const silverRailColor = new THREE.Color(0xb8c4d4);
 
   let cVertOffset = 0;
-  for (let i = 0; i < N; i++) {
-    const s0 = samples[i];
-    const s1 = samples[(i + 1) % N];
+  for (let step = 0; step < numSteps; step++) {
+    const i0 = (step * TRACK_STEP) % N;
+    const i1 = ((step + 1) * TRACK_STEP) % N;
+    const s0 = samples[i0];
+    const s1 = samples[i1];
 
     const p0 = new THREE.Vector3(...s0.position);
     const r0 = new THREE.Vector3(...s0.right);
@@ -804,8 +696,7 @@ export function buildCoasterTrack(splineData) {
     const r1 = new THREE.Vector3(...s1.right);
     const n1 = new THREE.Vector3(...s1.normal);
 
-    // Alternate red and white every 1 sample (~5.3mm N-scale curb blocks)
-    const isRed = i % 2 === 0;
+    const isRed = step % 2 === 0;
     const col = isRed ? redColor : whiteColor;
 
     for (const side of [-1, 1]) {
@@ -817,7 +708,6 @@ export function buildCoasterTrack(splineData) {
       const v1Inner = p1.clone().addScaledVector(r1, innerDist).addScaledVector(n1, 0.00012);
       const v1Outer = p1.clone().addScaledVector(r1, outerDist).addScaledVector(n1, 0.00022);
 
-      // Outer low-profile safety barrier rail top
       const v0RailTop = v0Outer.clone().addScaledVector(n0, railHeight);
       const v1RailTop = v1Outer.clone().addScaledVector(n1, railHeight);
 
@@ -842,13 +732,11 @@ export function buildCoasterTrack(splineData) {
       if (side === 1) {
         curbIndices.push(cVertOffset + 0, cVertOffset + 1, cVertOffset + 2);
         curbIndices.push(cVertOffset + 0, cVertOffset + 2, cVertOffset + 3);
-        // Guardrail wall
         curbIndices.push(cVertOffset + 1, cVertOffset + 4, cVertOffset + 5);
         curbIndices.push(cVertOffset + 1, cVertOffset + 5, cVertOffset + 2);
       } else {
         curbIndices.push(cVertOffset + 1, cVertOffset + 0, cVertOffset + 3);
         curbIndices.push(cVertOffset + 1, cVertOffset + 3, cVertOffset + 2);
-        // Guardrail wall
         curbIndices.push(cVertOffset + 4, cVertOffset + 1, cVertOffset + 2);
         curbIndices.push(cVertOffset + 4, cVertOffset + 2, cVertOffset + 5);
       }
@@ -862,26 +750,23 @@ export function buildCoasterTrack(splineData) {
   curbGeo.setAttribute('color', new THREE.Float32BufferAttribute(curbColors, 3));
   curbGeo.setIndex(curbIndices);
 
-  const curbMat = new THREE.MeshStandardMaterial({
+  const curbMat = new THREE.MeshLambertMaterial({
     vertexColors: true,
-    roughness: 0.68,
-    metalness: 0.04,
-    normalMap: trackAsphaltNormalTex,
-    normalScale: new THREE.Vector2(0.55, 0.55),
     side: THREE.DoubleSide,
   });
 
   const curbMesh = new THREE.Mesh(curbGeo, curbMat);
   curbMesh.castShadow = false;
   curbMesh.receiveShadow = false;
+  curbMesh.frustumCulled = true;
   trackGroup.add(curbMesh);
 
   // -------------------------------------------------------------------------
-  // 3. TWIN STEEL COASTER SPINE TUBES UNDERNEATH THE DECK
+  // 3. TWIN STEEL COASTER SPINE TUBES UNDERNEATH THE DECK (Reduced 120x4 segments)
   // -------------------------------------------------------------------------
   const spinePtsLeft = [];
   const spinePtsRight = [];
-  for (let i = 0; i < N; i += 2) {
+  for (let i = 0; i < N; i += 4) {
     const s = samples[i];
     const p = new THREE.Vector3(...s.position);
     const r = new THREE.Vector3(...s.right);
@@ -892,68 +777,61 @@ export function buildCoasterTrack(splineData) {
   const curveLeft = new THREE.CatmullRomCurve3(spinePtsLeft, true);
   const curveRight = new THREE.CatmullRomCurve3(spinePtsRight, true);
 
-  const silverSteelMat = new THREE.MeshStandardMaterial({
-    color: 0x7a8494,
-    roughness: 0.38,
-    metalness: 0.82,
+  const silverSteelMat = new THREE.MeshLambertMaterial({
+    color: 0x8892a4,
+    emissive: new THREE.Color(0x180a2c),
+    emissiveIntensity: 0.22,
   });
 
   const tubeLeft = new THREE.Mesh(
-    new THREE.TubeGeometry(curveLeft, 360, 0.0011, 8, true),
+    new THREE.TubeGeometry(curveLeft, 120, 0.0011, 4, true),
     silverSteelMat
   );
   const tubeRight = new THREE.Mesh(
-    new THREE.TubeGeometry(curveRight, 360, 0.0011, 8, true),
+    new THREE.TubeGeometry(curveRight, 120, 0.0011, 4, true),
     silverSteelMat
   );
   tubeLeft.castShadow = false;
   tubeRight.castShadow = false;
+  tubeLeft.frustumCulled = true;
+  tubeRight.frustumCulled = true;
   trackGroup.add(tubeLeft, tubeRight);
 
   // -------------------------------------------------------------------------
-  // 4. 72 SILVER ANODIZED ALUMINUM LATTICE TRUSS SUPPORT COLUMNS
-  //    Spaced every 10 samples (720 / 10 = 72 columns) with realistic support landings
+  // 4. INSTANCED SILVER ANODIZED ALUMINUM LATTICE TRUSS SUPPORT COLUMNS
   // -------------------------------------------------------------------------
-  const columnStep = 10;
-  const numColumns = Math.floor(N / columnStep); // 72 columns
+  const columnStep = 12;
+  const numColumns = Math.floor(N / columnStep); // 60 columns
 
   function getUnderlyingSupportElevation(x, z, trackY) {
-    // Check if over BoYata Laptop Stand upper plate in Sector 1 (around [-0.36, -0.07])
     if (x < -0.23 && x > -0.49 && z < 0.04 && z > -0.18 && trackY > 0.145) {
       return 0.156;
     }
-    // Check if over Razer Mouse Mat in Sector 5 (around [0.325, 0.135])
     if (x > 0.155 && x < 0.495 && z > 0.002 && z < 0.268) {
       return 0.003;
     }
-    // Default oak desk surface
     return 0.0;
   }
 
-  // Build InstancedMesh parts for crisp 4-chord box-truss columns + footpads
   const maxChords = numColumns * 4;
-  const chordGeo = new THREE.CylinderGeometry(0.00085, 0.00085, 1.0, 8);
+  const chordGeo = new THREE.CylinderGeometry(0.00085, 0.00085, 1.0, 5);
   const chordInstanced = new THREE.InstancedMesh(chordGeo, silverSteelMat, maxChords);
   chordInstanced.castShadow = false;
   chordInstanced.receiveShadow = false;
 
-  const footpadGeo = new THREE.CylinderGeometry(0.0048, 0.0055, 0.0022, 14);
-  const footpadMat = new THREE.MeshStandardMaterial({
+  const footpadGeo = new THREE.CylinderGeometry(0.0048, 0.0055, 0.0022, 8);
+  const footpadMat = new THREE.MeshLambertMaterial({
     color: 0x222630,
-    roughness: 0.6,
-    metalness: 0.5,
   });
   const footpadInstanced = new THREE.InstancedMesh(footpadGeo, footpadMat, numColumns);
   footpadInstanced.receiveShadow = false;
 
-  // Cross-head saddle bracket directly under the track deck
   const saddleGeo = new THREE.BoxGeometry(0.024, 0.0022, 0.0055);
   const saddleInstanced = new THREE.InstancedMesh(saddleGeo, silverSteelMat, numColumns);
   saddleInstanced.castShadow = false;
 
-  // Horizontal lattice rings along column heights
   const ringGeo = new THREE.BoxGeometry(0.0072, 0.001, 0.0072);
-  const ringInstanced = new THREE.InstancedMesh(ringGeo, silverSteelMat, numColumns * 6);
+  const ringInstanced = new THREE.InstancedMesh(ringGeo, silverSteelMat, numColumns * 3);
 
   const dummy = new THREE.Object3D();
   let chordIdx = 0;
@@ -979,7 +857,6 @@ export function buildCoasterTrack(splineData) {
     const colHeight = Math.max(0.006, attachY - baseY);
     const midY = baseY + colHeight * 0.5;
 
-    // Saddle bracket aligned to track orientation
     dummy.position.set(topPos.x, attachY, topPos.z);
     const yaw = Math.atan2(tangent.x, tangent.z);
     dummy.rotation.set(0, yaw, 0);
@@ -987,14 +864,12 @@ export function buildCoasterTrack(splineData) {
     dummy.updateMatrix();
     saddleInstanced.setMatrixAt(saddleIdx++, dummy.matrix);
 
-    // Footpad at baseY
     dummy.position.set(topPos.x, baseY + 0.0011, topPos.z);
     dummy.rotation.set(0, yaw, 0);
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     footpadInstanced.setMatrixAt(footIdx++, dummy.matrix);
 
-    // 4 vertical corner chords of the lattice column
     for (const [ox, oz] of chordOffsets) {
       dummy.position.set(topPos.x + ox, midY, topPos.z + oz);
       dummy.rotation.set(0, 0, 0);
@@ -1003,8 +878,7 @@ export function buildCoasterTrack(splineData) {
       chordInstanced.setMatrixAt(chordIdx++, dummy.matrix);
     }
 
-    // Horizontal lattice rings every 24mm down the column
-    const numRings = Math.min(6, Math.max(2, Math.floor(colHeight / 0.024)));
+    const numRings = Math.min(3, Math.max(1, Math.floor(colHeight / 0.036)));
     for (let r = 0; r < numRings; r++) {
       const ry = baseY + ((r + 0.5) / numRings) * colHeight;
       dummy.position.set(topPos.x, ry, topPos.z);
@@ -1033,32 +907,29 @@ export function buildCoasterTrack(splineData) {
   gantryGroup.name = 'StartFinishGantry';
   gantryGroup.position.set(0.0183, 0.035, 0.255);
 
-  // Overhead gantry truss towers on Z = -0.018 and Z = +0.018 (track runs East-to-West along X here)
   for (const gz of [-0.018, 0.018]) {
     const tower = new THREE.Mesh(
       new THREE.BoxGeometry(0.0040, 0.028, 0.0040),
       silverSteelMat
     );
     tower.position.set(0, 0.014, gz);
-    tower.castShadow = true;
+    tower.castShadow = false;
     gantryGroup.add(tower);
   }
 
-  // Overhead digital signboard spanning across the track (lowered for 1:150 N-scale)
   const signBox = new THREE.Mesh(
     new THREE.BoxGeometry(0.0048, 0.0082, 0.040),
-    new THREE.MeshStandardMaterial({ color: 0x161922, roughness: 0.35, metalness: 0.6 })
+    new THREE.MeshLambertMaterial({ color: 0x161922 })
   );
   signBox.position.set(0, 0.024, 0);
-  signBox.castShadow = true;
+  signBox.castShadow = false;
   gantryGroup.add(signBox);
 
-  const signFaceMat = new THREE.MeshStandardMaterial({
+  const signFaceMat = new THREE.MeshLambertMaterial({
     map: gantryTex,
     emissiveMap: gantryTex,
     emissive: new THREE.Color(0xffffff),
     emissiveIntensity: 0.75,
-    roughness: 0.2,
   });
   for (const [sx, rotY] of [
     [0.0026, Math.PI / 2],
@@ -1070,17 +941,15 @@ export function buildCoasterTrack(splineData) {
     gantryGroup.add(signFace);
   }
 
-  // 5 F1 Starting LED Pods (0.6x scale for 1:150 N-scale)
   for (let l = -2; l <= 2; l++) {
     const ledPod = new THREE.Mesh(
-      new THREE.SphereGeometry(0.00085, 10, 10),
+      new THREE.SphereGeometry(0.00085, 6, 6),
       new THREE.MeshBasicMaterial({ color: l === 0 ? 0x32d74b : 0xffaa44 })
     );
     ledPod.position.set(0.0026, 0.0188, l * 0.0038);
     gantryGroup.add(ledPod);
   }
 
-  // Checkered Start/Finish Line Stripe directly on the Sector 6 roadbed
   const startStripe = new THREE.Mesh(
     new THREE.PlaneGeometry(0.0035, 0.021),
     new THREE.MeshBasicMaterial({ map: gantryTex })
@@ -1094,24 +963,24 @@ export function buildCoasterTrack(splineData) {
   // -------------------------------------------------------------------------
   // 6. PERSISTENT FULL-TRACK ORANGE / PURPLE / BLUE UNDER-TRACK LED STRIPS
   //    & 2D GAUSSIAN DESK LIGHT-FIELD QUADS (`underTrackLedGroup`, Zero Dynamic Lights!)
-  //    Added directly to `scene` so it remains visible when `track_coaster.glb` hides `trackGroup`.
   // -------------------------------------------------------------------------
   const underTrackLedGroup = new THREE.Group();
   underTrackLedGroup.name = 'UnderTrackLedAndGlowGroup';
 
-  // 6A. Continuous Under-Track LED Light Strips tucked beneath the coaster deck & lower curb edge
+  // 6A. Continuous Under-Track LED Light Strips (360 segments — 50% vertex reduction)
   const ledStripPositions = [];
   const ledStripUvs = [];
   const ledStripIndices = [];
-  const outerEdgeDist = halfWidth + curbWidth * 1.02; // 13.5mm from centerline (visible along outer lower curb rim!)
-  const innerBellyDist = halfWidth * 0.58; // 6.4mm from centerline under belly
+  const outerEdgeDist = halfWidth + curbWidth * 1.02;
+  const innerBellyDist = halfWidth * 0.58;
 
-  for (let i = 0; i <= N; i++) {
-    const s = samples[i % N];
+  for (let step = 0; step <= numSteps; step++) {
+    const sampleIdx = Math.min(N, step * TRACK_STEP);
+    const s = samples[sampleIdx % N];
     const p = new THREE.Vector3(...s.position);
     const r = new THREE.Vector3(...s.right);
     const n = new THREE.Vector3(...s.normal);
-    const vNorm = arcLen[i] / totalTrackArcLen;
+    const vNorm = arcLen[sampleIdx] / totalTrackArcLen;
 
     const vL0 = p.clone().addScaledVector(r, -outerEdgeDist).addScaledVector(n, 0.0003);
     const vL1 = p.clone().addScaledVector(r, -outerEdgeDist * 0.92).addScaledVector(n, -0.0022);
@@ -1139,9 +1008,9 @@ export function buildCoasterTrack(splineData) {
       0.0, vNorm
     );
 
-    if (i < N) {
-      const b = i * 6;
-      const nx = (i + 1) * 6;
+    if (step < numSteps) {
+      const b = step * 6;
+      const nx = (step + 1) * 6;
       ledStripIndices.push(b + 0, b + 1, nx + 1, b + 0, nx + 1, nx + 0);
       ledStripIndices.push(b + 1, b + 2, nx + 2, b + 1, nx + 2, nx + 1);
       ledStripIndices.push(b + 3, b + 4, nx + 4, b + 3, nx + 4, nx + 3);
@@ -1180,10 +1049,10 @@ export function buildCoasterTrack(splineData) {
         float seg = p * 4.0;
         int idx = int(floor(seg));
         float f = smoothstep(0.0, 1.0, fract(seg));
-        vec3 cPink   = vec3(1.00, 0.05, 0.55); // Vibrant Hot Pink (#ff0d8c)
-        vec3 cPurple = vec3(0.54, 0.03, 1.00); // Deep Electric Purple (#8a08ff)
-        vec3 cBlue   = vec3(0.00, 0.54, 1.00); // Pure Electric Blue (#008aff)
-        vec3 cViolet = vec3(0.66, 0.05, 1.00); // Royal Violet-Purple (#a80dff)
+        vec3 cPink   = vec3(1.00, 0.05, 0.55);
+        vec3 cPurple = vec3(0.54, 0.03, 1.00);
+        vec3 cBlue   = vec3(0.00, 0.54, 1.00);
+        vec3 cViolet = vec3(0.66, 0.05, 1.00);
         if (idx == 0) return mix(cPink, cPurple, f);
         if (idx == 1) return mix(cPurple, cBlue, f);
         if (idx == 2) return mix(cBlue, cViolet, f);
@@ -1205,40 +1074,36 @@ export function buildCoasterTrack(splineData) {
   ledStripMesh.name = 'UnderTrackLedRibbonMesh';
   ledStripMesh.castShadow = false;
   ledStripMesh.receiveShadow = false;
+  ledStripMesh.frustumCulled = true;
   underTrackLedGroup.add(ledStripMesh);
   splitTrackMeshIntoSpatialChunks(ledStripMesh);
 
   // 6B. 1-Time Baked 2D Gaussian Light-Field DataTexture (`256 x 128`) + 2 Flat Surface Quads (`4 triangles total!`)
-  // Eliminates 100% of inner-curve ribbon self-intersection / radial spoke artifacts while casting
-  // silky-smooth, physically diffused Purple / Hot Pink / Electric Blue neon pools onto the oak desk & mouse mat!
   const fieldW = 256;
   const fieldH = 128;
   const xMin = -0.58;
-  const xSpan = 1.16; // [-0.58, +0.58]
+  const xSpan = 1.16;
   const zMin = -0.34;
-  const zSpan = 0.68; // [-0.34, +0.34]
+  const zSpan = 0.68;
 
   const sumWArr = new Float32Array(fieldW * fieldH);
   const sumSinArr = new Float32Array(fieldW * fieldH);
   const sumCosArr = new Float32Array(fieldW * fieldH);
 
-  for (let i = 0; i < N; i++) {
+  for (let i = 0; i < N; i += 2) {
     const smp = samples[i];
     const sx = smp.position[0];
     const sy = smp.position[1];
     const sz = smp.position[2];
-    // Encode 2 full color-wheel cycles around the 4.5m coaster loop so Pink, Purple, and Blue
-    // segments are distinct and don't cancel out across nearby double-helix passes!
     const phase = (arcLen[i] / totalTrackArcLen) * Math.PI * 2.0 * 2.0;
     const sinP = Math.sin(phase);
     const cosP = Math.cos(phase);
 
     const h = Math.max(0.0, sy);
-    // Wide Gaussian pool for smooth intensity, and tighter phase kernel so colors stay vivid & distinct
     const sigma = h < 0.048 ? 0.032 : 0.046;
     const invTwoSigmaSq = 1.0 / (2.0 * sigma * sigma);
     const invTwoPhaseSigmaSq = 1.0 / (2.0 * 0.019 * 0.019);
-    const heightWeight = 1.0 / (1.0 + h * 2.8);
+    const heightWeight = 2.0 / (1.0 + h * 2.8);
     const radius = sigma * 3.0;
 
     const ix0 = Math.max(0, Math.floor(((sx - radius - xMin) / xSpan) * fieldW));
@@ -1269,7 +1134,6 @@ export function buildCoasterTrack(splineData) {
   const fieldBytes = new Uint8Array(fieldW * fieldH * 4);
   for (let idx = 0; idx < fieldW * fieldH; idx++) {
     const wTotal = sumWArr[idx];
-    // Smooth saturation curve so double-loop helices blend into a soft pool without hard seams
     const normW = 1.0 - Math.exp(-wTotal * 0.088);
     let sNorm = 0.0;
     let cNorm = 1.0;
@@ -1294,16 +1158,11 @@ export function buildCoasterTrack(splineData) {
   glowFieldTex.needsUpdate = true;
   sharedUnderTrackUniforms.uGlowFieldTex.value = glowFieldTex;
 
-  // Build 2 non-overlapping surface quads (4 triangles total, 0 floating planes in mid-air!):
-  // 1) Main Oak Tabletop Quad (Y = 0.0005, X in [-0.58, +0.54], Z in [-0.34, +0.30])
-  // 2) Razer Mouse Mat Quad (Y = 0.0034, X in [0.156, 0.494], Z in [0.003, 0.267])
   const quadVerts = new Float32Array([
-    // Quad 0: Oak Desk Surface (Y = 0.0005)
     -0.58, 0.0005, -0.34,
      0.54, 0.0005, -0.34,
      0.54, 0.0005,  0.30,
     -0.58, 0.0005,  0.30,
-    // Quad 1: Razer Mouse Mat Surface (Y = 0.0034)
      0.156, 0.0034, 0.003,
      0.494, 0.0034, 0.003,
      0.494, 0.0034, 0.267,
@@ -1358,10 +1217,10 @@ export function buildCoasterTrack(splineData) {
         float seg = p * 4.0;
         int idx = int(floor(seg));
         float f = smoothstep(0.0, 1.0, fract(seg));
-        vec3 cPink   = vec3(1.00, 0.05, 0.55); // Vibrant Hot Pink (#ff0d8c)
-        vec3 cPurple = vec3(0.54, 0.03, 1.00); // Deep Electric Purple (#8a08ff)
-        vec3 cBlue   = vec3(0.00, 0.54, 1.00); // Pure Electric Blue (#008aff)
-        vec3 cViolet = vec3(0.66, 0.05, 1.00); // Royal Violet-Purple (#a80dff)
+        vec3 cPink   = vec3(1.00, 0.05, 0.55);
+        vec3 cPurple = vec3(0.54, 0.03, 1.00);
+        vec3 cBlue   = vec3(0.00, 0.54, 1.00);
+        vec3 cViolet = vec3(0.66, 0.05, 1.00);
         if (idx == 0) return mix(cPink, cPurple, f);
         if (idx == 1) return mix(cPurple, cBlue, f);
         if (idx == 2) return mix(cBlue, cViolet, f);
@@ -1371,7 +1230,6 @@ export function buildCoasterTrack(splineData) {
       void main() {
         if (uIntensity <= 0.001) discard;
 
-        // Avoid double-drawing on the oak desk quad directly beneath the 3mm Razer Mouse Mat
         if (vSurfaceId < 0.5) {
           if (vWorldPos.x > 0.155 && vWorldPos.x < 0.495 && vWorldPos.z > 0.0025 && vWorldPos.z < 0.2675) {
             discard;
@@ -1392,7 +1250,6 @@ export function buildCoasterTrack(splineData) {
         float cosP = field.b * 2.0 - 1.0;
         float sNorm = atan(sinP, cosP) / 6.2831853 + 0.5;
 
-        // Smoothly feather near tabletop borders
         float edgeMaskX = smoothstep(-0.57, -0.51, vWorldPos.x) * (1.0 - smoothstep(0.49, 0.535, vWorldPos.x));
         float edgeMaskZ = smoothstep(-0.33, -0.28, vWorldPos.z) * (1.0 - smoothstep(0.26, 0.298, vWorldPos.z));
 
@@ -1408,37 +1265,8 @@ export function buildCoasterTrack(splineData) {
   deskGlowMesh.name = 'UnderTrackDeskGlowMesh';
   deskGlowMesh.castShadow = false;
   deskGlowMesh.receiveShadow = false;
+  deskGlowMesh.frustumCulled = true;
   underTrackLedGroup.add(deskGlowMesh);
-
-  // 6C. 72 Coaster Support Column Shadow-Caster Proxies (colorWrite: false, depthWrite: false)
-  // Because the 0.7mm wireframe lattice struts in track_coaster.glb are sub-texel in a SpotLight shadow map,
-  // these 3.2mm invisible cylinders bake crisp, solid diagonal support shadows into the 1-time static
-  // lampKeyLight shadow map (matching media_1790320193576.png) with zero color-pass pixel cost!
-  const shadowProxyGeo = new THREE.CylinderGeometry(0.0032, 0.0032, 1.0, 8);
-  const shadowProxyMat = new THREE.MeshBasicMaterial({
-    colorWrite: false,
-    depthWrite: false,
-  });
-  const shadowProxyInstanced = new THREE.InstancedMesh(shadowProxyGeo, shadowProxyMat, numColumns);
-  shadowProxyInstanced.name = 'TrussColumnShadowProxies';
-  shadowProxyInstanced.castShadow = false;
-  shadowProxyInstanced.receiveShadow = false;
-  shadowProxyInstanced.visible = false;
-  for (let c = 0; c < numColumns; c++) {
-    const s = samples[c * columnStep];
-    const topPos = new THREE.Vector3(...s.position);
-    const attachY = topPos.y - 0.002;
-    const baseY = getUnderlyingSupportElevation(topPos.x, topPos.z, topPos.y);
-    const colHeight = Math.max(0.006, attachY - baseY);
-    const midY = baseY + colHeight * 0.5;
-    dummy.position.set(topPos.x, midY, topPos.z);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(1, colHeight, 1);
-    dummy.updateMatrix();
-    shadowProxyInstanced.setMatrixAt(c, dummy.matrix);
-  }
-  shadowProxyInstanced.instanceMatrix.needsUpdate = true;
-  underTrackLedGroup.add(shadowProxyInstanced);
 
   // 6D. Formula 1 5-Light Start Gantry Red LED Pods at Sample 646 (Right-to-Left: +0.0064 -> -0.0064)
   // All 5 start lights begin OFF (dark smoked lenses in track_coaster.glb). When Enter is pressed,

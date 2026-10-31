@@ -13,108 +13,67 @@ export function buildGoldenHourAtmosphere(scene) {
   atmosphereGroup.name = 'GoldenHourAtmosphere';
 
   // -------------------------------------------------------------------------
-  // 1. WARM NIGHT-TIME DESK LAMP KEY ILLUMINATION + OPTIONAL GOLDEN-HOUR SUNLIGHT
-  //    Default sunScale = 0.00x (Night Scene), defaultLampScale = 1.15x (Warm/Orange Desk Lamp Key Light)
+  // 1. ULTRA-FAST MOBILE LIGHTING RIG: ONLY 1 AMBIENTLIGHT + 1 DIRECTIONALLIGHT
+  //    (All extra PointLights & SpotLights removed from scene graph for 60 FPS mobile GPU performance)
   // -------------------------------------------------------------------------
   const defaultSunScale = 0.0;
   const defaultLampScale = 1.15;
 
-  const hemiLight = new THREE.HemisphereLight(
-    0x1c2238,
-    0x090706,
-    0.045 + 0.025 * defaultLampScale + 0.42 * defaultSunScale
+  // Single Scene-Wide AmbientLight (warm cozy night + golden-hour fill)
+  const ambientLight = new THREE.AmbientLight(
+    0xdccfc4,
+    0.95 + 0.42 * defaultLampScale + 0.45 * defaultSunScale
   );
-  atmosphereGroup.add(hemiLight);
+  ambientLight.name = 'PrimaryAmbientLight';
+  atmosphereGroup.add(ambientLight);
 
-  const sunLight = new THREE.DirectionalLight(0xffb84d, 0.85 * defaultSunScale);
-  // Angled from upper-left rear window (~38° diagonal down-and-right across desk)
-  sunLight.position.set(-0.36, 0.68, -0.52);
+  // Single Scene-Wide DirectionalLight (warm desk-lamp key light & golden-hour directional light, shadows disabled)
+  const sunLight = new THREE.DirectionalLight(
+    0xffbe76,
+    1.75 * defaultLampScale + 0.95 * defaultSunScale
+  );
+  sunLight.name = 'PrimaryDirectionalLight';
+  sunLight.position.set(0.352, 0.48, -0.085);
   sunLight.castShadow = false;
-  sunLight.visible = defaultSunScale > 0.005;
+  sunLight.visible = true;
   atmosphereGroup.add(sunLight);
 
-  // Warm Window Area/Bounce Light moved behind the monitor (z = -0.42 < -0.233)
-  const windowGlowLight = new THREE.PointLight(
-    0xffbe58,
-    0.50 * defaultSunScale,
-    1.8,
-    1.2
-  );
-  windowGlowLight.position.set(0.0, 0.46, -0.42);
+  // Detached lightweight stub lights (NEVER added to scene graph so zero extra shader lights are compiled!)
+  const hemiLight = new THREE.HemisphereLight(0x1c2238, 0x090706, 0.0);
+  hemiLight.visible = false;
+
+  const windowGlowLight = new THREE.PointLight(0xffbe58, 0.0, 1.8, 1.2);
   windowGlowLight.visible = false;
-  atmosphereGroup.add(windowGlowLight);
 
-  // Warm Front-Left Fill Light
-  const goldenFillLight = new THREE.DirectionalLight(
-    0xffc978,
-    0.24 * defaultSunScale
-  );
-  goldenFillLight.position.set(-0.55, 0.52, 0.35);
-  goldenFillLight.visible = defaultSunScale > 0.005;
-  atmosphereGroup.add(goldenFillLight);
+  const goldenFillLight = new THREE.DirectionalLight(0xffc978, 0.0);
+  goldenFillLight.visible = false;
 
-  // Golden-hour counter-rim (completely off at night so it never washes out desk/room shadows)
-  const rimLight = new THREE.DirectionalLight(0xffa652, 0.22 * defaultSunScale);
-  rimLight.position.set(-0.38, 0.48, 0.62);
+  const rimLight = new THREE.DirectionalLight(0xffa652, 0.0);
   rimLight.visible = false;
-  atmosphereGroup.add(rimLight);
   const roomFillLight = rimLight;
 
-  // Primary Warm Key-Light Desk Lamp (Sector 4, mobile-optimized with real-time shadows disabled)
-  const lampTarget = new THREE.Object3D();
-  lampTarget.position.set(-0.09, 0.0, 0.065);
-  atmosphereGroup.add(lampTarget);
-
-  const lampKeyLight = new THREE.SpotLight(
-    0xffb266,
-    2.55 * defaultLampScale,
-    1.68,
-    Math.PI * 0.31,
-    0.78,
-    1.85
-  );
-  lampKeyLight.position.set(0.352, 0.355, -0.085);
-  lampKeyLight.target = lampTarget;
+  const lampKeyLight = new THREE.SpotLight(0xffb266, 0.0, 1.68, Math.PI * 0.31, 0.78, 1.85);
   lampKeyLight.castShadow = false;
-  atmosphereGroup.add(lampKeyLight);
+  lampKeyLight.visible = false;
 
-  // Warm orange diffuser surface aura around the lamp head & corkscrew
-  const lampGlowPoint = new THREE.PointLight(0xff9438, 0.38 * defaultLampScale, 0.42, 1.75);
-  lampGlowPoint.position.set(0.342, 0.345, -0.062);
-  atmosphereGroup.add(lampGlowPoint);
+  const lampGlowPoint = new THREE.PointLight(0xff9438, 0.0, 0.42, 1.75);
+  lampGlowPoint.visible = false;
 
-  // Localized Cyan Keyboard RGB Backlight tight to keycap deck so it doesn't wash out front coaster truss shadows
-  const kbBacklight = new THREE.PointLight(0x00e5ff, 0.24, 0.16, 2.0);
-  kbBacklight.position.set(-0.161, 0.018, 0.118);
-  atmosphereGroup.add(kbBacklight);
+  const kbBacklight = new THREE.PointLight(0x00e5ff, 0.0, 0.16, 2.0);
+  kbBacklight.visible = false;
 
   // -------------------------------------------------------------------------
-  // 2. LOCALIZED ELECTRIC-BLUE MICROPHONE LED RING GLOW (#1868ff)
+  // 2. LOCALIZED ELECTRIC-BLUE MICROPHONE LED RING GLOW (#1868ff) — EMISSIVE ONLY
   // -------------------------------------------------------------------------
   const micPos = new THREE.Vector3(-0.025, 0.105, -0.045);
 
-  // Zeroed/short-range point light (distance = 0.09, intensity = 0.0) so no blue dot reflects on the monitor screen!
-  // Marked visible = false so Three.js excludes it from the per-pixel PBR point-light loop.
   const micPointLight = new THREE.PointLight(0x1e6bff, 0.0, 0.09, 1.8);
   micPointLight.position.copy(micPos);
   micPointLight.visible = false;
-  atmosphereGroup.add(micPointLight);
 
-  const micSpotTarget = new THREE.Object3D();
-  micSpotTarget.position.set(-0.015, 0.0, -0.025);
-  atmosphereGroup.add(micSpotTarget);
-
-  const micSpotLight = new THREE.SpotLight(
-    0x1868ff,
-    0.48,
-    0.28,
-    Math.PI * 0.36,
-    0.85,
-    1.5
-  );
+  const micSpotLight = new THREE.SpotLight(0x1868ff, 0.0, 0.28, Math.PI * 0.36, 0.85, 1.5);
   micSpotLight.position.copy(micPos);
-  micSpotLight.target = micSpotTarget;
-  atmosphereGroup.add(micSpotLight);
+  micSpotLight.visible = false;
 
   // Disabled micAuraCone (kept as hidden/zero-opacity reference so no translucent blue cone floats on the desk)
   const micAuraUniforms = {
@@ -301,7 +260,7 @@ export function buildGoldenHourAtmosphere(scene) {
     const len = dir.length();
     const mid = new THREE.Vector3().addVectors(pStart, pEnd).multiplyScalar(0.5);
 
-    const coneGeo = new THREE.CylinderGeometry(cfg.rTop, cfg.rBot, len, 28, 1, true);
+    const coneGeo = new THREE.CylinderGeometry(cfg.rTop, cfg.rBot, len, 8, 1, true);
     const coneMat = createSunbeamConeMaterial(cfg.opacity);
     const beamMesh = new THREE.Mesh(coneGeo, coneMat);
     beamMesh.position.copy(mid);
@@ -360,9 +319,9 @@ export function buildGoldenHourAtmosphere(scene) {
   atmosphereGroup.add(sunbeamGroup);
 
   // -------------------------------------------------------------------------
-  // 4. 2,000 FLOATING GOLDEN DUST MOTES (Warm Golden Sparkle in Sunbeams)
+  // 4. FLOATING GOLDEN DUST MOTES (Reduced to 160 for mobile GPU efficiency)
   // -------------------------------------------------------------------------
-  const moteCount = 2000;
+  const moteCount = 160;
   const motePositions = new Float32Array(moteCount * 3);
   const motePhases = new Float32Array(moteCount);
   const moteScales = new Float32Array(moteCount);
@@ -402,7 +361,6 @@ export function buildGoldenHourAtmosphere(scene) {
       varying float vBlueBlend;
       void main() {
         vec3 pos = position;
-        // Gentle golden-hour convection drift
         pos.x += sin(uTime * 0.32 + aPhase) * 0.012;
         pos.y += cos(uTime * 0.24 + aPhase * 1.3) * 0.009;
         pos.z += sin(uTime * 0.29 + aPhase * 0.7) * 0.011;
@@ -427,7 +385,6 @@ export function buildGoldenHourAtmosphere(scene) {
         float d = length(uv);
         if (d > 0.5) discard;
 
-        // Soft circular bokeh disc falloff
         float bokeh = smoothstep(0.5, 0.08, d);
         vec3 goldCol = vec3(0.98, 0.78, 0.44);
         vec3 blueCol = vec3(0.22, 0.58, 0.96);
@@ -495,32 +452,26 @@ export function buildGoldenHourAtmosphere(scene) {
       lastLampScale = lampScale;
       lastMicScale = micScale;
 
-      sunLight.visible = hasSun;
-      windowGlowLight.visible = false;
-      goldenFillLight.visible = hasSun;
-      rimLight.visible = false;
+      // Update ONLY the 1 AmbientLight and 1 DirectionalLight in the scene
+      ambientLight.intensity = 0.95 + 0.42 * lampScale + 0.45 * sunScale;
+      sunLight.visible = true;
+      sunLight.intensity = Math.max(0.25, 1.75 * lampScale + 0.95 * sunScale);
 
-      // Dark Cozy Night-Time Desk Lamp Key Light + High-Contrast Shadows
-      sunLight.intensity = 0.85 * sunScale;
-      hemiLight.intensity = 0.045 + 0.025 * lampScale + 0.42 * sunScale;
-      hemiLight.color.setHex(0x1c2238);
-      hemiLight.groundColor.setHex(0x090706);
-      windowGlowLight.intensity = 0.50 * sunScale;
-      goldenFillLight.intensity = 0.24 * sunScale;
-      rimLight.intensity = 0.22 * sunScale;
-      lampKeyLight.intensity = 2.40 * lampScale;
-      lampGlowPoint.intensity = 0.45 * lampScale;
-      kbBacklight.intensity = 0.45;
+      // Ensure all detached stub lights remain strictly invisible
+      hemiLight.visible = false;
+      windowGlowLight.visible = false;
+      goldenFillLight.visible = false;
+      rimLight.visible = false;
+      lampKeyLight.visible = false;
+      lampGlowPoint.visible = false;
+      kbBacklight.visible = false;
+      micPointLight.visible = false;
+      micSpotLight.visible = false;
 
       // Ensure micAuraCone stays completely disabled/invisible
       micAuraCone.visible = false;
       micAuraMat.opacity = 0.0;
       micAuraUniforms.uIntensity.value = 0.0;
-
-      // Localized blue microphone accent light
-      micPointLight.intensity = 0.0;
-      micPointLight.visible = false;
-      micSpotLight.intensity = 0.48 * micScale;
 
       // Dynamic Tone Mapping Exposure scaling: balanced warm night indoor exposure
       if (renderer) {
@@ -542,13 +493,8 @@ export function buildGoldenHourAtmosphere(scene) {
         } else {
           activeScene.background = tmpBgColor.clone();
         }
-        if (activeScene.fog) {
-          if (activeScene.fog.color) {
-            activeScene.fog.color.copy(tmpBgColor);
-          }
-          if (activeScene.fog.density !== undefined) {
-            activeScene.fog.density = 0.018;
-          }
+        if (activeScene.fog && activeScene.fog.color) {
+          activeScene.fog.color.copy(tmpBgColor);
         }
       }
 
@@ -571,6 +517,7 @@ export function buildGoldenHourAtmosphere(scene) {
 
   return {
     atmosphereGroup,
+    ambientLight,
     sunLight,
     hemiLight,
     windowGlowLight,
