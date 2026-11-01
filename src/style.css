@@ -1,19 +1,20 @@
 :root {
-  --water-glass-bg: linear-gradient(
+  --liquid-glass-bg: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.16) 0%,
-    rgba(160, 225, 255, 0.08) 48%,
-    rgba(10, 20, 36, 0.62) 100%
+    rgba(255, 255, 255, 0.24) 0%,
+    rgba(130, 232, 255, 0.12) 45%,
+    rgba(8, 20, 38, 0.52) 100%
   );
-  --water-glass-modal-bg: linear-gradient(
+  --liquid-glass-modal-bg: linear-gradient(
     145deg,
-    rgba(16, 26, 46, 0.84) 0%,
-    rgba(10, 16, 30, 0.90) 55%,
-    rgba(5, 10, 20, 0.95) 100%
+    rgba(16, 30, 54, 0.78) 0%,
+    rgba(9, 18, 34, 0.84) 52%,
+    rgba(4, 10, 22, 0.90) 100%
   );
-  --water-glass-border: rgba(210, 244, 255, 0.36);
-  --water-glass-specular: inset 0 1.5px 1px rgba(255, 255, 255, 0.46),
-    inset 0 -1px 2px rgba(0, 229, 255, 0.18);
+  --liquid-glass-border: rgba(215, 248, 255, 0.48);
+  --liquid-glass-specular:
+    inset 0 2px 2.5px rgba(255, 255, 255, 0.68),
+    inset 0 -2px 4px rgba(0, 229, 255, 0.28);
   --gold-primary: #ffaa44;
   --gold-bright: #ffd27d;
   --blue-neon: #1e6bff;
@@ -21,7 +22,9 @@
   --red-fia: #ff3b30;
   --green-ok: #32d74b;
   --text-main: #f5f9ff;
-  --text-muted: #a6b9d0;
+  --text-muted: #b0c7de;
+  --stage-w: 100vw;
+  --stage-h: 100dvh;
 }
 
 * {
@@ -36,8 +39,8 @@
 
 html,
 body {
-  width: 100vw;
-  height: 100dvh;
+  width: 100%;
+  height: 100%;
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -51,53 +54,40 @@ body {
 }
 
 /* =========================================================================
-   1. TRUE EDGE-TO-EDGE FULLSCREEN LANDSCAPE DISPLAY (ZERO SIDE BARS)
+   1. STRICT MOBILE FRAME CONTAINMENT & AUTO-LANDSCAPE WRAPPER
    ========================================================================= */
 .game-container {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100dvh;
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
   display: flex;
-  align-items: stretch;
-  justify-content: stretch;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   background: #000000;
   touch-action: none;
 }
 
-/* Automatic 90deg landscape rotation if phone is held vertically in portrait */
+/* Automatic 90deg landscape rotation when phone is held vertically in portrait */
 .game-container.force-landscape-rotate {
   top: 50%;
   left: 50%;
   right: auto;
   bottom: auto;
-  width: 100dvh;
-  height: 100vw;
   transform: translate(-50%, -50%) rotate(90deg);
   transform-origin: center center;
 }
 
-@media (orientation: portrait) {
-  .game-container {
-    top: 50%;
-    left: 50%;
-    right: auto;
-    bottom: auto;
-    width: 100dvh;
-    height: 100vw;
-    transform: translate(-50%, -50%) rotate(90deg);
-    transform-origin: center center;
-  }
-}
-
-/* Edge-to-Edge Full Viewport Stage (No 16:9 clamping or letterbox bars) */
+/* Edge-to-Edge Stage Strictly Clipped Inside Mobile Frame */
 .widescreen-stage {
   position: relative;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   overflow: hidden;
   background: #000000;
   touch-action: none;
@@ -125,62 +115,67 @@ body {
 }
 
 /* =========================================================================
-   2. WATER-GLASS (FROSTED LIQUID GLASSMORPHISM) SHARED SURFACES
+   2. LIQUID GLASS (REFRACTIVE WATER-DROPLET GAMING VIBE) SHARED SURFACES
    ========================================================================= */
 .water-glass-pill,
 .water-glass-btn,
 .water-glass-panel,
 .water-glass-pedal {
-  background: var(--water-glass-bg);
-  backdrop-filter: blur(14px) saturate(180%);
-  -webkit-backdrop-filter: blur(14px) saturate(180%);
-  border: 1.5px solid var(--water-glass-border);
+  position: relative;
+  background: var(--liquid-glass-bg);
+  backdrop-filter: blur(16px) saturate(200%);
+  -webkit-backdrop-filter: blur(16px) saturate(200%);
+  border: 1.5px solid var(--liquid-glass-border);
   box-shadow:
-    0 8px 24px rgba(0, 6, 18, 0.52),
-    var(--water-glass-specular);
+    0 8px 22px rgba(0, 8, 22, 0.48),
+    0 0 14px rgba(0, 229, 255, 0.14),
+    var(--liquid-glass-specular);
 }
 
 .water-glass-modal {
-  background: var(--water-glass-modal-bg);
-  backdrop-filter: blur(20px) saturate(190%);
-  -webkit-backdrop-filter: blur(20px) saturate(190%);
-  border: 1.5px solid rgba(190, 238, 255, 0.42);
+  position: relative;
+  background: var(--liquid-glass-modal-bg);
+  backdrop-filter: blur(22px) saturate(210%);
+  -webkit-backdrop-filter: blur(22px) saturate(210%);
+  border: 1.5px solid rgba(205, 245, 255, 0.52);
   box-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.88),
-    0 0 38px rgba(0, 229, 255, 0.16),
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.45),
-    inset 0 -1px 2px rgba(0, 229, 255, 0.18);
+    0 20px 52px rgba(0, 0, 0, 0.85),
+    0 0 32px rgba(0, 229, 255, 0.22),
+    inset 0 2px 3px rgba(255, 255, 255, 0.58),
+    inset 0 -2px 4px rgba(0, 229, 255, 0.24);
 }
 
 .water-glass-subcard {
+  position: relative;
   background: linear-gradient(
     145deg,
-    rgba(255, 255, 255, 0.10) 0%,
-    rgba(130, 210, 255, 0.04) 55%,
-    rgba(8, 16, 30, 0.54) 100%
-  );
-  backdrop-filter: blur(12px) saturate(170%);
-  -webkit-backdrop-filter: blur(12px) saturate(170%);
-  border: 1px solid rgba(205, 240, 255, 0.26);
-  box-shadow:
-    0 6px 18px rgba(0, 0, 0, 0.36),
-    inset 0 1px 0 rgba(255, 255, 255, 0.32);
-}
-
-.water-glass-cta {
-  background: linear-gradient(
-    110deg,
-    rgba(0, 229, 255, 0.36) 0%,
-    rgba(255, 255, 255, 0.20) 48%,
-    rgba(255, 170, 68, 0.38) 100%
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(120, 220, 255, 0.06) 52%,
+    rgba(6, 15, 30, 0.52) 100%
   );
   backdrop-filter: blur(14px) saturate(185%);
   -webkit-backdrop-filter: blur(14px) saturate(185%);
-  border: 1.5px solid rgba(160, 244, 255, 0.85);
+  border: 1.2px solid rgba(210, 244, 255, 0.34);
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.68),
-    0 0 22px rgba(0, 229, 255, 0.32),
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.58);
+    0 6px 16px rgba(0, 0, 0, 0.36),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.42);
+}
+
+.water-glass-cta {
+  position: relative;
+  background: linear-gradient(
+    110deg,
+    rgba(0, 229, 255, 0.44) 0%,
+    rgba(255, 255, 255, 0.26) 48%,
+    rgba(255, 170, 68, 0.44) 100%
+  );
+  backdrop-filter: blur(16px) saturate(200%);
+  -webkit-backdrop-filter: blur(16px) saturate(200%);
+  border: 1.5px solid rgba(190, 250, 255, 0.90);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.62),
+    0 0 22px rgba(0, 229, 255, 0.38),
+    inset 0 2px 2px rgba(255, 255, 255, 0.72);
 }
 
 /* Helmet Visor POV Overlay */
@@ -207,8 +202,6 @@ body {
     rgba(8, 16, 36, 0.45) 82%,
     rgba(4, 6, 12, 0.92) 100%
   );
-  border-top: 28px solid rgba(10, 12, 18, 0.92);
-  border-bottom: 22px solid rgba(10, 12, 18, 0.88);
 }
 
 /* Subtle 4-Corner Vignette behind HUD Elements */
@@ -218,10 +211,10 @@ body {
   z-index: 4;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 38% 28% at 0% 0%, rgba(2, 6, 14, 0.38) 0%, rgba(2, 6, 14, 0) 100%),
-    radial-gradient(ellipse 38% 28% at 100% 0%, rgba(2, 6, 14, 0.38) 0%, rgba(2, 6, 14, 0) 100%),
-    radial-gradient(ellipse 40% 34% at 0% 100%, rgba(2, 6, 14, 0.42) 0%, rgba(2, 6, 14, 0) 100%),
-    radial-gradient(ellipse 40% 34% at 100% 100%, rgba(2, 6, 14, 0.44) 0%, rgba(2, 6, 14, 0) 100%);
+    radial-gradient(ellipse 34% 26% at 0% 0%, rgba(2, 6, 14, 0.32) 0%, rgba(2, 6, 14, 0) 100%),
+    radial-gradient(ellipse 34% 26% at 100% 0%, rgba(2, 6, 14, 0.32) 0%, rgba(2, 6, 14, 0) 100%),
+    radial-gradient(ellipse 36% 28% at 0% 100%, rgba(2, 6, 14, 0.36) 0%, rgba(2, 6, 14, 0) 100%),
+    radial-gradient(ellipse 36% 28% at 100% 100%, rgba(2, 6, 14, 0.36) 0%, rgba(2, 6, 14, 0) 100%);
 }
 
 #hud-corner-vignette.hidden {
@@ -229,17 +222,20 @@ body {
 }
 
 /* =========================================================================
-   3. MINIMAL PRO-GAMING HUD (PUSHED CLEANLY TO CORNERS)
+   3. LIQUID-GLASS PRO-GAMING HUD (100% SAFE INSIDE MOBILE FRAME)
    ========================================================================= */
 #hud-root {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   z-index: 10;
   pointer-events: none;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 8px 12px;
+  overflow: hidden;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -250,12 +246,21 @@ body {
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
 }
 
+/* Bottom Bar centers the Liquid-Glass Speedometer cleanly between Left & Right Touch Pedals */
 .hud-bottom-bar {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: flex-end;
+  width: 100%;
+  padding-bottom: 2px;
+}
+
+.hud-bottom-left-spacer {
+  display: none;
 }
 
 .hud-bottom-bar.hidden,
@@ -267,19 +272,20 @@ body {
   display: none !important;
 }
 
-/* Top-Left Stack: Compact Radar Mini-Map + Tiny Room Badge underneath */
+/* Top-Left Stack: Liquid-Glass Radar Mini-Map + Sleek Capsule Room Badge */
 .hud-top-left-stack {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
   pointer-events: auto;
+  flex-shrink: 0;
 }
 
 .hud-minimap-widget {
   pointer-events: auto;
   padding: 3px;
-  border-radius: 12px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -288,29 +294,39 @@ body {
 }
 
 .hud-minimap-widget:hover {
-  border-color: rgba(0, 229, 255, 0.72);
+  border-color: rgba(0, 229, 255, 0.85);
 }
 
 #minimap-canvas {
   display: block;
-  width: clamp(132px, 17.5vw, 204px);
-  height: clamp(86px, 11.4vw, 134px);
-  border-radius: 9px;
+  width: 118px;
+  height: 76px;
+  border-radius: 10px;
+}
+
+@media (min-width: 900px) and (min-height: 500px) {
+  #minimap-canvas {
+    width: 156px;
+    height: 102px;
+  }
 }
 
 .hud-room-sleek-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 8px;
+  padding: 2px 9px;
   border-radius: 999px;
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(7.5px, 0.85vw, 9.5px);
+  font-size: 8.5px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   color: #e8faff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .room-dot-indicator {
@@ -325,25 +341,30 @@ body {
 .room-banner-name {
   color: #ffffff;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* =========================================================================
-   4. TOP-CENTER: AI POLICE / HIDE & SEEK STATUS PILL + MULTIPLAYER BANNER
+   4. TOP-CENTER: LIQUID-GLASS POLICE STATUS CAPSULE & MULTIPLAYER BANNER
    ========================================================================= */
 .hud-police-banner,
 .hud-hideseek-banner {
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
+  gap: 7px;
+  padding: 4px 11px;
   border-radius: 999px;
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
+  max-width: 48%;
+  overflow: hidden;
+  white-space: nowrap;
   box-shadow:
-    0 6px 20px rgba(0, 0, 0, 0.68),
-    0 0 18px rgba(255, 59, 48, 0.28),
-    var(--water-glass-specular);
+    0 6px 20px rgba(0, 0, 0, 0.62),
+    0 0 16px rgba(255, 59, 48, 0.25),
+    var(--liquid-glass-specular);
 }
 
 .hud-hideseek-banner.hidden,
@@ -353,13 +374,13 @@ body {
 
 .police-status-badge,
 .hideseek-role-badge {
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 900;
-  letter-spacing: 0.08em;
-  background: rgba(255, 45, 45, 0.38);
-  border: 1px solid rgba(255, 110, 98, 0.9);
+  letter-spacing: 0.06em;
+  background: rgba(255, 45, 45, 0.42);
+  border: 1px solid rgba(255, 130, 120, 0.9);
   color: #ffffff;
   animation: policeSirenBadgePulse 0.9s infinite alternate;
 }
@@ -371,10 +392,10 @@ body {
 
 @keyframes policeSirenBadgePulse {
   0% {
-    box-shadow: 0 0 8px rgba(255, 45, 45, 0.7);
+    box-shadow: 0 0 6px rgba(255, 45, 45, 0.7);
   }
   100% {
-    box-shadow: 0 0 12px rgba(30, 107, 255, 0.85);
+    box-shadow: 0 0 10px rgba(30, 107, 255, 0.85);
   }
 }
 
@@ -386,7 +407,7 @@ body {
 
 .police-timer-text,
 .hideseek-timer-text {
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 900;
   color: #ffd27d;
   font-variant-numeric: tabular-nums;
@@ -394,10 +415,12 @@ body {
 
 .police-stealth-text,
 .hideseek-info-text {
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 800;
   color: #e6f7ff;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .police-stealth-text.is-hidden-safe {
@@ -418,14 +441,15 @@ body {
   pointer-events: auto;
   background: radial-gradient(
     circle at 50% 50%,
-    rgba(6, 12, 24, 0.94) 0%,
-    rgba(2, 4, 10, 0.985) 100%
+    rgba(6, 12, 24, 0.92) 0%,
+    rgba(2, 4, 10, 0.98) 100%
   );
-  backdrop-filter: blur(26px);
-  -webkit-backdrop-filter: blur(26px);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 10px;
 }
 
 .hideseek-blindfold-overlay.hidden {
@@ -433,60 +457,60 @@ body {
 }
 
 .blindfold-glass-card {
-  width: min(460px, 88%);
-  padding: 24px 28px;
-  border-radius: 18px;
-  background: var(--water-glass-modal-bg);
+  width: min(400px, 88%);
+  max-height: 86%;
+  padding: 16px 20px;
+  border-radius: 20px;
+  background: var(--liquid-glass-modal-bg);
   border: 1.5px solid rgba(255, 92, 92, 0.62);
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.92),
-    0 0 36px rgba(255, 59, 48, 0.28),
-    var(--water-glass-specular);
+    0 20px 50px rgba(0, 0, 0, 0.92),
+    var(--liquid-glass-specular);
   text-align: center;
 }
 
 .blindfold-badge {
   display: inline-block;
-  padding: 3px 12px;
+  padding: 2px 10px;
   border-radius: 999px;
   background: rgba(255, 59, 48, 0.26);
   border: 1px solid rgba(255, 120, 110, 0.72);
   font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   color: #ffb4ab;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .blindfold-title {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(20px, 3vw, 28px);
+  font-size: 20px;
   font-weight: 900;
   color: #ffffff;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .blindfold-timer-digits {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(48px, 7vw, 72px);
+  font-size: 44px;
   font-weight: 900;
   color: #ff5252;
-  text-shadow: 0 0 24px rgba(255, 82, 82, 0.75);
+  text-shadow: 0 0 20px rgba(255, 82, 82, 0.75);
   line-height: 1.05;
-  margin: 4px 0 10px;
+  margin: 2px 0 6px;
 }
 
 .blindfold-sub {
-  font-size: 12px;
-  line-height: 1.45;
-  color: rgba(230, 242, 255, 0.84);
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(230, 242, 255, 0.86);
 }
 
 /* =========================================================================
-   5. TOP-RIGHT COMPACT ICON-ONLY HUD BUTTONS (🎥, 👥, ⚙️, 🔊)
+   5. TOP-RIGHT LIQUID-GLASS FLOATING DOCK (🎥, 👥, ⚙️, 🔊)
    ========================================================================= */
 .hud-settings-anchor {
   position: relative;
@@ -494,21 +518,36 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  flex-shrink: 0;
 }
 
 .hud-top-right-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  padding: 3px 5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(120, 225, 255, 0.08) 50%,
+    rgba(6, 16, 32, 0.48) 100%
+  );
+  backdrop-filter: blur(16px) saturate(200%);
+  -webkit-backdrop-filter: blur(16px) saturate(200%);
+  border: 1.5px solid rgba(210, 246, 255, 0.42);
+  box-shadow:
+    0 6px 20px rgba(0, 6, 18, 0.45),
+    var(--liquid-glass-specular);
 }
 
 .hud-icon-btn {
   position: relative;
   pointer-events: auto;
   cursor: pointer;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   color: #ffffff;
   display: inline-flex;
   align-items: center;
@@ -516,34 +555,46 @@ body {
   transition: all 0.14s ease;
 }
 
+.hud-icon-btn::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 18%;
+  right: 18%;
+  height: 32%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.48) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
 .hud-icon-btn:hover {
-  border-color: rgba(130, 242, 255, 0.92);
+  border-color: rgba(150, 248, 255, 0.95);
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.26) 0%,
-    rgba(0, 229, 255, 0.22) 100%
+    rgba(255, 255, 255, 0.32) 0%,
+    rgba(0, 229, 255, 0.28) 100%
   );
   box-shadow:
-    0 0 16px rgba(0, 229, 255, 0.42),
-    var(--water-glass-specular);
+    0 0 14px rgba(0, 229, 255, 0.48),
+    var(--liquid-glass-specular);
   transform: translateY(-1px);
 }
 
 .hud-icon-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.92);
 }
 
 .hud-icon-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
 }
 
 .hud-cam-mini-badge {
   position: absolute;
-  right: 3px;
-  bottom: 2px;
+  right: 2px;
+  bottom: 1px;
   font-family: 'Orbitron', sans-serif;
-  font-size: 8px;
+  font-size: 7.5px;
   font-weight: 900;
   color: #70f2ff;
   line-height: 1;
@@ -558,20 +609,20 @@ body {
   color: rgba(255, 255, 255, 0.58);
 }
 
-/* Compact Water-Glass Lap Widget in Top-Right */
+/* Compact Liquid-Glass Lap Pill inside Top-Right Dock */
 .hud-lap-widget {
   pointer-events: none;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 3px 10px;
-  border-radius: 10px;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
 }
 
 .hud-lap-header {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.05em;
   color: #dbeeff;
@@ -586,7 +637,7 @@ body {
   align-items: baseline;
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(14px, 1.8vw, 19px);
+  font-size: 13px;
   font-weight: 900;
   line-height: 1;
   color: #ffffff;
@@ -595,20 +646,20 @@ body {
 
 .hud-lap-timer .timer-digit {
   display: inline-block;
-  width: 0.76em;
+  width: 0.74em;
   text-align: center;
 }
 
 .hud-lap-timer .timer-sep {
   display: inline-block;
-  width: 0.32em;
+  width: 0.30em;
   text-align: center;
 }
 
 .hud-lap-split {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 800;
   color: #00e5ff;
 }
@@ -619,20 +670,20 @@ body {
 
 .hud-f1-countdown {
   position: absolute;
-  top: 46%;
+  top: 45%;
   left: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 40;
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 84px;
+  font-size: 64px;
   font-weight: 900;
   line-height: 1;
   color: #ffffff;
   text-shadow:
     0 3px 12px rgba(0, 0, 0, 0.95),
-    0 0 32px rgba(0, 229, 255, 0.65);
+    0 0 28px rgba(0, 229, 255, 0.65);
 }
 
 .hud-f1-countdown.hidden {
@@ -640,22 +691,26 @@ body {
 }
 
 /* =========================================================================
-   6. AAA RACING START MENU SCREEN (GLASSMORPHISM MODE CARDS & THEME PILLS)
+   6. LIQUID-GLASS START MENU & MODALS (STRICTLY FITS MOBILE LANDSCAPE)
    ========================================================================= */
 .welcome-dialog-overlay {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 6px 10px;
   z-index: 60;
   pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   background: radial-gradient(
-    ellipse 78% 72% at 50% 50%,
-    rgba(6, 12, 26, 0.45) 0%,
-    rgba(2, 5, 12, 0.84) 100%
+    ellipse 80% 75% at 50% 50%,
+    rgba(6, 14, 28, 0.38) 0%,
+    rgba(2, 6, 14, 0.78) 100%
   );
-  animation: welcomeFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: welcomeFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .welcome-dialog-overlay.hidden {
@@ -673,14 +728,19 @@ body {
   }
 }
 
+/* Compact Liquid-Glass Card that NEVER exceeds the mobile landscape height */
 .welcome-dialog-card {
   position: relative;
-  width: min(740px, 95vw);
-  max-height: 94dvh;
+  width: min(590px, 92%);
+  max-height: 90%;
   overflow-y: auto;
-  padding: 14px 18px 14px;
-  border-radius: 18px;
+  overflow-x: hidden;
+  padding: 10px 14px;
+  border-radius: 22px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .start-menu-header {
@@ -688,12 +748,11 @@ body {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 6px;
   text-align: left;
 }
 
-.start-brand-block {
+.start-brand-group {
   display: flex;
   flex-direction: column;
 }
@@ -701,16 +760,16 @@ body {
 .welcome-eyebrow {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   color: #76f2ff;
 }
 
 .welcome-title {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(20px, 3vw, 28px);
+  font-size: 20px;
   font-weight: 900;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -724,103 +783,99 @@ body {
   display: flex;
   align-items: center;
   gap: 5px;
-  flex-wrap: wrap;
 }
 
-.theme-selector-label {
+.start-theme-label {
   font-family: 'Orbitron', sans-serif;
-  font-size: 8.5px;
+  font-size: 7.5px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: #9ec5e6;
-  margin-right: 2px;
+}
+
+.start-theme-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(4, 12, 24, 0.55);
+  border: 1px solid rgba(180, 235, 255, 0.25);
 }
 
 .theme-pill-btn {
   cursor: pointer;
-  padding: 5px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(8, 16, 30, 0.72);
-  border: 1px solid rgba(190, 235, 255, 0.28);
-  color: #d8eeff;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #cfe8ff;
   font-family: 'Orbitron', sans-serif;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 800;
-  letter-spacing: 0.06em;
-  transition: all 0.15s ease;
+  letter-spacing: 0.04em;
+  transition: all 0.14s ease;
 }
 
 .theme-pill-btn:hover {
-  border-color: rgba(120, 240, 255, 0.75);
+  color: #ffffff;
 }
 
 .theme-pill-btn.active {
-  background: linear-gradient(135deg, rgba(0, 229, 255, 0.32), rgba(255, 170, 68, 0.28));
-  border-color: #70f2ff;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.36), rgba(255, 170, 68, 0.30));
+  border-color: rgba(160, 245, 255, 0.85);
   color: #ffffff;
-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+  box-shadow:
+    0 0 10px rgba(0, 229, 255, 0.32),
+    inset 0 1px 1px rgba(255, 255, 255, 0.55);
 }
 
-/* 3 Visual Mode Cards on Start Screen */
+/* 3 Compact Liquid-Glass Mode Cards */
 .welcome-mode-selector {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 8px;
   text-align: left;
 }
 
 .mode-select-card {
   pointer-events: auto;
   cursor: pointer;
-  padding: 8px;
-  border-radius: 14px;
+  padding: 6px;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 5px;
-  transition: all 0.16s ease;
+  gap: 4px;
+  transition: all 0.15s ease;
 }
 
 .mode-select-card:hover {
-  border-color: rgba(120, 240, 255, 0.72);
-  transform: translateY(-2px);
+  border-color: rgba(140, 244, 255, 0.78);
+  transform: translateY(-1px);
 }
 
 .mode-select-card.active {
   background: linear-gradient(
     145deg,
-    rgba(0, 229, 255, 0.25) 0%,
-    rgba(255, 255, 255, 0.10) 50%,
-    rgba(255, 170, 68, 0.22) 100%
+    rgba(0, 229, 255, 0.28) 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 170, 68, 0.24) 100%
   );
-  border-color: #70f2ff;
+  border-color: #84f5ff;
   box-shadow:
-    0 0 22px rgba(0, 229, 255, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.52);
-}
-
-.mode-select-police.active {
-  background: linear-gradient(
-    145deg,
-    rgba(255, 45, 45, 0.28) 0%,
-    rgba(25, 110, 255, 0.24) 55%,
-    rgba(10, 18, 34, 0.75) 100%
-  );
-  border-color: #ff6e6e;
-  box-shadow:
-    0 0 24px rgba(255, 59, 48, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    0 0 18px rgba(0, 229, 255, 0.32),
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.62);
 }
 
 .mode-preview-banner {
   position: relative;
   width: 100%;
-  height: clamp(54px, 11dvh, 78px);
-  border-radius: 9px;
+  height: 44px;
+  border-radius: 10px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: #08111e;
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  background: rgba(6, 14, 26, 0.78);
 }
 
 .mode-preview-svg {
@@ -831,22 +886,17 @@ body {
 
 .mode-tag-badge {
   position: absolute;
-  top: 5px;
-  left: 6px;
-  padding: 2px 7px;
+  top: 3px;
+  left: 5px;
+  padding: 1.5px 6px;
   border-radius: 999px;
-  background: rgba(6, 14, 28, 0.82);
+  background: rgba(6, 14, 28, 0.85);
   border: 1px solid rgba(120, 240, 255, 0.55);
   font-family: 'Orbitron', sans-serif;
-  font-size: 7.5px;
+  font-size: 6.5px;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: #8ceeff;
-}
-
-.mode-tag-cyan {
-  color: #ffd27d;
-  border-color: rgba(255, 210, 125, 0.65);
 }
 
 .mode-tag-police {
@@ -855,50 +905,36 @@ body {
   color: #ffffff;
 }
 
-.mode-select-title {
-  font-family: 'Orbitron', sans-serif;
-  font-style: italic;
-  font-size: clamp(10.5px, 1.35vw, 13px);
-  font-weight: 900;
-  color: #ffffff;
+.mode-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   padding: 0 2px;
 }
 
-.mode-select-desc {
-  font-size: clamp(9px, 1.05vw, 10.5px);
-  color: rgba(225, 240, 255, 0.80);
-  line-height: 1.25;
-  padding: 0 2px 2px;
-}
-
-.start-menu-bottom-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.start-mp-btn {
-  cursor: pointer;
-  padding: 9px 14px;
-  border-radius: 12px;
-  color: #ffd27d;
-  border-color: rgba(255, 210, 125, 0.5);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.mode-select-title {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
   font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  transition: all 0.15s ease;
+  font-weight: 900;
+  color: #ffffff;
 }
 
-.start-mp-btn:hover {
-  border-color: #ffd27d;
-  transform: translateY(-1px);
+.mode-select-desc {
+  font-size: 8.5px;
+  color: rgba(225, 242, 255, 0.84);
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.welcome-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .welcome-start-btn {
@@ -907,19 +943,18 @@ body {
   pointer-events: auto;
   cursor: pointer;
   flex: 1;
-  min-width: 210px;
-  padding: 10px 24px;
-  border-radius: 12px;
+  padding: 8px 16px;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  transition: all 0.16s ease;
+  gap: 10px;
+  transition: all 0.15s ease;
 }
 
 .welcome-start-btn:hover {
   border-color: #ffffff;
-  transform: translateY(-1px) scale(1.01);
+  transform: translateY(-1px);
 }
 
 .welcome-btn-progress-track {
@@ -927,7 +962,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 3.5px;
+  height: 3px;
   background: rgba(6, 10, 18, 0.72);
   opacity: 0;
   pointer-events: none;
@@ -948,22 +983,42 @@ body {
 .welcome-start-text {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(13px, 1.8vw, 16px);
+  font-size: 12.5px;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   color: #ffffff;
 }
 
 .welcome-enter-kbd {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: rgba(6, 12, 24, 0.78);
-  border: 1px solid rgba(255, 210, 125, 0.82);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(6, 12, 24, 0.72);
+  border: 1px solid rgba(255, 210, 125, 0.85);
   color: #ffd27d;
+}
+
+.start-mp-secondary-btn {
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: #ffd27d;
+  border-color: rgba(255, 210, 125, 0.55);
+  font-family: 'Orbitron', sans-serif;
+  font-style: italic;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.start-mp-secondary-btn:hover {
+  border-color: #ffd27d;
+  transform: translateY(-1px);
 }
 
 /* =========================================================================
@@ -972,6 +1027,9 @@ body {
 .busted-gameover-overlay {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
   z-index: 65;
   pointer-events: auto;
   display: flex;
@@ -979,11 +1037,11 @@ body {
   justify-content: center;
   background: radial-gradient(
     circle at 50% 50%,
-    rgba(24, 6, 12, 0.72) 0%,
-    rgba(4, 6, 14, 0.92) 100%
+    rgba(24, 6, 12, 0.68) 0%,
+    rgba(4, 6, 14, 0.90) 100%
   );
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   overflow: hidden;
   animation: welcomeFadeIn 0.2s ease-out;
 }
@@ -1040,59 +1098,60 @@ body {
 .busted-dialog-card {
   position: relative;
   z-index: 2;
-  width: min(480px, 90vw);
-  padding: 20px 24px;
-  border-radius: 18px;
-  border-color: rgba(255, 90, 90, 0.78);
+  width: min(420px, 88%);
+  max-height: 88%;
+  padding: 14px 18px;
+  border-radius: 22px;
+  border-color: rgba(255, 95, 95, 0.78);
   text-align: center;
 }
 
 .busted-siren-pill {
   display: inline-block;
-  padding: 3px 12px;
+  padding: 2px 10px;
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(255, 40, 40, 0.55), rgba(30, 107, 255, 0.55));
   border: 1px solid rgba(255, 255, 255, 0.65);
   font-family: 'Orbitron', sans-serif;
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 900;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   color: #ffffff;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .busted-title {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(32px, 6vw, 48px);
+  font-size: 30px;
   font-weight: 900;
   letter-spacing: 0.08em;
   color: #ff453a;
   text-shadow:
-    0 0 24px rgba(255, 59, 48, 0.85),
-    0 2px 10px rgba(0, 0, 0, 0.95);
+    0 0 20px rgba(255, 59, 48, 0.85),
+    0 2px 8px rgba(0, 0, 0, 0.95);
   line-height: 1.02;
 }
 
 .busted-subtitle {
   font-family: 'Orbitron', sans-serif;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: #ffd27d;
-  margin: 4px 0 14px;
+  margin: 3px 0 10px;
 }
 
 .busted-stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .busted-stat-box {
-  padding: 8px 6px;
-  border-radius: 10px;
+  padding: 6px 4px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1100,57 +1159,77 @@ body {
 
 .busted-stat-label {
   font-family: 'Orbitron', sans-serif;
-  font-size: 8px;
+  font-size: 7.5px;
   font-weight: 800;
   color: #9ec5e6;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
 
 .busted-stat-val {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 900;
   color: #ffffff;
 }
 
-.busted-actions-row {
+.busted-actions-row,
+.finish-actions-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: center;
-}
-
-.busted-btn {
-  flex: 1;
-  padding: 10px 14px !important;
 }
 
 .busted-secondary-btn {
   cursor: pointer;
-  padding: 10px 16px;
-  border-radius: 12px;
+  padding: 8px 14px;
+  border-radius: 999px;
   color: #ffffff;
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
 }
 
+.hud-finish-title {
+  font-family: 'Orbitron', sans-serif;
+  font-style: italic;
+  font-size: 26px;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.hud-finish-time {
+  font-family: 'Orbitron', sans-serif;
+  font-style: italic;
+  font-size: 28px;
+  font-weight: 900;
+  color: #00e5ff;
+}
+
+.hud-finish-sub {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  color: #ffd27d;
+  margin-bottom: 6px;
+}
+
 /* =========================================================================
-   8. SETTINGS MODAL (⚙️ GRAPHICS QUALITY LOW / MEDIUM / HIGH / ULTRA)
+   8. SETTINGS MODAL (⚙️) & MULTIPLAYER MODAL (👥) — COMPACT LIQUID GLASS
    ========================================================================= */
 .modal-top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   text-align: left;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
 .modal-heading {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(17px, 2.3vw, 22px);
+  font-size: 16px;
   font-weight: 900;
   color: #ffffff;
   letter-spacing: 0.05em;
@@ -1158,11 +1237,11 @@ body {
 
 .modal-close-btn {
   cursor: pointer;
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   color: #ffffff;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   display: inline-flex;
   align-items: center;
@@ -1171,39 +1250,35 @@ body {
 
 .settings-section {
   text-align: left;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
 .settings-section-title {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   color: #8ceeff;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .gfx-preset-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 7px;
+  gap: 6px;
 }
 
 .gfx-preset-card {
   cursor: pointer;
-  padding: 8px 9px;
-  border-radius: 11px;
+  padding: 6px 7px;
+  border-radius: 12px;
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   color: #ffffff;
-  transition: all 0.15s ease;
-}
-
-.gfx-preset-card:hover {
-  border-color: rgba(130, 242, 255, 0.75);
+  transition: all 0.14s ease;
 }
 
 .gfx-preset-card.active {
@@ -1214,111 +1289,101 @@ body {
     rgba(255, 170, 68, 0.22) 100%
   );
   border-color: #70f2ff;
-  box-shadow:
-    0 0 18px rgba(0, 229, 255, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.52);
 }
 
 .gfx-preset-badge {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 8.5px;
+  font-size: 8px;
   font-weight: 900;
-  letter-spacing: 0.1em;
   color: #ffd27d;
 }
 
 .gfx-preset-name {
   font-family: 'Orbitron', sans-serif;
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-weight: 800;
   color: #ffffff;
 }
 
 .gfx-preset-desc {
-  font-size: 9px;
+  font-size: 8px;
   color: rgba(220, 238, 255, 0.78);
-  line-height: 1.22;
+  line-height: 1.15;
 }
 
 .settings-quick-row {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 7px;
-}
-
-.settings-quick-row-3 {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
 }
 
 .settings-pill-btn {
   cursor: pointer;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 6px 6px;
+  border-radius: 999px;
   color: #ffffff;
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 10px;
+  font-size: 8.5px;
   font-weight: 800;
-  letter-spacing: 0.05em;
   text-align: center;
-  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.14s ease;
 }
 
 .settings-pill-btn.active {
   border-color: #70f2ff;
-  background: rgba(0, 229, 255, 0.25);
+  background: rgba(0, 229, 255, 0.28);
 }
 
 .settings-footer-row {
   display: flex;
   justify-content: center;
-  gap: 10px;
-  margin-top: 6px;
+  gap: 8px;
+  margin-top: 2px;
 }
 
-/* =========================================================================
-   9. FRIENDS-ONLY MULTIPLAYER MODAL (4-DIGIT ROOM CODE & CHOR-POLICE)
-   ========================================================================= */
+/* Friends Multiplayer Modal */
 .mp-modal-card {
-  width: min(680px, 95vw);
+  width: min(580px, 92%);
 }
 
 .mp-name-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 5px 10px;
   border-radius: 12px;
-  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
 .mp-field-label {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 9.5px;
+  font-size: 8.5px;
   font-weight: 800;
-  letter-spacing: 0.08em;
   color: #8ceeff;
 }
 
 .mp-text-input {
-  width: 130px;
-  padding: 5px 10px;
+  width: 110px;
+  padding: 3px 8px;
   border-radius: 8px;
   background: rgba(4, 10, 22, 0.72);
   border: 1px solid rgba(150, 235, 255, 0.45);
   color: #ffffff;
   font-family: 'Orbitron', sans-serif;
-  font-size: 11.5px;
+  font-size: 10px;
   font-weight: 800;
   outline: none;
 }
 
 .mp-feedback-msg {
   margin-left: auto;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 600;
   color: #ffd27d;
 }
@@ -1326,7 +1391,7 @@ body {
 .mp-setup-grid {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
-  gap: 10px;
+  gap: 8px;
   text-align: left;
 }
 
@@ -1336,64 +1401,62 @@ body {
 }
 
 .mp-column-card {
-  padding: 12px 14px;
+  padding: 8px 10px;
   border-radius: 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 
 .mp-col-kicker {
   font-family: 'Orbitron', sans-serif;
-  font-size: 8.5px;
+  font-size: 7.5px;
   font-weight: 800;
-  letter-spacing: 0.12em;
   color: #ffd27d;
 }
 
 .mp-col-title {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 14px;
+  font-size: 11.5px;
   font-weight: 900;
   color: #ffffff;
 }
 
 .mp-col-desc {
-  font-size: 11px;
+  font-size: 9px;
   color: rgba(220, 238, 255, 0.80);
-  line-height: 1.35;
+  line-height: 1.25;
 }
 
 .mp-control-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .mp-small-label {
   font-family: 'Orbitron', sans-serif;
-  font-size: 8.5px;
+  font-size: 7.5px;
   font-weight: 800;
-  letter-spacing: 0.1em;
   color: #8ceeff;
 }
 
 .mp-seg-row {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 5px;
+  gap: 4px;
 }
 
 .mp-seg-btn {
   cursor: pointer;
-  padding: 5px 0;
-  border-radius: 8px;
+  padding: 3px 0;
+  border-radius: 7px;
   background: rgba(6, 14, 28, 0.65);
   border: 1px solid rgba(200, 240, 255, 0.25);
   color: #d8eeff;
   font-family: 'Orbitron', sans-serif;
-  font-size: 10.5px;
+  font-size: 9px;
   font-weight: 800;
 }
 
@@ -1406,20 +1469,18 @@ body {
 .mp-mode-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 
 .mp-mode-btn {
   cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 9px;
+  padding: 4px 8px;
+  border-radius: 8px;
   background: rgba(6, 14, 28, 0.58);
   border: 1px solid rgba(200, 240, 255, 0.22);
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  transition: all 0.14s ease;
 }
 
 .mp-mode-btn.active {
@@ -1429,31 +1490,27 @@ body {
 
 .mp-mode-btn-title {
   font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
+  font-size: 8.5px;
   font-weight: 800;
   color: #ffffff;
 }
 
 .mp-mode-btn-sub {
-  font-size: 9.5px;
+  font-size: 8px;
   color: rgba(220, 238, 255, 0.75);
-}
-
-.mp-code-input-wrap {
-  margin: 4px 0;
 }
 
 .mp-code-input {
   width: 100%;
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: 5px 8px;
+  border-radius: 9px;
   background: rgba(4, 10, 22, 0.82);
   border: 1.5px solid rgba(120, 240, 255, 0.55);
   color: #00e5ff;
   font-family: 'Orbitron', sans-serif;
-  font-size: 22px;
+  font-size: 16px;
   font-weight: 900;
-  letter-spacing: 0.25em;
+  letter-spacing: 0.22em;
   text-align: center;
   outline: none;
 }
@@ -1461,36 +1518,33 @@ body {
 .mp-primary-btn {
   cursor: pointer;
   width: 100%;
-  padding: 9px 14px;
-  border-radius: 10px;
+  padding: 7px 10px;
+  border-radius: 999px;
   color: #ffffff;
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 900;
-  letter-spacing: 0.06em;
   margin-top: auto;
 }
 
 .mp-rules-note {
-  margin-top: 6px;
-  padding: 7px 9px;
+  padding: 5px 7px;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  font-size: 9.5px;
-  line-height: 1.35;
+  font-size: 8px;
+  line-height: 1.25;
   color: rgba(220, 238, 255, 0.82);
 }
 
-/* Active Multiplayer Lobby View */
 .mp-active-lobby {
-  padding: 14px 16px;
+  padding: 10px 12px;
   border-radius: 14px;
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .mp-lobby-header {
@@ -1498,32 +1552,31 @@ body {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .mp-room-code-big {
   font-family: 'Orbitron', sans-serif;
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 900;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   color: #00e5ff;
-  text-shadow: 0 0 16px rgba(0, 229, 255, 0.65);
 }
 
 .mp-lobby-meta {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .mp-count-pill,
 .mp-mode-pill {
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 999px;
   background: rgba(0, 229, 255, 0.18);
   border: 1px solid rgba(120, 240, 255, 0.48);
   font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
+  font-size: 8.5px;
   font-weight: 800;
   color: #ffffff;
 }
@@ -1531,59 +1584,63 @@ body {
 .mp-players-list {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 7px;
+  gap: 5px;
 }
 
 .mp-player-chip {
-  padding: 7px 10px;
-  border-radius: 10px;
+  padding: 5px 8px;
+  border-radius: 8px;
   background: rgba(6, 14, 28, 0.65);
   border: 1px solid rgba(200, 240, 255, 0.26);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-family: 'Orbitron', sans-serif;
-  font-size: 10.5px;
+  font-size: 9px;
   font-weight: 800;
   color: #ffffff;
 }
 
 .mp-player-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 .mp-lobby-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
 .mp-leave-btn {
   cursor: pointer;
-  padding: 9px 14px;
-  border-radius: 10px;
+  padding: 7px 12px;
+  border-radius: 999px;
   color: #ff8e85;
   border-color: rgba(255, 110, 98, 0.55);
   font-family: 'Orbitron', sans-serif;
-  font-size: 10.5px;
+  font-size: 9px;
   font-weight: 800;
 }
 
 /* =========================================================================
-   10. BOTTOM-RIGHT SPEEDOMETER & ERGONOMIC GLASS MULTI-TOUCH PEDALS
+   9. BOTTOM-CENTER LIQUID-GLASS SPEEDOMETER & CORNER TOUCH PEDALS
    ========================================================================= */
-.hud-bottom-left-spacer {
-  width: 1px;
-  height: 1px;
-}
-
 .hud-speedo-gauge {
   position: relative;
-  width: clamp(136px, 18vw, 212px);
-  height: clamp(64px, 8.6vw, 100px);
+  width: 132px;
+  height: 58px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--liquid-glass-bg);
+  backdrop-filter: blur(16px) saturate(200%);
+  -webkit-backdrop-filter: blur(16px) saturate(200%);
+  border: 1.5px solid var(--liquid-glass-border);
+  box-shadow:
+    0 6px 20px rgba(0, 8, 22, 0.48),
+    var(--liquid-glass-specular);
   pointer-events: auto;
   display: flex;
   align-items: center;
@@ -1594,11 +1651,10 @@ body {
   width: 100%;
   height: 100%;
   overflow: visible;
-  filter: drop-shadow(0 6px 16px rgba(0, 6, 18, 0.72));
 }
 
 .speedo-bar-casing {
-  fill: rgba(12, 24, 44, 0.58);
+  fill: rgba(10, 22, 42, 0.55);
   stroke-width: 1.8;
   stroke-linejoin: round;
 }
@@ -1611,7 +1667,7 @@ body {
 .speedo-readout-group {
   position: absolute;
   right: 10px;
-  bottom: 2px;
+  bottom: 4px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -1621,32 +1677,32 @@ body {
 .speedo-unit-label {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(8.5px, 1.1vw, 11.5px);
+  font-size: 7.5px;
   font-weight: 800;
-  color: rgba(220, 244, 255, 0.94);
+  color: rgba(210, 244, 255, 0.92);
   letter-spacing: 0.06em;
 }
 
 .speedo-digits {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(26px, 3.8vw, 44px);
+  font-size: 24px;
   font-weight: 900;
   line-height: 0.92;
   color: #ffffff;
   font-variant-numeric: tabular-nums;
   text-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.88),
-    0 0 20px rgba(0, 229, 255, 0.42);
+    0 2px 6px rgba(0, 0, 0, 0.85),
+    0 0 14px rgba(0, 229, 255, 0.45);
 }
 
-/* Ergonomic Landscape Water-Glass Multi-Touch Controls */
+/* Liquid-Glass Multi-Touch Driving Pedals (Bottom-Left & Bottom-Right Corners) */
 .mobile-touch-controls:not(.hidden) {
   display: flex !important;
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 14px;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
   justify-content: space-between;
   align-items: flex-end;
   z-index: 25;
@@ -1664,17 +1720,17 @@ body {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   pointer-events: auto;
   touch-action: none;
 }
 
 .mobile-ctrl-btn {
   position: relative;
-  width: clamp(58px, 7.8vw, 84px);
-  height: clamp(48px, 6.4vw, 68px);
+  width: 60px;
+  height: 48px;
   padding: 0;
-  border-radius: 15px;
+  border-radius: 18px;
   color: #f4f9ff;
   display: flex;
   align-items: center;
@@ -1689,17 +1745,25 @@ body {
     box-shadow 0.08s ease;
 }
 
+@media (min-width: 900px) and (min-height: 500px) {
+  .mobile-ctrl-btn {
+    width: 72px;
+    height: 56px;
+  }
+}
+
+/* Glossy water-droplet top highlight inside each touch pedal */
 .mobile-ctrl-btn::before {
   content: '';
   position: absolute;
   top: 2px;
-  left: 10%;
-  right: 10%;
+  left: 12%;
+  right: 12%;
   height: 36%;
   border-radius: 999px;
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.34) 0%,
+    rgba(255, 255, 255, 0.46) 0%,
     rgba(255, 255, 255, 0.02) 100%
   );
   pointer-events: none;
@@ -1710,79 +1774,79 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
   pointer-events: none;
 }
 
 .mobile-ctrl-svg {
-  width: clamp(19px, 2.3vw, 24px);
-  height: clamp(19px, 2.3vw, 24px);
+  width: 19px;
+  height: 19px;
   stroke: currentColor;
 }
 
 .mobile-ctrl-label {
   font-family: 'Orbitron', sans-serif;
-  font-size: clamp(8px, 1vw, 10px);
+  font-size: 7.5px;
   font-weight: 800;
   font-style: italic;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   line-height: 1;
   color: rgba(240, 248, 255, 0.94);
 }
 
 .mobile-ctrl-steer {
-  border-color: rgba(255, 220, 145, 0.48);
+  border-color: rgba(255, 220, 145, 0.52);
   color: #ffe8b8;
 }
 
 .mobile-ctrl-steer.is-pressed {
   background: linear-gradient(
     180deg,
-    rgba(255, 200, 96, 0.46) 0%,
-    rgba(255, 140, 42, 0.28) 100%
+    rgba(255, 200, 96, 0.52) 0%,
+    rgba(255, 140, 42, 0.32) 100%
   );
   border-color: rgba(255, 232, 168, 0.98);
   box-shadow:
-    0 0 22px rgba(255, 180, 68, 0.55),
-    var(--water-glass-specular);
+    0 0 20px rgba(255, 180, 68, 0.55),
+    var(--liquid-glass-specular);
   color: #ffffff;
   transform: translateY(1.5px) scale(0.95);
 }
 
 .mobile-ctrl-accel {
-  border-color: rgba(110, 242, 255, 0.54);
+  border-color: rgba(110, 242, 255, 0.58);
   color: #84f6ff;
 }
 
 .mobile-ctrl-accel.is-pressed {
   background: linear-gradient(
     180deg,
-    rgba(0, 229, 255, 0.48) 0%,
-    rgba(0, 148, 225, 0.30) 100%
+    rgba(0, 229, 255, 0.52) 0%,
+    rgba(0, 148, 225, 0.34) 100%
   );
   border-color: rgba(165, 250, 255, 0.98);
   box-shadow:
-    0 0 22px rgba(0, 229, 255, 0.62),
-    var(--water-glass-specular);
+    0 0 20px rgba(0, 229, 255, 0.62),
+    var(--liquid-glass-specular);
   color: #ffffff;
   transform: translateY(1.5px) scale(0.95);
 }
 
 .mobile-ctrl-brake {
-  border-color: rgba(255, 130, 118, 0.50);
+  border-color: rgba(255, 130, 118, 0.54);
   color: #ffa29a;
 }
 
 .mobile-ctrl-brake.is-pressed {
   background: linear-gradient(
     180deg,
-    rgba(255, 92, 78, 0.48) 0%,
-    rgba(205, 38, 34, 0.30) 100%
+    rgba(255, 92, 78, 0.52) 0%,
+    rgba(205, 38, 34, 0.34) 100%
   );
   border-color: rgba(255, 165, 156, 0.98);
   box-shadow:
-    0 0 22px rgba(255, 82, 68, 0.58),
-    var(--water-glass-specular);
+    0 0 20px rgba(255, 82, 68, 0.58),
+    var(--liquid-glass-specular);
   color: #ffffff;
   transform: translateY(1.5px) scale(0.95);
 }

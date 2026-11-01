@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
- * Builds the 1:87 HO Micro-Coaster Racing Go-Kart (18mm x 12mm x 8mm)
- * with 4 steerable/spinning wheels, helmeted driver, steering wheel,
- * twin turbo exhaust flames, headlights, and a 120-particle drift spark emitter.
+ * Builds the 1:87 HO Micro-Coaster Racing Vehicle (supports the 2015 BMW 3.0 CSL Hommage R Concept FBX
+ * as well as GLB / procedural fallback) with 4 steerable/spinning wheels,
+ * twin turbo exhaust flames, tail-light glow halos, and a 64-particle drift spark emitter.
  */
 export function buildMicroKart() {
   const kartRoot = new THREE.Group();
@@ -44,16 +45,13 @@ export function buildMicroKart() {
     color: 0x121419,
   });
 
-  // Soft multi-layered local contact-shadow decal directly under the kart chassis & 4 tires
-  // Positioned at Y = 0.00072m (0.42mm in 0.58x world space) with polygonOffset -8 so it always
-  // renders cleanly above the crowned CoasterRoadwayMesh surface without depth-buffer occlusion.
+  // Soft multi-layered local contact-shadow decal directly under the car chassis & 4 tires
   const shadowCanvas = document.createElement('canvas');
   shadowCanvas.width = 256;
   shadowCanvas.height = 256;
   const sCtx = shadowCanvas.getContext('2d');
   sCtx.clearRect(0, 0, 256, 256);
 
-  // 1. Wide soft ambient-occlusion penumbra across the entire kart footprint
   sCtx.save();
   sCtx.translate(128, 128);
   sCtx.scale(0.86, 1.08);
@@ -68,7 +66,6 @@ export function buildMicroKart() {
   sCtx.fill();
   sCtx.restore();
 
-  // 2. Deep under-chassis floorpan, nose splitter & rear diffuser umbra core
   sCtx.save();
   sCtx.translate(128, 128);
   sCtx.scale(0.58, 0.92);
@@ -83,7 +80,6 @@ export function buildMicroKart() {
   sCtx.fill();
   sCtx.restore();
 
-  // 3. Four dark elliptical wheel-contact shadow blobs at (±0.32, ±0.28) in UV space
   for (const [wx, wz] of [
     [-0.28, -0.22],
     [+0.28, -0.22],
@@ -108,7 +104,7 @@ export function buildMicroKart() {
 
   const kartShadowTex = new THREE.CanvasTexture(shadowCanvas);
   const kartShadowQuad = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.0175, 0.0240),
+    new THREE.PlaneGeometry(0.0175, 0.0245),
     new THREE.MeshBasicMaterial({
       map: kartShadowTex,
       transparent: true,
@@ -126,28 +122,23 @@ export function buildMicroKart() {
   kartRoot.add(kartShadowQuad);
 
   // -------------------------------------------------------------------------
-  // 1. FLOOR PAN, TUBULAR FRAME, NOSE CONE & SIDE PODS (18mm long x 12mm wide)
-  //    Kart local forward is +Z (aligned with spline tangent)
+  // 1. PROCEDURAL FALLBACK CHASSIS (Shown briefly until BMW 3.0 CSL FBX loads)
   // -------------------------------------------------------------------------
   const floorPan = new THREE.Mesh(
     new THREE.BoxGeometry(0.0082, 0.0009, 0.0155),
     carbonMat
   );
   floorPan.position.set(0, 0.0014, 0);
-  floorPan.castShadow = false;
   chassisGroup.add(floorPan);
 
-  // Front aerodynamic nose fairing (+Z front)
   const noseCone = new THREE.Mesh(
     new THREE.BoxGeometry(0.0086, 0.0021, 0.0044),
     redFairingMat
   );
   noseCone.position.set(0, 0.0023, 0.0068);
   noseCone.rotation.x = 0.22;
-  noseCone.castShadow = false;
   chassisGroup.add(noseCone);
 
-  // White #87 Nose Number Plate
   const numberPlate = new THREE.Mesh(
     new THREE.BoxGeometry(0.0048, 0.0004, 0.0028),
     whiteStripeMat
@@ -156,24 +147,22 @@ export function buildMicroKart() {
   numberPlate.rotation.x = 0.22;
   chassisGroup.add(numberPlate);
 
-  // Left & Right Side Pods
+  const sidePods = [];
   for (const sx of [-0.0044, 0.0044]) {
     const sidePod = new THREE.Mesh(
       new THREE.BoxGeometry(0.0024, 0.0024, 0.0076),
       redFairingMat
     );
     sidePod.position.set(sx, 0.0024, -0.0004);
-    sidePod.castShadow = false;
     chassisGroup.add(sidePod);
+    sidePods.push(sidePod);
   }
 
-  // Rear Engine Block (right-rear kart motor + cooling fins) & Rear Wing
   const engineBlock = new THREE.Mesh(
     new THREE.BoxGeometry(0.0034, 0.0036, 0.0042),
     chromeMat
   );
   engineBlock.position.set(0.0022, 0.0036, -0.0048);
-  engineBlock.castShadow = false;
   chassisGroup.add(engineBlock);
 
   const rearWing = new THREE.Mesh(
@@ -182,17 +171,15 @@ export function buildMicroKart() {
   );
   rearWing.position.set(0, 0.0068, -0.0076);
   rearWing.rotation.x = -0.18;
-  rearWing.castShadow = false;
   chassisGroup.add(rearWing);
 
-  // Twin Rear Exhaust Pipes + Realistic Volumetric Mach-Diamond Afterburner Jet
-  // Plumes (Zero FPS impact!)
+  // Twin Rear Exhaust Pipes + Volumetric Mach-Diamond Afterburner Jet Plumes
   function createExhaustFlameMaterial(pipePhase) {
     return new THREE.ShaderMaterial({
       uniforms: {
-        uTime: {value: 0.0},
-        uIntensity: {value: 1.0},
-        uPhase: {value: pipePhase},
+        uTime: { value: 0.0 },
+        uIntensity: { value: 1.0 },
+        uPhase: { value: pipePhase },
       },
       transparent: true,
       depthWrite: false,
@@ -208,13 +195,11 @@ export function buildMicroKart() {
         varying vec3 vViewNormal;
         varying vec3 vViewPos;
         void main() {
-          // Local coordinates: nozzle exit is at z = 0, jet extends backward along -Z to z = -0.0052
           float u = clamp(-position.z / 0.0052, 0.0, 1.0);
           vPlumeU = u;
           vRadialR = clamp(length(position.xy) / 0.00078, 0.0, 1.0);
           vLocalPos = position;
 
-          // High-frequency turbulent jet flutter along the tail (zero displacement at nozzle u=0)
           float flutter = u * u * 0.00022;
           vec3 displaced = position;
           displaced.x += sin(u * 18.0 - uTime * 48.0 + uPhase) * flutter;
@@ -237,33 +222,23 @@ export function buildMicroKart() {
         varying vec3 vViewPos;
         void main() {
           float u = clamp(vPlumeU, 0.0, 1.0);
-
-          // Coaxial-safe radial core falloff so the flame stays vivid from 1P Chase Cam directly behind the car
-          // while still having a soft Gaussian outer edge with zero hard cone/egg silhouette
           vec3 viewDir = normalize(vViewPos);
           float ndotv = abs(dot(normalize(vViewNormal), viewDir));
           float viewWeight = 0.58 + 0.42 * sqrt(clamp(ndotv, 0.0, 1.0));
           float radialCore = exp(-vRadialR * vRadialR * (2.1 + u * 2.4));
           float radialMask = radialCore * viewWeight;
 
-          // High-frequency advected combustion turbulence & Mach shock diamonds
           float angle = atan(vLocalPos.y, vLocalPos.x);
           float turb1 = sin(u * 22.0 - uTime * 56.0 + angle * 2.0 + uPhase);
           float turb2 = cos(u * 35.0 - uTime * 74.0 - angle * 3.0 + uPhase * 1.3);
           float turbulence = 0.82 + 0.18 * (turb1 * 0.6 + turb2 * 0.4);
 
-          // Crisp internal Mach shock diamond nodes near the nozzle & mid-plume
           float machWave = max(0.0, cos(u * 15.5 - uTime * 34.0 + uPhase * 0.5));
           float machDiamond = pow(machWave, 3.2) * smoothstep(0.85, 0.04, u) * exp(-vRadialR * vRadialR * 3.6);
 
-          // Longitudinal envelope: bright inside the nozzle bore (u=0) with shredded flame tongues at the tip
           float tipCut = clamp(1.0 - u + (turb1 * 0.11 + turb2 * 0.07) * u, 0.0, 1.0);
           float axialEnv = (0.35 + 0.65 * smoothstep(0.0, 0.08, u)) * pow(tipCut, 1.45);
 
-          // Physically inspired motorsport exhaust temperature gradient:
-          // 1. Nozzle ring (u = 0..0.22): hot butane-blue plasma + white-yellow Mach core
-          // 2. Mid-plume (u = 0.18..0.68): luminous golden-amber afterburner fire
-          // 3. Outer sheath & tail (u = 0.48..1.0): rich fiery orange-red
           vec3 butaneBlue = vec3(0.32, 0.76, 1.35);
           vec3 whiteHot = vec3(1.55, 1.38, 0.96);
           vec3 goldenAmber = vec3(1.45, 0.68, 0.12);
@@ -282,25 +257,15 @@ export function buildMicroKart() {
     });
   }
 
-  // Build multi-layered open-ended jet cone + crossed axial flame fins + nozzle
-  // bore glow disc
   function buildExhaustJetGeometry() {
-    // 1. Outer tapered open-ended cone from z = 0 (r = 0.72mm) to z = -5.2mm (r
-    // = 0.22mm)
-    const outerCone =
-        new THREE.CylinderGeometry(0.00072, 0.00022, 0.0052, 16, 8, true);
+    const outerCone = new THREE.CylinderGeometry(0.00072, 0.00022, 0.0052, 16, 8, true);
     outerCone.rotateX(Math.PI / 2);
     outerCone.translate(0, 0, -0.0026);
 
-    // 2. Inner high-velocity Mach core tube from z = 0 (r = 0.46mm) to z =
-    // -4.0mm (r = 0.12mm)
-    const innerCore =
-        new THREE.CylinderGeometry(0.00046, 0.00012, 0.0040, 14, 6, true);
+    const innerCore = new THREE.CylinderGeometry(0.00046, 0.00012, 0.0040, 14, 6, true);
     innerCore.rotateX(Math.PI / 2);
     innerCore.translate(0, 0, -0.0020);
 
-    // 3. Crossed longitudinal flame fins (+38 deg and -38 deg) so the jet is
-    // lush from every angle
     const finA = new THREE.PlaneGeometry(0.00145, 0.0050, 1, 6);
     finA.rotateX(Math.PI / 2);
     finA.rotateZ(0.66);
@@ -311,17 +276,16 @@ export function buildMicroKart() {
     finB.rotateZ(-0.66);
     finB.translate(0, 0, -0.0025);
 
-    // 4. Head-on nozzle bore glow disc at z = -0.00025 facing -Z (directly
-    // toward 1P Chase Cam!)
     const nozzleDisc = new THREE.CircleGeometry(0.00074, 16);
     nozzleDisc.rotateY(Math.PI);
     nozzleDisc.translate(0, 0, -0.00025);
 
-    return {outerCone, innerCore, finA, finB, nozzleDisc};
+    return { outerCone, innerCore, finA, finB, nozzleDisc };
   }
   const sharedJetGeos = buildExhaustJetGeometry();
 
   const flameCones = [];
+  const exhaustPipes = [];
   for (let i = 0; i < 2; i++) {
     const ex = i === 0 ? -0.00108 : 0.00108;
     const pipe = new THREE.Mesh(
@@ -331,22 +295,20 @@ export function buildMicroKart() {
     pipe.rotation.x = Math.PI / 2 + 0.12;
     pipe.position.set(ex, 0.00215, -0.0076);
     chassisGroup.add(pipe);
+    exhaustPipes.push(pipe);
 
     const plumeGroup = new THREE.Group();
-    // Anchor right inside the hollow grey/aluminium muffler bore exit and angle
-    // slightly upward (+0.18 rad) to match the upswept hot-rod muffler tips so
-    // the flames shoot cleanly out of the barrels in 1P Chase Cam
     plumeGroup.position.set(ex, 0.00208, -0.00895);
     plumeGroup.rotation.x = 0.18;
     plumeGroup.visible = false;
 
     const jetMat = createExhaustFlameMaterial(i * 2.15);
-    for (const geo
-             of [sharedJetGeos.outerCone,
-                 sharedJetGeos.innerCore,
-                 sharedJetGeos.finA,
-                 sharedJetGeos.finB,
-                 sharedJetGeos.nozzleDisc,
+    for (const geo of [
+      sharedJetGeos.outerCone,
+      sharedJetGeos.innerCore,
+      sharedJetGeos.finA,
+      sharedJetGeos.finB,
+      sharedJetGeos.nozzleDisc,
     ]) {
       const m = new THREE.Mesh(geo, jetMat);
       m.frustumCulled = false;
@@ -359,9 +321,7 @@ export function buildMicroKart() {
     flameCones.push(plumeGroup);
   }
 
-  // Soft additive ruby-red tail-light optical glow halo planes (tailGlowL & tailGlowR)
-  // Positioned directly in front of the left & right 2x3 tail-light clusters so the rear lamps
-  // emit a true ruby-red optical bloom halo instead of looking like flat orange rectangles.
+  // Ruby-red tail-light optical glow halo planes
   const tailGlowCanvas = document.createElement('canvas');
   tailGlowCanvas.width = 128;
   tailGlowCanvas.height = 128;
@@ -399,7 +359,6 @@ export function buildMicroKart() {
     tailLightGlowPlanes.push(tailGlowPlane);
   }
 
-  // Detached stub light (zero PointLights in scene graph)
   const sparkFireLight = new THREE.PointLight(0xff6818, 0.0, 0.045, 0.0);
   sparkFireLight.position.set(0, 0.0028, -0.009);
   sparkFireLight.visible = false;
@@ -414,7 +373,7 @@ export function buildMicroKart() {
   }
 
   // -------------------------------------------------------------------------
-  // 2. 1:87 HELMETED DRIVER + STEERING WHEEL
+  // 2. PROCEDURAL DRIVER + STEERING WHEEL + WHEELS (Hidden once BMW loads)
   // -------------------------------------------------------------------------
   const seat = new THREE.Mesh(
     new THREE.BoxGeometry(0.0042, 0.0044, 0.0038),
@@ -424,34 +383,25 @@ export function buildMicroKart() {
   seat.rotation.x = -0.22;
   chassisGroup.add(seat);
 
-  // Driver Torso in Pearl White & Electric Blue Racing Suit
-  const suitMat = new THREE.MeshLambertMaterial({
-    color: 0xf0f4fa,
-  });
+  const suitMat = new THREE.MeshLambertMaterial({ color: 0xf0f4fa });
   const torso = new THREE.Mesh(
     new THREE.BoxGeometry(0.0036, 0.0038, 0.0028),
     suitMat
   );
   torso.position.set(0, 0.0048, -0.0008);
   torso.rotation.x = 0.14;
-  torso.castShadow = false;
   chassisGroup.add(torso);
 
-  // Articulated Driver Helmet Group (tilts into corners!)
   const driverHead = new THREE.Group();
   driverHead.position.set(0, 0.0078, -0.0004);
 
   const helmetShell = new THREE.Mesh(
     new THREE.SphereGeometry(0.0022, 12, 10),
-    new THREE.MeshLambertMaterial({
-      color: 0xffffff,
-    })
+    new THREE.MeshLambertMaterial({ color: 0xffffff })
   );
   helmetShell.scale.set(0.95, 1.0, 1.08);
-  helmetShell.castShadow = false;
   driverHead.add(helmetShell);
 
-  // Iridescent Gold/Blue Visor
   const visor = new THREE.Mesh(
     new THREE.SphereGeometry(0.00225, 10, 8, -0.9, 1.8, 1.05, 0.75),
     new THREE.MeshLambertMaterial({
@@ -464,7 +414,6 @@ export function buildMicroKart() {
   driverHead.add(visor);
   chassisGroup.add(driverHead);
 
-  // Steering Column & Rotating Steering Wheel
   const steeringWheel = new THREE.Mesh(
     new THREE.TorusGeometry(0.0014, 0.00032, 6, 12),
     carbonMat
@@ -473,9 +422,6 @@ export function buildMicroKart() {
   steeringWheel.rotation.x = -0.55;
   chassisGroup.add(steeringWheel);
 
-  // -------------------------------------------------------------------------
-  // 3. 4 RUBBER SLICK WHEELS (Front Steerable Pivots + All 4 Spinning)
-  // -------------------------------------------------------------------------
   const frontPivots = [];
   const wheelMeshes = [];
 
@@ -489,7 +435,6 @@ export function buildMicroKart() {
       tireRubberMat
     );
     tire.rotation.z = Math.PI / 2;
-    tire.castShadow = false;
     wGroup.add(tire);
 
     const rim = new THREE.Mesh(
@@ -502,7 +447,6 @@ export function buildMicroKart() {
     return wGroup;
   }
 
-  // Front Left & Front Right Steerable Wheels
   for (const sx of [-0.0056, 0.0056]) {
     const pivot = new THREE.Group();
     pivot.position.set(sx, 0.00185, 0.0054);
@@ -513,7 +457,6 @@ export function buildMicroKart() {
     wheelMeshes.push(wheel);
   }
 
-  // Rear Left & Rear Right Drive Wheels
   for (const sx of [-0.0059, 0.0059]) {
     const wheel = createWheelMesh(true);
     wheel.position.set(sx, 0.00215, -0.0054);
@@ -522,30 +465,19 @@ export function buildMicroKart() {
   }
 
   // -------------------------------------------------------------------------
-  // 4. MICRO-KART HEADLIGHT STUB (Detached so zero SpotLights exist in scene)
-  // -------------------------------------------------------------------------
-  const headlightTarget = new THREE.Object3D();
-  headlightTarget.position.set(0, -0.008, 0.072);
-  const headlight =
-      new THREE.SpotLight(0xfff4dc, 0.0, 0.22, Math.PI * 0.34, 0.78, 0.0);
-  headlight.position.set(0, 0.016, 0.0085);
-  headlight.target = headlightTarget;
-  headlight.visible = false;
-
-  // -------------------------------------------------------------------------
-  // 5. REALISTIC GLOWING FIRE SPARKS EMITTER (Lightweight 64-particle pool)
+  // 3. REALISTIC GLOWING FIRE SPARKS EMITTER (Lightweight 64-particle pool)
   // -------------------------------------------------------------------------
   const sparkCount = 64;
   const sparkPositions = new Float32Array(sparkCount * 3);
   const sparkColors = new Float32Array(sparkCount * 3);
-  const sparkLifeAttr = new Float32Array(sparkCount); // 1.0 = fresh hot ember, 0.0 = expired
+  const sparkLifeAttr = new Float32Array(sparkCount);
   const sparkSizes = new Float32Array(sparkCount);
   const sparkVelocities = [];
   const sparkAges = new Float32Array(sparkCount);
   const sparkMaxAges = new Float32Array(sparkCount);
 
   for (let i = 0; i < sparkCount; i++) {
-    sparkPositions[i * 3 + 1] = -10; // hidden initially
+    sparkPositions[i * 3 + 1] = -10;
     sparkVelocities.push(new THREE.Vector3());
     sparkAges[i] = 999;
     sparkMaxAges[i] = 0.30;
@@ -564,14 +496,14 @@ export function buildMicroKart() {
 
   const sparkMat = new THREE.ShaderMaterial({
     uniforms: {
-      uSparkScale: {value: 0.58},
-      tSceneDepth: {value: null},
-      uNearClip: {value: 0.0015},
-      uFarClip: {value: 12.0},
-      uFocus: {value: 0.12},
-      uAperture: {value: 0.0},
-      uMaxBlur: {value: 0.0},
-      uResolution: {value: new THREE.Vector2(1440, 900)},
+      uSparkScale: { value: 0.58 },
+      tSceneDepth: { value: null },
+      uNearClip: { value: 0.0015 },
+      uFarClip: { value: 12.0 },
+      uFocus: { value: 0.12 },
+      uAperture: { value: 0.0 },
+      uMaxBlur: { value: 0.0 },
+      uResolution: { value: new THREE.Vector2(1440, 900) },
     },
     transparent: true,
     depthTest: true,
@@ -589,8 +521,6 @@ export function buildMicroKart() {
         vLife = aLife;
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
         gl_Position = projectionMatrix * mvPosition;
-
-        // Smooth ember size curve: blooms quickly then shrinks as the ember cools
         float lifeScale = smoothstep(0.0, 0.12, aLife) * (0.38 + 0.62 * pow(aLife, 0.7));
         float basePointSize = clamp((4.8 * uSparkScale * aSize * lifeScale) / max(0.05, -mvPosition.z), 0.0, 16.0);
         gl_PointSize = aLife > 0.01 ? basePointSize : 0.0;
@@ -605,12 +535,10 @@ export function buildMicroKart() {
         float d = length(uv);
         if (d > 0.5) discard;
 
-        // Soft circular radial fire-ember profile
         float core = exp(-d * d * 34.0);
         float midFire = exp(-d * d * 10.5) * smoothstep(0.5, 0.08, d);
         float outerHalo = pow(max(0.0, 1.0 - d * 2.0), 2.2) * 0.65;
 
-        // Temperature color shift as the spark cools over its lifetime (white-yellow -> fiery orange -> deep ember red)
         vec3 deepEmber = vec3(0.92, 0.16, 0.02);
         vec3 midFlame = mix(deepEmber, vColor, clamp(vLife * 1.25, 0.0, 1.0));
         vec3 hotCenter = vec3(1.0, 0.96, 0.82);
@@ -636,10 +564,6 @@ export function buildMicroKart() {
   const _backDir = new THREE.Vector3();
   const _spawnPos = new THREE.Vector3();
 
-  /**
-   * Spins all 4 wheels proportional to forward velocity (`speed` in m/s)
-   * and steers front wheel pivots to `steerAngle` (`+0.45` for Left `A`, `-0.45` for Right `D`).
-   */
   function updateWheels(dt, speed, steerAngle = 0.0) {
     const now = performance.now();
     if (Math.abs(now - lastWheelUpdateTime) < 1e-4) {
@@ -669,7 +593,6 @@ export function buildMicroKart() {
 
     updateWheels(dt, state.speed, steerAngle);
 
-    // 3. Apply drift slip-angle yaw + suspension roll/hop to chassisGroup
     chassisGroup.rotation.y = THREE.MathUtils.lerp(
       chassisGroup.rotation.y,
       state.driftAngle || 0.0,
@@ -681,10 +604,9 @@ export function buildMicroKart() {
       Math.min(1, dt * 12)
     );
     const idleBob =
-      Math.abs(state.speed) > 0.005 ? Math.sin(performance.now() * 0.06) * 0.00018 : 0.0;
+      Math.abs(state.speed) > 0.005 ? Math.sin(performance.now() * 0.06) * 0.00014 : 0.0;
     chassisGroup.position.y = (state.hopHeight || 0.0) + idleBob;
 
-    // 4. Volumetric Mach-Diamond Exhaust Flames: active during turbo boost
     const isBoosting = state.boostActive > 0;
     const tSec = performance.now() * 0.001;
 
@@ -693,24 +615,27 @@ export function buildMicroKart() {
       if (!pGroup.visible) continue;
       const pIdx = pGroup.userData.pipeIndex || 0;
       const phase = pIdx * 1.85;
-      const crackle = 0.82 + 0.18 * Math.sin(tSec * 58.0 + phase) +
-          0.12 * Math.cos(tSec * 93.0 - phase * 1.4);
+      const crackle =
+        0.82 +
+        0.18 * Math.sin(tSec * 58.0 + phase) +
+        0.12 * Math.cos(tSec * 93.0 - phase * 1.4);
       const rScale = 0.96 + 0.08 * Math.sin(tSec * 44.0 + phase);
       const zScale = Math.max(0.55, 0.88 + 0.28 * crackle);
       pGroup.scale.set(rScale, rScale, zScale);
       if (pGroup.userData.jetMat) {
         pGroup.userData.jetMat.uniforms.uTime.value = tSec;
-        pGroup.userData.jetMat.uniforms.uIntensity.value =
-            Math.min(1.35, 0.92 * crackle);
+        pGroup.userData.jetMat.uniforms.uIntensity.value = Math.min(1.35, 0.92 * crackle);
       }
     }
 
-    // 5. Emit & step realistic glowing fire sparks
     const kScale = kartRoot.scale.x || 0.58;
     sparkMat.uniforms.uSparkScale.value = kScale;
 
     const isEmitting =
-      (state.isDrifting || isBoosting || state.curbRumble > 0.2 || Math.abs(state.steerInput || 0) > 0.32) &&
+      (state.isDrifting ||
+        isBoosting ||
+        state.curbRumble > 0.2 ||
+        Math.abs(state.steerInput || 0) > 0.32) &&
       Math.abs(state.speed) > 0.03;
     const emitCount = isEmitting ? 3 : 0;
 
@@ -780,11 +705,12 @@ export function buildMicroKart() {
     }
   }
 
-  // Group holding the procedural meshes so they can be hidden cleanly when kart_1to87.glb attaches
   const proceduralParts = [
     floorPan,
     noseCone,
     numberPlate,
+    ...sidePods,
+    ...exhaustPipes,
     engineBlock,
     rearWing,
     seat,
@@ -796,14 +722,15 @@ export function buildMicroKart() {
     wheelMeshes[3],
   ];
 
-  let attachedGlbScene = null;
+  let attachedCarScene = null;
+  let bmwLoaded = false;
   let cockpitRoadOnly = false;
 
   function setCockpitRoadOnly(isRoadOnly) {
     cockpitRoadOnly = Boolean(isRoadOnly);
     kartShadowQuad.visible = !cockpitRoadOnly;
-    if (attachedGlbScene) {
-      attachedGlbScene.visible = !cockpitRoadOnly;
+    if (attachedCarScene) {
+      attachedCarScene.visible = !cockpitRoadOnly;
     } else {
       for (const part of proceduralParts) {
         if (part) part.visible = !cockpitRoadOnly;
@@ -814,13 +741,7 @@ export function buildMicroKart() {
     }
   }
 
-  function attachGlbKart(glbScene) {
-    attachedGlbScene = glbScene;
-    glbScene.position.set(0, 0, 0);
-    glbScene.rotation.set(0, 0, 0);
-    glbScene.visible = !cockpitRoadOnly;
-    kartShadowQuad.visible = !cockpitRoadOnly;
-
+  function hideProceduralFallback() {
     for (const part of proceduralParts) {
       if (part) part.visible = false;
     }
@@ -829,11 +750,259 @@ export function buildMicroKart() {
         c.isMesh &&
         !flameCones.includes(c) &&
         !flameCones.includes(c.parent) &&
-        !tailLightGlowPlanes.includes(c)
+        !tailLightGlowPlanes.includes(c) &&
+        (!attachedCarScene || !attachedCarScene.getObjectById(c.id))
       ) {
         c.visible = false;
       }
     });
+  }
+
+  /**
+   * Attaches and optimizes the user's 2015 BMW 3.0 CSL Hommage R Concept FBX model:
+   * - Strips 39,600+ unseen interior dashboard micro-vertices for zero mobile lag.
+   * - Merges static single-material body parts by material into ~11 draw calls.
+   * - Extracts all 4 wheels (FL, FR, RL, RR), centers their vertices on each axle pivot,
+   *   and wires them to `wheelMeshes` (60 FPS spin) and `frontPivots` (smooth steering).
+   * - Converts materials to lightweight mobile-friendly MeshLambertMaterial with crisp textures.
+   */
+  function attachBmwFbxKart(fbxGroup, fallbackLiveryTex = null) {
+    bmwLoaded = true;
+    if (attachedCarScene && attachedCarScene.parent) {
+      attachedCarScene.parent.remove(attachedCarScene);
+    }
+
+    const bmwRoot = new THREE.Group();
+    bmwRoot.name = 'BMW_30_CSL_Hommage_R';
+    // Native FBX length is 4.95m; 0.00445 scales it to 22mm (1:87 HO scale) matching the physics collider!
+    const bmwScale = 0.00445;
+    bmwRoot.scale.setScalar(bmwScale);
+    bmwRoot.position.set(0, 0.0001, 0);
+
+    fbxGroup.updateMatrixWorld(true);
+
+    const convertedMatCache = new Map();
+    function optimizeBmwMaterial(oldMat) {
+      if (!oldMat) return new THREE.MeshLambertMaterial({ color: 0xffffff });
+      const cacheKey = oldMat.uuid || oldMat.name;
+      if (convertedMatCache.has(cacheKey)) {
+        return convertedMatCache.get(cacheKey);
+      }
+
+      const mName = (oldMat.name || '').toLowerCase();
+      let texMap = oldMat.map || null;
+      if (mName.includes('livery') && !texMap && fallbackLiveryTex) {
+        texMap = fallbackLiveryTex;
+      }
+      if (texMap) {
+        texMap.colorSpace = THREE.SRGBColorSpace;
+        texMap.generateMipmaps = false;
+        texMap.minFilter = THREE.LinearFilter;
+        texMap.magFilter = THREE.LinearFilter;
+        texMap.needsUpdate = true;
+      }
+
+      const mat = new THREE.MeshLambertMaterial({
+        name: oldMat.name || 'bmw_mat',
+        color: 0xffffff,
+        map: texMap,
+        transparent: Boolean(oldMat.transparent),
+        opacity: oldMat.opacity !== undefined ? oldMat.opacity : 1.0,
+        side: THREE.FrontSide,
+      });
+
+      if (mName.includes('windwos') || mName.includes('glass_surr')) {
+        // Sleek dark smoked racing windshield & side windows
+        mat.color.setHex(0x0b1524);
+        mat.emissive.setHex(0x071222);
+        mat.emissiveIntensity = 0.45;
+        mat.transparent = true;
+        mat.opacity = 0.84;
+      } else if (mName.includes('glass_l') || mName.includes('light_glass')) {
+        mat.color.setHex(0xd8f0ff);
+        mat.emissive.setHex(0x285577);
+        mat.emissiveIntensity = 0.55;
+        mat.transparent = true;
+        mat.opacity = 0.65;
+      } else if (mName.includes('break_light')) {
+        mat.color.setHex(0xff1428);
+        mat.emissive.setHex(0xff0a1e);
+        mat.emissiveIntensity = 1.9;
+        mat.transparent = true;
+        mat.opacity = 0.92;
+      } else if (mName.includes('light_emiss') || mName.includes('lights')) {
+        mat.color.setHex(0xffffff);
+        mat.emissive.setHex(0xffe8b0);
+        mat.emissiveIntensity = 0.95;
+      } else if (mName.includes('livery')) {
+        // Full showroom brightness for the BMW M-Performance White/Blue/Red/Gold livery
+        mat.color.setHex(0xffffff);
+        mat.emissive.setHex(0x222630);
+        mat.emissiveIntensity = 0.28;
+      } else if (mName.includes('rim') || mName.includes('wheel')) {
+        mat.color.setHex(0xf5d278);
+        mat.emissive.setHex(0x241a08);
+        mat.emissiveIntensity = 0.24;
+      } else if (mName.includes('tire') || mName.includes('tyre')) {
+        mat.color.setHex(0x1b1e24);
+        mat.emissive.setHex(0x06080b);
+        mat.emissiveIntensity = 0.2;
+      } else if (mName.includes('carbon')) {
+        mat.color.setHex(0x242932);
+        mat.emissive.setHex(0x0a0d12);
+        mat.emissiveIntensity = 0.22;
+      } else if (mName.includes('badges')) {
+        mat.color.setHex(0xffffff);
+        mat.emissive.setHex(0x20242c);
+        mat.emissiveIntensity = 0.28;
+        mat.alphaTest = 0.1;
+      } else {
+        mat.color.setHex(0xeef3fa);
+        mat.emissive.setHex(0x141820);
+        mat.emissiveIntensity = 0.22;
+      }
+
+      convertedMatCache.set(cacheKey, mat);
+      return mat;
+    }
+
+    const wheelBuckets = { FL: [], FR: [], RL: [], RR: [] };
+    const singleMatBuckets = new Map();
+    const multiMatMeshes = [];
+
+    fbxGroup.traverse((child) => {
+      if (!child.isMesh || !child.geometry) return;
+      const n = child.name || '';
+      // Skip the 39,648 hidden interior dashboard micro-vertices for locked 60 FPS mobile performance
+      if (n.startsWith('csl_hommage_r_int')) {
+        child.geometry.dispose();
+        return;
+      }
+
+      const isWheelPart = /(_WHEEL_|_TYRE_|_ROTOR_)/i.test(n);
+      if (isWheelPart) {
+        const b = new THREE.Box3().setFromObject(child);
+        const center = new THREE.Vector3();
+        b.getCenter(center);
+        const key = (center.z >= 0 ? 'F' : 'R') + (center.x >= 0 ? 'L' : 'R');
+        wheelBuckets[key].push({ mesh: child, center });
+        return;
+      }
+
+      if (Array.isArray(child.material)) {
+        const g = child.geometry.clone();
+        g.applyMatrix4(child.matrixWorld);
+        const newMats = child.material.map((m) => optimizeBmwMaterial(m));
+        const m = new THREE.Mesh(g, newMats);
+        m.castShadow = false;
+        m.receiveShadow = false;
+        m.frustumCulled = true;
+        multiMatMeshes.push(m);
+      } else {
+        const optMat = optimizeBmwMaterial(child.material);
+        const mKey = optMat.uuid;
+        if (!singleMatBuckets.has(mKey)) {
+          singleMatBuckets.set(mKey, { mat: optMat, geos: [] });
+        }
+        const g = child.geometry.clone();
+        g.applyMatrix4(child.matrixWorld);
+        for (const attrName of Object.keys(g.attributes)) {
+          if (attrName !== 'position' && attrName !== 'normal' && attrName !== 'uv') {
+            g.deleteAttribute(attrName);
+          }
+        }
+        if (!g.attributes.normal) {
+          g.computeVertexNormals();
+        }
+        singleMatBuckets.get(mKey).geos.push(g);
+      }
+    });
+
+    // 1. Add merged single-material body groups (~11 draw calls total)
+    for (const { mat, geos } of singleMatBuckets.values()) {
+      if (geos.length === 0) continue;
+      const mergedGeo = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+      if (mergedGeo) {
+        mergedGeo.computeBoundingSphere();
+        const mergedMesh = new THREE.Mesh(mergedGeo, mat);
+        mergedMesh.castShadow = false;
+        mergedMesh.receiveShadow = false;
+        mergedMesh.frustumCulled = true;
+        bmwRoot.add(mergedMesh);
+      }
+    }
+
+    // 2. Add remaining multi-material exterior body parts
+    for (const m of multiMatMeshes) {
+      if (m.geometry) m.geometry.computeBoundingSphere();
+      bmwRoot.add(m);
+    }
+
+    // 3. Build axle-centered spinning & steerable wheel groups for FL, FR, RL, RR
+    wheelMeshes.length = 0;
+    frontPivots.length = 0;
+
+    for (const [cornerKey, parts] of Object.entries(wheelBuckets)) {
+      if (parts.length === 0) continue;
+      const unionBox = new THREE.Box3();
+      for (const p of parts) {
+        unionBox.expandByObject(p.mesh);
+      }
+      const axleCenter = new THREE.Vector3();
+      unionBox.getCenter(axleCenter);
+
+      const steerPivot = new THREE.Group();
+      steerPivot.name = `BMW_Pivot_${cornerKey}`;
+      steerPivot.position.copy(axleCenter);
+
+      const spinGroup = new THREE.Group();
+      spinGroup.name = `BMW_Spin_${cornerKey}`;
+      steerPivot.add(spinGroup);
+
+      for (const p of parts) {
+        const g = p.mesh.geometry.clone();
+        g.applyMatrix4(p.mesh.matrixWorld);
+        g.translate(-axleCenter.x, -axleCenter.y, -axleCenter.z);
+        g.computeBoundingSphere();
+        const optMat = Array.isArray(p.mesh.material)
+          ? p.mesh.material.map((m) => optimizeBmwMaterial(m))
+          : optimizeBmwMaterial(p.mesh.material);
+        const wMesh = new THREE.Mesh(g, optMat);
+        wMesh.castShadow = false;
+        wMesh.receiveShadow = false;
+        spinGroup.add(wMesh);
+      }
+
+      bmwRoot.add(steerPivot);
+      wheelMeshes.push(spinGroup);
+      if (cornerKey === 'FL' || cornerKey === 'FR') {
+        frontPivots.push(steerPivot);
+      }
+    }
+
+    // Align twin exhaust flames & ruby tail-light glow halos with the BMW 3.0 CSL Hommage R rear
+    if (flameCones[0]) flameCones[0].position.set(-0.0014, 0.0016, -0.0102);
+    if (flameCones[1]) flameCones[1].position.set(0.0014, 0.0016, -0.0102);
+    if (tailLightGlowPlanes[0]) tailLightGlowPlanes[0].position.set(-0.0021, 0.0039, -0.0096);
+    if (tailLightGlowPlanes[1]) tailLightGlowPlanes[1].position.set(0.0021, 0.0039, -0.0096);
+
+    attachedCarScene = bmwRoot;
+    hideProceduralFallback();
+    bmwRoot.visible = !cockpitRoadOnly;
+    kartShadowQuad.visible = !cockpitRoadOnly;
+    chassisGroup.add(bmwRoot);
+  }
+
+  function attachGlbKart(glbScene) {
+    // If the user's BMW 3.0 CSL Hommage R is already attached, keep the BMW as primary!
+    if (bmwLoaded) return;
+    attachedCarScene = glbScene;
+    glbScene.position.set(0, 0, 0);
+    glbScene.rotation.set(0, 0, 0);
+    glbScene.visible = !cockpitRoadOnly;
+    kartShadowQuad.visible = !cockpitRoadOnly;
+
+    hideProceduralFallback();
 
     const glbFrontWheels = [];
     const glbAllWheels = [];
@@ -842,68 +1011,6 @@ export function buildMicroKart() {
         child.castShadow = false;
         child.receiveShadow = false;
         child.frustumCulled = true;
-        if (child.geometry && !child.geometry.attributes.normal) {
-          child.geometry.computeVertexNormals();
-        }
-        const origMats = Array.isArray(child.material) ? child.material : [child.material];
-        const newMats = origMats.map((oldMat) => {
-          if (!oldMat) return oldMat;
-          const mName = (oldMat.name || '').toLowerCase();
-          const lambert = new THREE.MeshLambertMaterial({
-            name: oldMat.name || '',
-            color: oldMat.color ? oldMat.color.clone() : new THREE.Color(0xffffff),
-            map: oldMat.map || null,
-            vertexColors: Boolean(oldMat.vertexColors),
-            transparent: Boolean(oldMat.transparent),
-            opacity: oldMat.opacity !== undefined ? oldMat.opacity : 1.0,
-            side: oldMat.side !== undefined ? oldMat.side : THREE.FrontSide,
-          });
-          if (mName.includes('visor')) {
-            lambert.color.setHex(0x050608);
-            lambert.emissive.setHex(0x000000);
-            lambert.emissiveIntensity = 0.0;
-          } else if (mName.includes('helmet') || mName.includes('white')) {
-            lambert.color.setHex(0xf4f6fa);
-            lambert.emissive.setHex(0x282e3b);
-            lambert.emissiveIntensity = 0.35;
-          } else if (mName.includes('crimson') || mName.includes('red')) {
-            lambert.color.setHex(0xe01b24);
-            lambert.emissive.setHex(0x4a080c);
-            lambert.emissiveIntensity = 0.42;
-          } else if (mName.includes('gold')) {
-            lambert.color.setHex(0xf0be3c);
-            lambert.emissive.setHex(0x4a360c);
-            lambert.emissiveIntensity = 0.38;
-          } else if (mName.includes('gunmetal')) {
-            lambert.color.setHex(0x3e4756);
-            lambert.emissive.setHex(0x161a22);
-            lambert.emissiveIntensity = 0.38;
-          } else if (mName.includes('suit')) {
-            lambert.color.setHex(0x2a303c);
-            lambert.emissive.setHex(0x0d1016);
-            lambert.emissiveIntensity = 0.32;
-          } else if (mName.includes('tire') || mName.includes('rubber')) {
-            lambert.color.setHex(0x16191e);
-            lambert.emissive.setHex(0x06080b);
-            lambert.emissiveIntensity = 0.25;
-          } else if (mName.includes('headlight')) {
-            lambert.color.setHex(0xffffff);
-            lambert.emissive.setHex(0xfff4d8);
-            lambert.emissiveIntensity = 2.2;
-          } else if (mName.includes('rainlight') || mName.includes('taillight')) {
-            lambert.color.setHex(0xff0018);
-            lambert.emissive.setHex(0xff1428);
-            lambert.emissiveIntensity = 1.85;
-            lambert.toneMapped = false;
-          } else if (mName.includes('chrome')) {
-            lambert.color.setHex(0x7d8796);
-            lambert.emissive.setHex(0x22262e);
-            lambert.emissiveIntensity = 0.32;
-          }
-          if (oldMat.dispose) oldMat.dispose();
-          return lambert;
-        });
-        child.material = Array.isArray(child.material) ? newMats : newMats[0];
       }
       if (child.name === 'Wheel_FL' || child.name === 'Wheel_FR') {
         glbFrontWheels.push(child);
@@ -914,7 +1021,6 @@ export function buildMicroKart() {
     });
 
     chassisGroup.add(glbScene);
-    // Register GLB wheels for 60FPS spin & steering
     if (glbAllWheels.length > 0) {
       wheelMeshes.push(...glbAllWheels);
     }
@@ -933,5 +1039,6 @@ export function buildMicroKart() {
     updateWheels,
     updateKartVisuals,
     attachGlbKart,
+    attachBmwFbxKart,
   };
 }

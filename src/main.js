@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -28,27 +29,33 @@ async function initApp() {
   //    (window.innerHeight > window.innerWidth) and stretches 100% edge-to-edge!
   // -------------------------------------------------------------------------
   function updateAutoLandscapeStageSize() {
-    const vw = Math.max(1, window.innerWidth);
-    const vh = Math.max(1, window.innerHeight);
+    const rawW = document.documentElement.clientWidth || window.innerWidth || 1;
+    const rawH = document.documentElement.clientHeight || window.innerHeight || 1;
+    const vw = Math.max(1, rawW);
+    const vh = Math.max(1, rawH);
     const isPortrait = vh > vw;
-
-    if (gameContainer) {
-      gameContainer.classList.toggle('force-landscape-rotate', isPortrait);
-      gameContainer.style.width = isPortrait ? `${vh}px` : `${vw}px`;
-      gameContainer.style.height = isPortrait ? `${vw}px` : `${vh}px`;
-    }
 
     const stageW = isPortrait ? vh : vw;
     const stageH = isPortrait ? vw : vh;
 
+    if (gameContainer) {
+      gameContainer.classList.toggle('force-landscape-rotate', isPortrait);
+      gameContainer.style.width = `${stageW}px`;
+      gameContainer.style.height = `${stageH}px`;
+    }
+
     if (widescreenStage) {
       widescreenStage.style.width = `${stageW}px`;
       widescreenStage.style.height = `${stageH}px`;
+      widescreenStage.style.setProperty('--stage-w', `${stageW}px`);
+      widescreenStage.style.setProperty('--stage-h', `${stageH}px`);
     }
+    document.documentElement.style.setProperty('--stage-w', `${stageW}px`);
+    document.documentElement.style.setProperty('--stage-h', `${stageH}px`);
 
     return {
-      width: Math.max(320, stageW),
-      height: Math.max(180, stageH),
+      width: Math.max(240, stageW),
+      height: Math.max(160, stageH),
       isPortrait,
     };
   }
@@ -619,6 +626,67 @@ async function initApp() {
     loadFromCandidateIndex(0);
   }
 
+  const fbxLoader = new FBXLoader();
+  const texLoader = new THREE.TextureLoader();
+  let bmwFbxLoaded = false;
+  let bmwFbxLoading = false;
+
+  function tryLoadBmwCslFbx() {
+    if (bmwFbxLoaded || bmwFbxLoading) return;
+    bmwFbxLoading = true;
+
+    const fallbackLiveryTex = texLoader.load('/assets/models/bmw_csl/UpLiv.jpg', (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.generateMipmaps = false;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tryInitTex(tex);
+    });
+
+    fbxLoader.load(
+      '/assets/models/bmw_csl/FINAL_MODEL_CSLR.fbx',
+      (fbxGroup) => {
+        bmwFbxLoading = false;
+        bmwFbxLoaded = true;
+        loadedGlbStatus.kart = true;
+        settledGlbStatus.kart = true;
+        glbDownloadProgress.kart = 1.0;
+        try {
+          if (microKart.attachBmwFbxKart) {
+            microKart.attachBmwFbxKart(fbxGroup, fallbackLiveryTex);
+          }
+          optimizeSceneHierarchyForMobile(microKart.chassisGroup);
+          initObjectTextures(microKart.chassisGroup);
+          syncKartScaleForCamera(activeCameraMode);
+        } catch (err) {
+          console.error('BMW 3.0 CSL FBX attach error:', err);
+        }
+        updateGlbBadge();
+        notifyWarmupProgress();
+        if (isCircuitReady) {
+          warmUpSceneOnGpu();
+        } else {
+          checkCircuitReady();
+        }
+      },
+      (xhr) => {
+        if (xhr && xhr.loaded > 0) {
+          const total = xhr.total > 0 ? xhr.total : 5960000;
+          glbDownloadProgress.kart = Math.min(0.95, xhr.loaded / total);
+          notifyWarmupProgress();
+        }
+      },
+      (err) => {
+        console.warn('BMW 3.0 CSL FBX fallback to GLB kart:', err);
+        bmwFbxLoading = false;
+        tryLoadGlbAsset('kart_1to87.glb', 'kart', (glbScene) => {
+          microKart.attachGlbKart(glbScene);
+          syncKartScaleForCamera(activeCameraMode);
+        });
+      }
+    );
+  }
+
   function checkAndLoadGlbModels() {
     tryLoadGlbAsset('desk_props.glb', 'desk', (glbScene) => {
       if (diorama.calibrateDeskPropsGlb) {
@@ -639,10 +707,8 @@ async function initApp() {
       disposeGroupGeometries(coaster.trackGroup);
       glbContainerGroup.add(glbScene);
     });
-    tryLoadGlbAsset('kart_1to87.glb', 'kart', (glbScene) => {
-      microKart.attachGlbKart(glbScene);
-      syncKartScaleForCamera(activeCameraMode);
-    });
+    // Load the user's 2015 BMW 3.0 CSL Hommage R Concept 3D model!
+    tryLoadBmwCslFbx();
     tryLoadGlbAsset('room_environment.glb', 'room', (glbScene) => {
       if (roomEnv.calibrateRoomEnvironmentGlb) {
         roomEnv.calibrateRoomEnvironmentGlb(glbScene);
