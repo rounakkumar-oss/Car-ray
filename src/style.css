@@ -2073,43 +2073,44 @@ body {
   z-index: 2;
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 46%, rgba(5, 7, 17, 0) 32%, rgba(5, 7, 17, 0.72) 100%),
-    linear-gradient(180deg, rgba(5, 7, 17, 0.85) 0%, rgba(5, 7, 17, 0) 18%, rgba(5, 7, 17, 0) 72%, rgba(5, 7, 17, 0.92) 100%),
-    linear-gradient(90deg, rgba(6, 9, 24, 0.78) 0%, rgba(6, 9, 24, 0) 24%, rgba(6, 9, 24, 0) 76%, rgba(6, 9, 24, 0.78) 100%);
+    radial-gradient(circle at 50% 48%, rgba(5, 7, 17, 0) 40%, rgba(5, 7, 17, 0.62) 100%),
+    linear-gradient(180deg, rgba(5, 7, 17, 0.78) 0%, rgba(5, 7, 17, 0) 15%, rgba(5, 7, 17, 0) 76%, rgba(5, 7, 17, 0.9) 100%),
+    linear-gradient(90deg, rgba(6, 9, 24, 0.68) 0%, rgba(6, 9, 24, 0) 20%, rgba(6, 9, 24, 0) 80%, rgba(6, 9, 24, 0.68) 100%);
 }
 
-/* 1. TOP HEADER BAR */
+/* 1. TOP HEADER BAR (HOME, GARAGE TITLE, COMPACT CAR TELEMETRY HUD, COINS, DIAMONDS, SETTINGS, FULLSCREEN) */
 .aaa-garage-top-bar {
   position: relative;
-  z-index: 10;
+  z-index: 25;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 16px;
-  background: linear-gradient(180deg, rgba(8, 12, 28, 0.92) 0%, rgba(8, 12, 28, 0.45) 100%);
-  border-bottom: 1px solid rgba(56, 189, 248, 0.28);
+  padding: 6px 14px;
+  background: linear-gradient(180deg, rgba(6, 10, 24, 0.94) 0%, rgba(8, 13, 30, 0.68) 100%);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.32);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.55);
 }
 
 .aaa-top-left-group {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .aaa-home-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
-  background: linear-gradient(135deg, rgba(30, 58, 138, 0.88) 0%, rgba(88, 28, 135, 0.85) 100%);
-  border: 1.5px solid rgba(56, 189, 248, 0.75);
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.9) 0%, rgba(88, 28, 135, 0.88) 100%);
+  border: 1.5px solid rgba(56, 189, 248, 0.78);
   border-radius: 8px;
   transform: skewX(-10deg);
   color: #ffffff;
   font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 900;
   letter-spacing: 0.08em;
   cursor: pointer;
@@ -2118,8 +2119,8 @@ body {
 }
 
 .aaa-home-btn svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   stroke: #facc15;
   transform: skewX(10deg);
 }
@@ -2143,7 +2144,7 @@ body {
   margin: 0;
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: clamp(16px, 2.3vw, 24px);
+  font-size: clamp(15px, 2vw, 22px);
   font-weight: 900;
   letter-spacing: 0.1em;
   background: linear-gradient(180deg, #ffffff 15%, #7dd3fc 65%, #facc15 100%);
@@ -2155,84 +2156,188 @@ body {
 
 .aaa-garage-subtitle {
   font-family: 'Orbitron', sans-serif;
-  font-size: 7.5px;
+  font-size: 7px;
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.15em;
   color: #a855f7;
   text-transform: uppercase;
 }
 
-/* Header Map Quick Selector Pills */
-.aaa-header-map-pills {
+/* Header-Integrated Selected Vehicle Telemetry HUD (keeps 3D Center Showroom 100% open) */
+.aaa-car-telemetry-hud {
+  flex: 1;
+  max-width: 550px;
   display: flex;
   align-items: center;
-  gap: 5px;
-  background: rgba(9, 13, 28, 0.78);
-  padding: 3px 5px;
-  border-radius: 10px;
-  border: 1px solid rgba(139, 92, 246, 0.38);
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 12px;
+  border-radius: 9px;
+  background: linear-gradient(90deg, rgba(8, 13, 29, 0.9) 0%, rgba(17, 24, 52, 0.84) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.36);
+  box-shadow: inset 0 0 14px rgba(14, 165, 233, 0.12);
 }
 
-.aaa-map-pill {
-  padding: 5px 9px;
-  border-radius: 7px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #94a3b8;
+.aaa-car-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: left;
+  min-width: 0;
+}
+
+.aaa-car-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.aaa-origin-pill,
+.aaa-class-pill,
+.aaa-hp-pill,
+.aaa-selection-pill {
+  padding: 1.5px 5px;
+  border-radius: 4px;
   font-family: 'Orbitron', sans-serif;
-  font-size: 8px;
-  font-weight: 800;
+  font-size: 6.5px;
+  font-weight: 900;
   letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: all 0.14s ease;
   white-space: nowrap;
 }
 
-.aaa-map-pill:hover {
-  color: #ffffff;
-  background: rgba(56, 189, 248, 0.15);
+.aaa-origin-pill {
+  background: rgba(14, 165, 233, 0.32);
+  border: 1px solid #38bdf8;
+  color: #e0f2fe;
 }
 
-.aaa-map-pill.active {
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.42) 0%, rgba(124, 58, 237, 0.48) 100%);
-  border-color: #38bdf8;
+.aaa-origin-pill.is-original {
+  background: rgba(245, 158, 11, 0.32);
+  border-color: #facc15;
+  color: #fef08a;
+}
+
+.aaa-class-pill {
+  background: rgba(124, 58, 237, 0.32);
+  border: 1px solid #a855f7;
+  color: #f3e8ff;
+}
+
+.aaa-hp-pill {
+  background: rgba(250, 204, 21, 0.22);
+  border: 1px solid #facc15;
+  color: #fde047;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.aaa-selection-pill {
+  background: rgba(16, 185, 129, 0.28);
+  border: 1px solid #10b981;
+  color: #6ee7b7;
+}
+
+.aaa-selected-car-name {
+  margin: 0;
+  font-family: 'Orbitron', sans-serif;
+  font-style: italic;
+  font-size: clamp(11px, 1.35vw, 14px);
+  font-weight: 900;
   color: #ffffff;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aaa-selected-drivetrain {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7.5px;
+  color: #93c5fd;
+  white-space: nowrap;
+}
+
+.aaa-telemetry-bars {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(84px, 104px));
+  gap: 3px 9px;
+  flex-shrink: 0;
+}
+
+.aaa-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5px;
+}
+
+.aaa-stat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.aaa-stat-lbl {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 6.5px;
+  font-weight: 800;
+  color: #cbd5e1;
+}
+
+.aaa-stat-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7.5px;
+  font-weight: 800;
+  color: #facc15;
+}
+
+.aaa-stat-track {
+  height: 4.5px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  overflow: hidden;
+}
+
+.aaa-stat-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0ea5e9 0%, #a855f7 55%, #facc15 100%);
+  transition: width 0.2s ease-out;
 }
 
 /* Top-Right Progress & Currencies */
 .aaa-top-right-currencies {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .aaa-progress-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 5px;
+  padding: 4px 8px;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(15, 23, 42, 0.88);
   border: 1px solid rgba(168, 85, 247, 0.55);
   transform: skewX(-10deg);
 }
 
 .aaa-prog-badge {
   transform: skewX(10deg);
-  padding: 2px 6px;
+  padding: 2px 5px;
   border-radius: 4px;
   background: linear-gradient(135deg, #7c3aed, #2563eb);
   color: #ffffff;
   font-family: 'Orbitron', sans-serif;
-  font-size: 7.5px;
+  font-size: 7px;
   font-weight: 900;
 }
 
 .aaa-prog-text {
   transform: skewX(10deg);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 800;
   color: #e2e8f0;
 }
@@ -2241,33 +2346,33 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 11px;
+  padding: 4px 9px;
   border-radius: 8px;
-  background: rgba(10, 15, 30, 0.9);
+  background: rgba(10, 15, 30, 0.92);
   transform: skewX(-10deg);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 800;
 }
 
 .aaa-currency-pill.is-cash {
-  border: 1.5px solid rgba(16, 185, 129, 0.65);
-  box-shadow: inset 0 0 10px rgba(16, 185, 129, 0.18);
+  border: 1.5px solid rgba(250, 204, 21, 0.72);
+  box-shadow: inset 0 0 10px rgba(250, 204, 21, 0.18);
 }
 
 .aaa-currency-pill.is-cash .aaa-curr-icon {
-  color: #10b981;
+  color: #facc15;
   font-weight: 900;
   transform: skewX(10deg);
 }
 
 .aaa-currency-pill.is-gold {
-  border: 1.5px solid rgba(250, 204, 21, 0.75);
-  box-shadow: inset 0 0 10px rgba(250, 204, 21, 0.2);
+  border: 1.5px solid rgba(56, 189, 248, 0.75);
+  box-shadow: inset 0 0 10px rgba(56, 189, 248, 0.2);
 }
 
 .aaa-currency-pill.is-gold .aaa-curr-icon {
-  color: #facc15;
+  color: #38bdf8;
   transform: skewX(10deg);
 }
 
@@ -2277,8 +2382,8 @@ body {
 }
 
 .aaa-header-icon-btn {
-  width: 32px;
-  height: 32px;
+  width: 31px;
+  height: 31px;
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.9);
   border: 1px solid rgba(56, 189, 248, 0.55);
@@ -2297,8 +2402,8 @@ body {
 }
 
 .aaa-header-icon-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
 .aaa-header-icon-btn:hover {
@@ -2345,37 +2450,37 @@ body {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-/* 2. MIDDLE WORKSPACE (LEFT UPGRADE PANEL | CENTER 3D STAGE | RIGHT ACTION PANEL) */
+/* 2. MIDDLE WORKSPACE (LEFT UPGRADE PANEL | CENTER 3D STAGE | RIGHT MODE & DRIVE PANEL) */
 .aaa-garage-middle {
   position: relative;
-  z-index: 10;
+  z-index: 20;
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 192px 1fr 202px;
+  grid-template-columns: 206px 1fr 224px;
   align-items: center;
-  padding: 4px 16px;
+  padding: 4px 14px;
   pointer-events: none;
 }
 
-/* LEFT SIDE PANEL: ENGINE, HANDLING, SUSPENSION, NITRO, UPGRADE, CUSTOMIZE */
+/* LEFT SIDE PANEL: ENGINE, HANDLING, SUSPENSION, NITRO + UPGRADE & CUSTOMIZE */
 .aaa-left-upgrade-panel {
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .aaa-upgrade-tab-btn {
   display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 11px;
-  background: linear-gradient(90deg, rgba(11, 17, 36, 0.92) 0%, rgba(23, 37, 84, 0.75) 100%);
-  border: 1px solid rgba(56, 189, 248, 0.35);
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 10px;
+  background: linear-gradient(90deg, rgba(9, 14, 31, 0.92) 0%, rgba(23, 37, 84, 0.78) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.36);
   border-left: 4px solid #38bdf8;
   border-radius: 8px;
-  transform: skewX(-6deg);
+  transform: skewX(-5deg);
   color: #e2e8f0;
   cursor: pointer;
   text-align: left;
@@ -2383,33 +2488,41 @@ body {
 }
 
 .aaa-upgrade-tab-btn:hover {
-  transform: skewX(-6deg) translateX(3px);
-  border-color: rgba(56, 189, 248, 0.85);
+  transform: skewX(-5deg) translateX(3px);
+  border-color: rgba(56, 189, 248, 0.88);
 }
 
 .aaa-upgrade-tab-btn.active {
   background: linear-gradient(90deg, rgba(30, 58, 138, 0.96) 0%, rgba(109, 40, 217, 0.88) 100%);
   border-color: #facc15;
   border-left: 4px solid #facc15;
-  transform: skewX(-6deg) translateX(4px);
+  transform: skewX(-5deg) translateX(4px);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.28);
+}
+
+.aaa-up-card-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  transform: skewX(5deg);
 }
 
 .aaa-up-icon {
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  background: rgba(14, 165, 233, 0.2);
-  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: rgba(14, 165, 233, 0.22);
+  border: 1px solid rgba(56, 189, 248, 0.48);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #38bdf8;
-  transform: skewX(6deg);
   flex-shrink: 0;
 }
 
 .aaa-upgrade-tab-btn.active .aaa-up-icon {
-  background: rgba(250, 204, 21, 0.22);
+  background: rgba(250, 204, 21, 0.24);
   border-color: #facc15;
   color: #facc15;
 }
@@ -2422,23 +2535,31 @@ body {
 .aaa-up-text {
   display: flex;
   flex-direction: column;
+  gap: 2px;
   flex: 1;
-  transform: skewX(6deg);
+  min-width: 0;
+}
+
+.aaa-up-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
 }
 
 .aaa-up-name {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 900;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
   color: #ffffff;
 }
 
 .aaa-up-lvl {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8.2px;
-  font-weight: 700;
+  font-size: 7.5px;
+  font-weight: 800;
   color: #7dd3fc;
 }
 
@@ -2446,12 +2567,47 @@ body {
   color: #fde047;
 }
 
+.aaa-up-prog-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(9, 13, 28, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  overflow: hidden;
+}
+
+.aaa-up-prog-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8 0%, #a855f7 60%, #facc15 100%);
+  transition: width 0.2s ease;
+}
+
 .aaa-up-chevron {
   font-family: 'Orbitron', sans-serif;
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 900;
-  color: rgba(148, 163, 184, 0.75);
-  transform: skewX(6deg);
+  color: rgba(148, 163, 184, 0.85);
+  transition: transform 0.16s ease, color 0.16s ease;
+}
+
+.aaa-upgrade-tab-btn.active .aaa-up-chevron {
+  color: #fde047;
+  transform: rotate(180deg);
+}
+
+.aaa-up-expand-detail {
+  display: none;
+  transform: skewX(5deg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  color: #cbd5e1;
+  padding-top: 2px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.aaa-upgrade-tab-btn.active .aaa-up-expand-detail {
+  display: block;
 }
 
 /* Functional UPGRADE & CUSTOMIZE buttons on Left Panel */
@@ -2459,238 +2615,127 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 11px;
+  padding: 7px 10px;
   border-radius: 8px;
-  transform: skewX(-6deg);
+  transform: skewX(-5deg);
   cursor: pointer;
-  transition: transform 0.14s ease, border-color 0.14s ease;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
 }
 
 .aaa-left-action-btn.is-upgrade-action {
-  background: linear-gradient(135deg, #facc15 0%, #f59e0b 100%);
-  border: 1.5px solid #fef08a;
+  background: linear-gradient(135deg, #fde047 0%, #facc15 50%, #f59e0b 100%);
+  border: 1.5px solid #ffffff;
   color: #090d16;
+  box-shadow: 0 4px 14px rgba(250, 204, 21, 0.35);
 }
 
 .aaa-left-action-btn.is-upgrade-action:hover {
-  transform: skewX(-6deg) translateY(-1px);
+  transform: skewX(-5deg) translateY(-1px) scale(1.01);
 }
 
 .aaa-left-action-btn.is-customize-action {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.92) 0%, rgba(37, 99, 235, 0.92) 100%);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.95) 0%, rgba(37, 99, 235, 0.92) 100%);
   border: 1.5px solid #c084fc;
   color: #ffffff;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.32);
 }
 
 .aaa-left-action-btn.is-customize-action:hover,
 .aaa-left-action-btn.is-customize-action.active {
-  transform: skewX(-6deg) translateY(-1px);
+  transform: skewX(-5deg) translateY(-1px);
   border-color: #facc15;
+}
+
+.aaa-act-left-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transform: skewX(5deg);
+}
+
+.aaa-act-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .aaa-act-left {
   display: flex;
   flex-direction: column;
   text-align: left;
-  transform: skewX(6deg);
 }
 
 .aaa-act-title {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 900;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
 }
 
 .aaa-act-sub {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 7.5px;
+  font-size: 7px;
   font-weight: 800;
   opacity: 0.92;
 }
 
 .aaa-act-price {
-  transform: skewX(6deg);
-  padding: 3px 7px;
+  transform: skewX(5deg);
+  padding: 2.5px 6px;
   border-radius: 5px;
-  background: rgba(9, 13, 22, 0.9);
+  background: rgba(9, 13, 22, 0.92);
   color: #facc15;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 900;
 }
 
 .aaa-act-badge {
-  transform: skewX(6deg);
+  transform: skewX(5deg);
   font-size: 13px;
+  font-weight: 900;
 }
 
-/* CENTER STAGE OVERLAY */
+/* CENTER STAGE OVERLAY (100% UNOBSTRUCTED 3D HERO CAR SHOWROOM) */
 .aaa-center-stage {
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  padding: 2px 10px;
+  padding: 2px 8px;
   pointer-events: none;
 }
 
-.aaa-car-telemetry-hud {
+.aaa-showroom-open-spacer {
+  flex: 1;
   width: 100%;
-  max-width: 500px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 6px 14px;
-  border-radius: 10px;
-  background: rgba(8, 12, 26, 0.86);
-  border: 1px solid rgba(56, 189, 248, 0.32);
-}
-
-.aaa-car-title-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  text-align: left;
-}
-
-.aaa-car-badges-row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-
-.aaa-origin-pill,
-.aaa-class-pill,
-.aaa-hp-pill,
-.aaa-selection-pill {
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Orbitron', sans-serif;
-  font-size: 7px;
-  font-weight: 900;
-  letter-spacing: 0.05em;
-}
-
-.aaa-origin-pill {
-  background: rgba(14, 165, 233, 0.32);
-  border: 1px solid #38bdf8;
-  color: #e0f2fe;
-}
-
-.aaa-origin-pill.is-original {
-  background: rgba(245, 158, 11, 0.32);
-  border-color: #facc15;
-  color: #fef08a;
-}
-
-.aaa-class-pill {
-  background: rgba(124, 58, 237, 0.32);
-  border: 1px solid #a855f7;
-  color: #f3e8ff;
-}
-
-.aaa-hp-pill {
-  background: rgba(250, 204, 21, 0.22);
-  border: 1px solid #facc15;
-  color: #fde047;
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.aaa-selection-pill {
-  background: rgba(16, 185, 129, 0.28);
-  border: 1px solid #10b981;
-  color: #6ee7b7;
-}
-
-.aaa-selected-car-name {
-  margin: 0;
-  font-family: 'Orbitron', sans-serif;
-  font-style: italic;
-  font-size: clamp(12px, 1.55vw, 15.5px);
-  font-weight: 900;
-  color: #ffffff;
-}
-
-.aaa-selected-drivetrain {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
-  color: #93c5fd;
-}
-
-.aaa-telemetry-bars {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(94px, 112px));
-  gap: 5px 10px;
-}
-
-.aaa-stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.aaa-stat-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.aaa-stat-lbl {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 7px;
-  font-weight: 800;
-  color: #cbd5e1;
-}
-
-.aaa-stat-num {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
-  font-weight: 800;
-  color: #facc15;
-}
-
-.aaa-stat-track {
-  height: 5px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.92);
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  overflow: hidden;
-}
-
-.aaa-stat-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #0ea5e9 0%, #a855f7 55%, #facc15 100%);
-  transition: width 0.2s ease-out;
+  pointer-events: none;
 }
 
 /* Turntable Spin Controls & Inspect Button */
 .aaa-turntable-controls {
   pointer-events: auto;
   margin-top: auto;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 4px 11px;
+  gap: 6px;
+  padding: 4px 10px;
   border-radius: 999px;
   background: rgba(8, 12, 26, 0.88);
   border: 1px solid rgba(56, 189, 248, 0.38);
 }
 
 .aaa-spin-btn {
-  padding: 4px 10px;
+  padding: 4px 9px;
   border-radius: 999px;
   background: rgba(14, 165, 233, 0.24);
   border: 1px solid rgba(56, 189, 248, 0.65);
   color: #bae6fd;
   font-family: 'Orbitron', sans-serif;
-  font-size: 7.5px;
+  font-size: 7.2px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -2708,9 +2753,9 @@ body {
 
 .aaa-orbit-hint {
   font-family: 'Orbitron', sans-serif;
-  font-size: 7.5px;
+  font-size: 7px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: #94a3b8;
 }
 
@@ -2729,9 +2774,9 @@ body {
   pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 6px 12px;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
   border-radius: 10px;
   background: rgba(9, 13, 28, 0.94);
   border: 1.5px solid rgba(168, 85, 247, 0.68);
@@ -2742,12 +2787,12 @@ body {
 .aaa-cust-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .aaa-cust-label {
   font-family: 'Orbitron', sans-serif;
-  font-size: 7.5px;
+  font-size: 7px;
   font-weight: 900;
   color: #c084fc;
   letter-spacing: 0.06em;
@@ -2762,8 +2807,8 @@ body {
 .paint-swatch-btn,
 .rim-swatch-btn,
 .glow-swatch-btn {
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   border: 1.5px solid rgba(255, 255, 255, 0.45);
   cursor: pointer;
@@ -2803,57 +2848,146 @@ body {
   cursor: pointer;
 }
 
-/* RIGHT SIDE PANEL: SELECTED WORLD CARD + LARGE CUSTOMIZE + LARGE DRIVE IT */
+/* RIGHT SIDE PANEL: 4 ENVIRONMENTAL GAME MODE CARDS + LARGE YELLOW DRIVE IT BUTTON */
 .aaa-right-action-panel {
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   align-items: stretch;
 }
 
-.aaa-selected-map-card {
-  padding: 8px 11px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(11, 17, 36, 0.92), rgba(30, 27, 75, 0.88));
-  border: 1px solid rgba(56, 189, 248, 0.42);
-  transform: skewX(-6deg);
+.aaa-mode-cards-stack {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
-.aaa-map-card-kicker {
-  transform: skewX(6deg);
-  font-family: 'Orbitron', sans-serif;
-  font-size: 7px;
-  font-weight: 800;
-  color: #38bdf8;
-  letter-spacing: 0.08em;
+.aaa-mode-env-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(56, 189, 248, 0.35);
+  transform: skewX(-5deg);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
 }
 
-.aaa-map-card-name {
-  transform: skewX(6deg);
+.aaa-mode-env-card.is-city-env {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(56, 189, 248, 0.35), transparent 60%),
+    linear-gradient(135deg, rgba(12, 23, 52, 0.94) 0%, rgba(30, 58, 138, 0.82) 100%);
+}
+
+.aaa-mode-env-card.is-track-env {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(168, 85, 247, 0.38), transparent 60%),
+    linear-gradient(135deg, rgba(19, 14, 46, 0.94) 0%, rgba(88, 28, 135, 0.82) 100%);
+}
+
+.aaa-mode-env-card.is-house-env {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(250, 204, 21, 0.3), transparent 60%),
+    linear-gradient(135deg, rgba(28, 20, 14, 0.94) 0%, rgba(120, 53, 15, 0.8) 100%);
+}
+
+.aaa-mode-env-card.is-police-env {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(244, 63, 94, 0.36), transparent 60%),
+    linear-gradient(135deg, rgba(28, 12, 32, 0.94) 0%, rgba(136, 19, 55, 0.82) 100%);
+}
+
+.aaa-mode-env-card:hover {
+  transform: skewX(-5deg) translateX(-3px);
+  border-color: #7dd3fc;
+}
+
+.aaa-mode-env-card.active {
+  border: 2px solid #facc15;
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.38), inset 0 0 12px rgba(56, 189, 248, 0.22);
+  transform: skewX(-5deg) translateX(-4px);
+}
+
+.aaa-mode-env-art {
+  transform: skewX(5deg);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: rgba(9, 13, 28, 0.72);
+  border: 1px solid rgba(125, 211, 252, 0.45);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.aaa-mode-env-card.active .aaa-mode-env-art {
+  border-color: #facc15;
+  background: rgba(250, 204, 21, 0.2);
+}
+
+.aaa-mode-env-icon {
+  font-size: 13px;
+}
+
+.aaa-mode-env-info {
+  transform: skewX(5deg);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.aaa-mode-env-title {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 900;
+  letter-spacing: 0.05em;
   color: #ffffff;
+  white-space: nowrap;
+}
+
+.aaa-mode-env-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7px;
+  font-weight: 700;
+  color: #bae6fd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aaa-mode-env-card.active .aaa-mode-env-sub {
+  color: #fde047;
+}
+
+.aaa-mode-env-arrow {
+  transform: skewX(5deg);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  color: #facc15;
 }
 
 .aaa-map-card-actions {
-  transform: skewX(6deg);
   display: flex;
   gap: 5px;
-  margin-top: 2px;
 }
 
 .aaa-mini-map-btn {
   flex: 1;
-  padding: 4px 5px;
-  border-radius: 5px;
-  background: rgba(30, 58, 138, 0.72);
-  border: 1px solid rgba(125, 211, 252, 0.48);
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(56, 189, 248, 0.48);
+  transform: skewX(-5deg);
   color: #e0f2fe;
   font-family: 'Orbitron', sans-serif;
   font-size: 7px;
@@ -2866,99 +3000,46 @@ body {
   color: #facc15;
 }
 
-/* Large Right CUSTOMIZE Button */
-.aaa-big-customize-btn {
+/* Large Iconic Yellow/Gold DRIVE IT Button */
+.aaa-big-drive-btn {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 13px;
+  justify-content: space-between;
+  padding: 10px 14px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #9333ea 100%);
-  border: 2px solid #c084fc;
-  transform: skewX(-6deg);
-  color: #ffffff;
+  background: linear-gradient(135deg, #fef08a 0%, #facc15 45%, #f59e0b 100%);
+  border: 2px solid #ffffff;
+  transform: skewX(-5deg);
+  color: #090d16;
   cursor: pointer;
-  transition: transform 0.14s ease, border-color 0.14s ease;
+  box-shadow: 0 6px 20px rgba(250, 204, 21, 0.42);
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
 }
 
-.aaa-big-customize-btn:hover {
-  transform: skewX(-6deg) translateY(-1px);
-  border-color: #facc15;
-}
-
-.aaa-btn-icon-box {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.16);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transform: skewX(6deg);
-  flex-shrink: 0;
-}
-
-.aaa-btn-icon-box svg {
-  width: 17px;
-  height: 17px;
-  stroke: #fde047;
+.aaa-big-drive-btn:hover {
+  transform: skewX(-5deg) translateY(-1px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(250, 204, 21, 0.6);
 }
 
 .aaa-big-btn-labels {
   display: flex;
   flex-direction: column;
   text-align: left;
-  transform: skewX(6deg);
-}
-
-.aaa-big-btn-sub {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 7px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  color: #e9d5ff;
-}
-
-.aaa-big-btn-main {
-  font-family: 'Orbitron', sans-serif;
-  font-style: italic;
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 0.07em;
-  color: #ffffff;
-}
-
-/* Large Iconic Yellow/Gold DRIVE IT Button */
-.aaa-big-drive-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 15px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #fde047 0%, #facc15 45%, #f59e0b 100%);
-  border: 2px solid #ffffff;
-  transform: skewX(-6deg);
-  color: #090d16;
-  cursor: pointer;
-  transition: transform 0.14s ease;
-}
-
-.aaa-big-drive-btn:hover {
-  transform: skewX(-6deg) translateY(-1px) scale(1.02);
+  transform: skewX(5deg);
 }
 
 .aaa-drive-sub {
   font-family: 'Orbitron', sans-serif;
-  font-size: 7.5px;
+  font-size: 7px;
   font-weight: 900;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   color: #451a03;
 }
 
 .aaa-drive-main {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 16.5px;
+  font-size: 16px;
   font-weight: 900;
   letter-spacing: 0.07em;
   color: #090d16;
@@ -2966,7 +3047,7 @@ body {
 }
 
 .aaa-drive-chevrons {
-  transform: skewX(6deg);
+  transform: skewX(5deg);
   font-family: 'Orbitron', sans-serif;
   font-size: 15px;
   font-weight: 900;
@@ -2976,20 +3057,20 @@ body {
 /* 3. BOTTOM CAR COLLECTION HORIZONTAL CAROUSEL */
 .aaa-garage-bottom-dock {
   position: relative;
-  z-index: 10;
+  z-index: 25;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 6px 16px 9px;
-  background: linear-gradient(180deg, rgba(6, 9, 22, 0.65) 0%, rgba(5, 7, 17, 0.96) 100%);
-  border-top: 1px solid rgba(56, 189, 248, 0.28);
+  gap: 4px;
+  padding: 5px 14px 8px;
+  background: linear-gradient(180deg, rgba(6, 9, 22, 0.72) 0%, rgba(5, 7, 17, 0.96) 100%);
+  border-top: 1px solid rgba(56, 189, 248, 0.3);
 }
 
 .aaa-collection-bar-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .aaa-collection-left-tabs {
@@ -3001,22 +3082,22 @@ body {
 .aaa-dock-title {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 900;
   letter-spacing: 0.08em;
   color: #facc15;
-  margin-right: 4px;
+  margin-right: 2px;
 }
 
 .garage-filter-btn {
-  padding: 4px 10px;
+  padding: 3.5px 9px;
   border-radius: 6px;
   background: rgba(15, 23, 42, 0.85);
   border: 1px solid rgba(148, 163, 184, 0.35);
   transform: skewX(-6deg);
   color: #cbd5e1;
   font-family: 'Orbitron', sans-serif;
-  font-size: 7.5px;
+  font-size: 7.2px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -3027,6 +3108,23 @@ body {
   color: #ffffff;
 }
 
+.aaa-collection-progress-pill {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 7px;
+  font-weight: 800;
+  color: #bae6fd;
+  transform: skewX(-6deg);
+}
+
+.aaa-collection-progress-pill strong {
+  color: #facc15;
+  font-family: 'JetBrains Mono', monospace;
+}
+
 .aaa-collection-scroll-btns {
   display: flex;
   align-items: center;
@@ -3035,10 +3133,10 @@ body {
 
 /* Cancel / Back & Reset Selection Buttons in Car Collection Bar */
 .aaa-selection-action-btn {
-  padding: 4px 9px;
+  padding: 3.5px 8px;
   border-radius: 6px;
   font-family: 'Orbitron', sans-serif;
-  font-size: 7.5px;
+  font-size: 7.2px;
   font-weight: 800;
   cursor: pointer;
   transform: skewX(-6deg);
@@ -3092,7 +3190,7 @@ body {
   gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 3px 4px 4px;
+  padding: 2px 4px 3px;
   scroll-behavior: smooth;
   scrollbar-width: none;
 }
@@ -3102,9 +3200,9 @@ body {
 }
 
 .garage-car-card {
-  flex: 0 0 156px;
+  flex: 0 0 154px;
   cursor: pointer;
-  padding: 7px 10px;
+  padding: 6px 10px;
   border-radius: 10px;
   background: linear-gradient(160deg, rgba(13, 20, 42, 0.94) 0%, rgba(8, 12, 26, 0.96) 100%);
   border: 1.5px solid rgba(56, 189, 248, 0.32);
@@ -3113,8 +3211,8 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 3px;
-  transition: transform 0.14s ease, border-color 0.14s ease;
+  gap: 2px;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
   position: relative;
   overflow: hidden;
 }
@@ -3125,9 +3223,15 @@ body {
 }
 
 .garage-car-card.active {
-  background: linear-gradient(145deg, rgba(30, 58, 138, 0.94) 0%, rgba(109, 40, 217, 0.85) 65%, rgba(234, 179, 8, 0.35) 100%);
+  background: linear-gradient(145deg, rgba(30, 58, 138, 0.96) 0%, rgba(109, 40, 217, 0.88) 65%, rgba(234, 179, 8, 0.38) 100%);
   border: 2px solid #facc15;
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.36);
   transform: skewX(-6deg) translateY(-2px);
+}
+
+.garage-car-card.is-locked {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.9) 0%, rgba(9, 13, 26, 0.96) 100%);
 }
 
 .garage-card-top {
@@ -3142,7 +3246,7 @@ body {
   padding: 1px 5px;
   border-radius: 4px;
   font-family: 'Orbitron', sans-serif;
-  font-size: 6.5px;
+  font-size: 6.2px;
   font-weight: 900;
   background: rgba(14, 165, 233, 0.35);
   border: 1px solid rgba(125, 211, 252, 0.65);
@@ -3155,16 +3259,22 @@ body {
   color: #fef08a;
 }
 
+.garage-card-tag.is-locked-tag {
+  background: rgba(244, 63, 94, 0.3);
+  border-color: #fb7185;
+  color: #fecdd3;
+}
+
 .garage-card-hp {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 7.5px;
+  font-size: 7.2px;
   font-weight: 800;
   color: #fde047;
 }
 
 .garage-card-thumb {
   transform: skewX(6deg);
-  height: 30px;
+  height: 29px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3172,15 +3282,15 @@ body {
 }
 
 .garage-card-thumb svg {
-  width: 116px;
-  height: 30px;
+  width: 118px;
+  height: 29px;
 }
 
 .garage-card-name {
   transform: skewX(6deg);
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 8.8px;
+  font-size: 8.6px;
   font-weight: 900;
   color: #ffffff;
   white-space: nowrap;
@@ -3193,7 +3303,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 7px;
+  font-size: 6.8px;
   font-family: 'JetBrains Mono', monospace;
   color: #cbd5e1;
 }
@@ -3202,7 +3312,7 @@ body {
   padding: 1px 5px;
   border-radius: 4px;
   font-family: 'Orbitron', sans-serif;
-  font-size: 6.5px;
+  font-size: 6.2px;
   font-weight: 900;
 }
 
@@ -3215,6 +3325,12 @@ body {
   background: rgba(16, 185, 129, 0.28);
   border: 1px solid #10b981;
   color: #6ee7b7;
+}
+
+.garage-card-status.is-locked-status {
+  background: rgba(245, 158, 11, 0.25);
+  border: 1px solid #facc15;
+  color: #fef08a;
 }
 
 /* 4. UPGRADE PURCHASE CONFIRMATION DIALOG OVERLAY */

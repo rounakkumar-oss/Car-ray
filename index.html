@@ -209,16 +209,16 @@
 
           <!-- ======================================================================= -->
           <!-- FULL-SCREEN AAA 3D CAR GARAGE & SHOWROOM INTERFACE                      -->
-          <!-- Inspired by commercial AAA racing games (Blue/Purple/Black/Yellow UI)   -->
+          <!-- Futuristic Luxury Car Showroom · 16:9 Landscape · 3D Center Hero Car    -->
           <!-- ======================================================================= -->
           <div id="garage-modal-backdrop" class="aaa-garage-screen" role="dialog" aria-labelledby="garage-modal-title">
             <!-- Full-Viewport 3D Turntable Showroom Canvas -->
             <canvas id="garage-preview-canvas" class="aaa-garage-3d-canvas" width="1280" height="720"></canvas>
 
-            <!-- Subtle Studio Radial & Edge Gradients so Left/Right/Bottom UI Pops Cleanly -->
+            <!-- Subtle Studio Edge Vignettes so Left/Right/Bottom UI Pops Cleanly without Dimming Center Car -->
             <div class="aaa-garage-vignette"></div>
 
-            <!-- 1. TOP HEADER BAR: HOME | GARAGE TITLE | MAP SELECTOR | PROGRESS & CURRENCY -->
+            <!-- 1. TOP HEADER BAR: HOME | GARAGE TITLE | COMPACT SELECTED CAR INFO | CURRENCIES & SETTINGS -->
             <header class="aaa-garage-top-bar">
               <div class="aaa-top-left-group">
                 <button id="btn-close-garage" type="button" class="aaa-home-btn" title="Open World &amp; Map Mode Selector">
@@ -231,44 +231,70 @@
 
                 <div class="aaa-title-block">
                   <h1 id="garage-modal-title" class="aaa-garage-heading">GARAGE</h1>
-                  <span class="aaa-garage-subtitle">3D PERFORMANCE SHOWROOM</span>
+                  <span class="aaa-garage-subtitle">FUTURISTIC 3D SHOWROOM</span>
                 </div>
               </div>
 
-              <!-- Quick Active Race World / Map Selector Pill Bar in Header -->
-              <div class="aaa-header-map-pills" role="group" aria-label="Select Race World">
-                <button type="button" class="aaa-map-pill" data-gamemode="city" title="Apex City &amp; Mountain Open World">
-                  🏔️ CITY &amp; MOUNTAIN
-                </button>
-                <button type="button" class="aaa-map-pill active" data-gamemode="track" title="Neon Track Circuit vs AI">
-                  🏁 TRACK RACE
-                </button>
-                <button type="button" class="aaa-map-pill" data-gamemode="freeroam" title="14-Room Giant House Free Roam">
-                  🏠 HOUSE ROAM
-                </button>
-                <button type="button" class="aaa-map-pill" data-gamemode="police" title="AI Police Hide &amp; Seek">
-                  🚨 HIDE &amp; SEEK
-                </button>
+              <!-- COMPACT SELECTED CAR INFORMATION & PERFORMANCE BARS (Top Header Center - Never Covers the 3D Car!) -->
+              <div class="aaa-car-telemetry-hud" aria-label="Selected Car Specifications">
+                <div class="aaa-car-title-group">
+                  <div class="aaa-car-badges-row">
+                    <span id="garage-selected-badge" class="aaa-origin-pill">ORIGINAL</span>
+                    <span id="garage-selected-class" class="aaa-class-pill">GT CONCEPT</span>
+                    <span id="garage-selected-hp" class="aaa-hp-pill">580 HP</span>
+                    <span id="garage-selection-status-pill" class="aaa-selection-pill">✓ EQUIPPED</span>
+                  </div>
+                  <h2 id="garage-selected-name" class="aaa-selected-car-name">2015 BMW 3.0 CSL Hommage R</h2>
+                  <div id="garage-selected-drivetrain" class="aaa-selected-drivetrain">RWD • 3.0L TwinPower Turbo I6</div>
+                  <p id="garage-selected-desc" class="aaa-selected-desc hidden"></p>
+                </div>
+
+                <!-- 4 Compact Performance Bars: SPEED, ACCELERATION, HANDLING, NITRO -->
+                <div class="aaa-telemetry-bars">
+                  <div class="aaa-stat-item">
+                    <div class="aaa-stat-head">
+                      <span class="aaa-stat-lbl">SPEED</span>
+                      <span id="garage-val-speed" class="aaa-stat-num">94</span>
+                    </div>
+                    <div class="aaa-stat-track"><div id="garage-bar-speed" class="aaa-stat-fill is-speed" style="width:94%"></div></div>
+                  </div>
+                  <div class="aaa-stat-item">
+                    <div class="aaa-stat-head">
+                      <span class="aaa-stat-lbl">ACCEL</span>
+                      <span id="garage-val-accel" class="aaa-stat-num">91</span>
+                    </div>
+                    <div class="aaa-stat-track"><div id="garage-bar-accel" class="aaa-stat-fill is-accel" style="width:91%"></div></div>
+                  </div>
+                  <div class="aaa-stat-item">
+                    <div class="aaa-stat-head">
+                      <span class="aaa-stat-lbl">HANDLING</span>
+                      <span id="garage-val-handling" class="aaa-stat-num">95</span>
+                    </div>
+                    <div class="aaa-stat-track"><div id="garage-bar-handling" class="aaa-stat-fill is-handling" style="width:95%"></div></div>
+                  </div>
+                  <div class="aaa-stat-item">
+                    <div class="aaa-stat-head">
+                      <span class="aaa-stat-lbl">NITRO</span>
+                      <span id="garage-val-braking" class="aaa-stat-num">93</span>
+                    </div>
+                    <div class="aaa-stat-track"><div id="garage-bar-braking" class="aaa-stat-fill is-nitro" style="width:93%"></div></div>
+                  </div>
+                </div>
               </div>
 
-              <!-- Player Progress, Collection & Currency (No Phone Status Info!) -->
+              <!-- Player Coin Balance, Diamond Balance & Settings Gear (Zero Phone System UI!) -->
               <div class="aaa-top-right-currencies">
-                <div class="aaa-progress-pill" title="Player Career Level &amp; Garage Collection">
-                  <span class="aaa-prog-badge">PRO LV.18</span>
-                  <span id="garage-collection-count" class="aaa-prog-text">8/8 CARS</span>
-                </div>
-
-                <div class="aaa-currency-pill is-cash" title="Race Credits (Used for Upgrades)">
-                  <span class="aaa-curr-icon">$</span>
+                <div class="aaa-currency-pill is-cash" title="Player Coin / Credit Balance (Used for Upgrades &amp; Cars)">
+                  <span class="aaa-curr-icon">🪙</span>
                   <span id="garage-currency-cash" class="aaa-curr-val">285,000</span>
                 </div>
 
-                <div class="aaa-currency-pill is-gold" title="Nitro Gold Tokens">
-                  <span class="aaa-curr-icon">⚡</span>
+                <div class="aaa-currency-pill is-gold" title="Diamond Balance">
+                  <span class="aaa-curr-icon">💎</span>
                   <span id="garage-currency-gold" class="aaa-curr-val">1,650</span>
                 </div>
 
-                <!-- Clearly Visible Settings Gear Icon in Garage Header -->
+                <!-- Settings Gear Icon -->
                 <button id="btn-garage-settings" type="button" class="aaa-header-icon-btn is-settings-gear" title="Open Settings &amp; Graphics Quality" aria-label="Settings">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="3"></circle>
@@ -286,149 +312,139 @@
 
             <!-- Floating Exit 3D Inspection Mode Button (Visible when inspecting car full-screen) -->
             <button id="btn-exit-inspection" type="button" class="aaa-exit-inspect-btn hidden">
-              <span>✕ EXIT INSPECTION · DONE</span>
+              <span>✕ EXIT INSPECTION · RETURN TO GARAGE</span>
             </button>
 
-            <!-- 2. MIDDLE WORKSPACE: LEFT UPGRADE PANEL | CENTER 3D CAR + SPECS | RIGHT ACTION PANEL -->
+            <!-- 2. MIDDLE WORKSPACE: LEFT UPGRADES | CENTER HERO 3D CAR SHOWROOM | RIGHT GAME MODES & DRIVE IT -->
             <div class="aaa-garage-middle">
-              <!-- LEFT SIDE PANEL: ENGINE, HANDLING, SUSPENSION, NITRO, UPGRADE, CUSTOMIZE -->
-              <aside class="aaa-left-upgrade-panel" aria-label="Vehicle Upgrades">
-                <button type="button" class="aaa-upgrade-tab-btn active" data-upcat="engine">
-                  <span class="aaa-up-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
-                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                    </svg>
-                  </span>
-                  <span class="aaa-up-text">
-                    <span class="aaa-up-name">ENGINE</span>
-                    <span id="up-lvl-engine" class="aaa-up-lvl">STAGE 2 / 5</span>
-                  </span>
-                  <span class="aaa-up-chevron">›</span>
+              <!-- LEFT PANEL: CAR PERFORMANCE & UPGRADES (ENGINE, HANDLING, SUSPENSION, NITRO + UPGRADE & CUSTOMIZE) -->
+              <aside class="aaa-left-upgrade-panel" aria-label="Vehicle Performance &amp; Upgrades">
+                <div class="aaa-panel-section-hdr">
+                  <span class="aaa-panel-kicker">PERFORMANCE TUNING</span>
+                </div>
+
+                <!-- ENGINE -->
+                <button type="button" class="aaa-upgrade-tab-btn active is-expanded" data-upcat="engine">
+                  <div class="aaa-up-main-row">
+                    <span class="aaa-up-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M7 4h10l2 3v9l-3 3H8l-3-3V7l2-3z"></path>
+                        <path d="M12 8v6M9 11h6"></path>
+                      </svg>
+                    </span>
+                    <span class="aaa-up-text">
+                      <span class="aaa-up-title-line">
+                        <span class="aaa-up-name">ENGINE</span>
+                        <span id="up-lvl-engine" class="aaa-up-lvl">STAGE 2 / 5</span>
+                      </span>
+                      <span class="aaa-up-prog-track"><span id="up-prog-engine" class="aaa-up-prog-fill" style="width:40%"></span></span>
+                    </span>
+                    <span class="aaa-up-chevron">▾</span>
+                  </div>
+                  <div class="aaa-up-expand-detail">Twin-scroll turbocharger &amp; ECU map (+Top Speed &amp; HP)</div>
                 </button>
 
+                <!-- HANDLING -->
                 <button type="button" class="aaa-upgrade-tab-btn" data-upcat="handling">
-                  <span class="aaa-up-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
-                      <circle cx="12" cy="12" r="9"></circle>
-                      <circle cx="12" cy="12" r="3"></circle>
-                      <line x1="12" y1="3" x2="12" y2="9"></line>
-                      <line x1="4.2" y1="16.5" x2="9.4" y2="13.5"></line>
-                      <line x1="19.8" y1="16.5" x2="14.6" y2="13.5"></line>
-                    </svg>
-                  </span>
-                  <span class="aaa-up-text">
-                    <span class="aaa-up-name">HANDLING</span>
-                    <span id="up-lvl-handling" class="aaa-up-lvl">STAGE 2 / 5</span>
-                  </span>
-                  <span class="aaa-up-chevron">›</span>
+                  <div class="aaa-up-main-row">
+                    <span class="aaa-up-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <line x1="12" y1="3" x2="12" y2="9"></line>
+                        <line x1="4.2" y1="16.5" x2="9.4" y2="13.5"></line>
+                        <line x1="19.8" y1="16.5" x2="14.6" y2="13.5"></line>
+                      </svg>
+                    </span>
+                    <span class="aaa-up-text">
+                      <span class="aaa-up-title-line">
+                        <span class="aaa-up-name">HANDLING</span>
+                        <span id="up-lvl-handling" class="aaa-up-lvl">STAGE 2 / 5</span>
+                      </span>
+                      <span class="aaa-up-prog-track"><span id="up-prog-handling" class="aaa-up-prog-fill" style="width:40%"></span></span>
+                    </span>
+                    <span class="aaa-up-chevron">▾</span>
+                  </div>
+                  <div class="aaa-up-expand-detail">Pirelli slick compound &amp; active aero downforce (+Corner Grip)</div>
                 </button>
 
+                <!-- SUSPENSION -->
                 <button type="button" class="aaa-upgrade-tab-btn" data-upcat="suspension">
-                  <span class="aaa-up-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
-                      <path d="M6 4h12M6 20h12M8 4l8 4-8 4 8 4-8 4"></path>
-                    </svg>
-                  </span>
-                  <span class="aaa-up-text">
-                    <span class="aaa-up-name">SUSPENSION</span>
-                    <span id="up-lvl-suspension" class="aaa-up-lvl">STAGE 1 / 5</span>
-                  </span>
-                  <span class="aaa-up-chevron">›</span>
+                  <div class="aaa-up-main-row">
+                    <span class="aaa-up-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 3h12M6 21h12M8 3l8 4.5-8 4.5 8 4.5-8 4.5"></path>
+                      </svg>
+                    </span>
+                    <span class="aaa-up-text">
+                      <span class="aaa-up-title-line">
+                        <span class="aaa-up-name">SUSPENSION</span>
+                        <span id="up-lvl-suspension" class="aaa-up-lvl">STAGE 1 / 5</span>
+                      </span>
+                      <span class="aaa-up-prog-track"><span id="up-prog-suspension" class="aaa-up-prog-fill" style="width:20%"></span></span>
+                    </span>
+                    <span class="aaa-up-chevron">▾</span>
+                  </div>
+                  <div class="aaa-up-expand-detail">Track coilover dampers &amp; lowered stance (+Stability)</div>
                 </button>
 
+                <!-- NITRO -->
                 <button type="button" class="aaa-upgrade-tab-btn" data-upcat="nitro">
-                  <span class="aaa-up-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
-                      <path d="M12 2c.5 4.5 4 7 4 11a4 4 0 1 1-8 0c0-4 3.5-6.5 4-11z"></path>
-                    </svg>
-                  </span>
-                  <span class="aaa-up-text">
-                    <span class="aaa-up-name">NITRO</span>
-                    <span id="up-lvl-nitro" class="aaa-up-lvl">STAGE 2 / 5</span>
-                  </span>
-                  <span class="aaa-up-chevron">›</span>
+                  <div class="aaa-up-main-row">
+                    <span class="aaa-up-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2c.5 4.5 4 7 4 11a4 4 0 1 1-8 0c0-4 3.5-6.5 4-11z"></path>
+                      </svg>
+                    </span>
+                    <span class="aaa-up-text">
+                      <span class="aaa-up-title-line">
+                        <span class="aaa-up-name">NITRO</span>
+                        <span id="up-lvl-nitro" class="aaa-up-lvl">STAGE 2 / 5</span>
+                      </span>
+                      <span class="aaa-up-prog-track"><span id="up-prog-nitro" class="aaa-up-prog-fill" style="width:40%"></span></span>
+                    </span>
+                    <span class="aaa-up-chevron">▾</span>
+                  </div>
+                  <div class="aaa-up-expand-detail">High-pressure N2O injection system (+Boost Acceleration)</div>
                 </button>
 
-                <!-- Functional UPGRADE Action CTA (Opens Confirmation Dialog before spending currency) -->
+                <!-- Large Yellow Premium UPGRADE Button with Wrench Icon -->
                 <button id="btn-garage-do-upgrade" type="button" class="aaa-left-action-btn is-upgrade-action">
+                  <span class="aaa-act-icon-wrap">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                    </svg>
+                  </span>
                   <span class="aaa-act-left">
                     <span class="aaa-act-title">UPGRADE</span>
-                    <span id="garage-upgrade-sub" class="aaa-act-sub">+3 ENGINE STAGE</span>
+                    <span id="garage-upgrade-sub" class="aaa-act-sub">ENGINE STAGE 3</span>
                   </span>
-                  <span id="garage-upgrade-cost" class="aaa-act-price">$12,500</span>
+                  <span id="garage-upgrade-cost" class="aaa-act-price">$25,000</span>
                 </button>
 
-                <!-- Functional CUSTOMIZE Toggle Button -->
+                <!-- Large Purple Premium CUSTOMIZE Button with Paint Palette Icon -->
                 <button id="btn-garage-left-customize" type="button" class="aaa-left-action-btn is-customize-action">
+                  <span class="aaa-act-icon-wrap is-purple">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle>
+                      <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle>
+                      <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle>
+                      <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle>
+                      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>
+                    </svg>
+                  </span>
                   <span class="aaa-act-left">
                     <span class="aaa-act-title">CUSTOMIZE</span>
                     <span class="aaa-act-sub">PAINT · RIMS · NEON</span>
                   </span>
-                  <span class="aaa-act-badge">🎨</span>
+                  <span class="aaa-up-chevron">›</span>
                 </button>
               </aside>
 
-              <!-- CENTER STAGE: FLOATING VEHICLE TELEMETRY + 360° INTERACTIVE STAGE + CUSTOMIZER DRAWER -->
+              <!-- CENTER STAGE: UNOBSTRUCTED 3D HERO CAR SHOWROOM + BOTTOM INSPECTION CONTROLS -->
               <div class="aaa-center-stage">
-                <!-- Floating Car Identity & Telemetry Card (Top-Center of Showroom) -->
-                <div class="aaa-car-telemetry-hud">
-                  <div class="aaa-car-title-group">
-                    <div class="aaa-car-badges-row">
-                      <span id="garage-selected-badge" class="aaa-origin-pill">ORIGINAL</span>
-                      <span id="garage-selected-class" class="aaa-class-pill">GT CONCEPT</span>
-                      <span id="garage-selected-hp" class="aaa-hp-pill">580 HP</span>
-                      <span id="garage-selection-status-pill" class="aaa-selection-pill">✓ EQUIPPED</span>
-                    </div>
-                    <h2 id="garage-selected-name" class="aaa-selected-car-name">2015 BMW 3.0 CSL Hommage R</h2>
-                    <div id="garage-selected-drivetrain" class="aaa-selected-drivetrain">RWD • 3.0L TwinPower Turbo I6</div>
-                    <p id="garage-selected-desc" class="aaa-selected-desc hidden"></p>
-                  </div>
-
-                  <!-- 4 Live Telemetry Bars (Boosted by Upgrades!) -->
-                  <div class="aaa-telemetry-bars">
-                    <div class="aaa-stat-item">
-                      <div class="aaa-stat-head">
-                        <span class="aaa-stat-lbl">SPEED</span>
-                        <span id="garage-val-speed" class="aaa-stat-num">94</span>
-                      </div>
-                      <div class="aaa-stat-track"><div id="garage-bar-speed" class="aaa-stat-fill is-speed" style="width:94%"></div></div>
-                    </div>
-                    <div class="aaa-stat-item">
-                      <div class="aaa-stat-head">
-                        <span class="aaa-stat-lbl">ACCEL</span>
-                        <span id="garage-val-accel" class="aaa-stat-num">91</span>
-                      </div>
-                      <div class="aaa-stat-track"><div id="garage-bar-accel" class="aaa-stat-fill is-accel" style="width:91%"></div></div>
-                    </div>
-                    <div class="aaa-stat-item">
-                      <div class="aaa-stat-head">
-                        <span class="aaa-stat-lbl">HANDLING</span>
-                        <span id="garage-val-handling" class="aaa-stat-num">95</span>
-                      </div>
-                      <div class="aaa-stat-track"><div id="garage-bar-handling" class="aaa-stat-fill is-handling" style="width:95%"></div></div>
-                    </div>
-                    <div class="aaa-stat-item">
-                      <div class="aaa-stat-head">
-                        <span class="aaa-stat-lbl">NITRO</span>
-                        <span id="garage-val-braking" class="aaa-stat-num">93</span>
-                      </div>
-                      <div class="aaa-stat-track"><div id="garage-bar-braking" class="aaa-stat-fill is-nitro" style="width:93%"></div></div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Interactive 3D Turntable Controls Pill (Bottom of 3D Car Platform) -->
-                <div class="aaa-turntable-controls">
-                  <button id="btn-garage-autorotate" type="button" class="aaa-spin-btn active" title="Toggle 360° Platform Rotation">
-                    🔄 360° SPIN
-                  </button>
-                  <button id="btn-garage-inspect" type="button" class="aaa-spin-btn is-inspect-btn" title="Full-Screen 3D Car Inspection Mode">
-                    🔍 INSPECT 3D
-                  </button>
-                  <button id="btn-garage-reset-view" type="button" class="aaa-spin-btn" title="Reset 3D Camera Angle &amp; Rotation">
-                    ↺ RESET VIEW
-                  </button>
-                  <span class="aaa-orbit-hint">↔ DRAG CAR TO ORBIT</span>
+                <!-- Open 3D Showroom Window Area (Car occupies 45-50% of center viewport) -->
+                <div class="aaa-showroom-open-spacer">
                   <span id="garage-upgrade-toast" class="aaa-upgrade-toast hidden">⚡ UPGRADED!</span>
                 </div>
 
@@ -473,41 +489,150 @@
 
                   <button id="btn-close-customize-drawer" type="button" class="aaa-cust-done-btn" title="Close Customize Drawer">DONE ✓</button>
                 </div>
+
+                <!-- 8. CAR INSPECTION CONTROLS BAR (Bottom of Center Showroom Stage) -->
+                <div class="aaa-turntable-controls">
+                  <button id="btn-garage-autorotate" type="button" class="aaa-spin-btn active" title="Toggle 360° Platform Rotation">
+                    🔄 360° SPIN
+                  </button>
+                  <button id="btn-garage-inspect" type="button" class="aaa-spin-btn is-inspect-btn" title="Full-Screen 3D Car Inspection Mode">
+                    🔍 INSPECT 3D
+                  </button>
+                  <button id="btn-garage-reset-view" type="button" class="aaa-spin-btn" title="Reset 3D Camera Angle &amp; Rotation">
+                    ↺ RESET VIEW
+                  </button>
+                  <button id="btn-garage-reset-select" type="button" class="aaa-spin-btn is-reset-pill" title="Reset Car Livery &amp; Selection to Factory OEM">
+                    🔄 RESET SELECTION
+                  </button>
+                </div>
               </div>
 
-              <!-- RIGHT SIDE PANEL: LARGE CUSTOMIZE BUTTON & LARGE DRIVE IT BUTTON -->
-              <aside class="aaa-right-action-panel" aria-label="Garage Actions">
-                <!-- Active Map / Mode Display Card -->
-                <div class="aaa-selected-map-card">
-                  <span class="aaa-map-card-kicker">SELECTED RACE WORLD</span>
-                  <strong id="garage-active-map-title" class="aaa-map-card-name">NEON TRACK RACE</strong>
-                  <div class="aaa-map-card-actions">
-                    <button id="btn-garage-change-map" type="button" class="aaa-mini-map-btn">🗺️ MAPS &amp; AI</button>
-                    <button id="btn-garage-friends" type="button" class="aaa-mini-map-btn">👥 2–6P CODE</button>
+              <!-- RIGHT SIDE PANEL: 4 ENVIRONMENTAL GAME MODE CARDS + LARGE YELLOW DRIVE IT BUTTON -->
+              <aside class="aaa-right-action-panel" aria-label="Game Modes &amp; Race Launch">
+                <div class="aaa-right-header-row">
+                  <span id="garage-active-map-title" class="aaa-panel-kicker">SELECT RACE MODE</span>
+                  <div class="aaa-right-mini-links">
+                    <button id="btn-garage-change-map" type="button" class="aaa-mini-map-btn" title="Open World &amp; AI Difficulty Hub">🗺️ MAPS &amp; AI</button>
+                    <button id="btn-garage-friends" type="button" class="aaa-mini-map-btn" title="2-6 Player Multiplayer Room Code">👥 2–6P CODE</button>
+                    <button id="btn-garage-right-customize" type="button" class="aaa-mini-map-btn" title="Customize Paint &amp; Rims">🎨</button>
                   </div>
                 </div>
 
-                <!-- Large CUSTOMIZE Button -->
-                <button id="btn-garage-right-customize" type="button" class="aaa-big-customize-btn">
-                  <span class="aaa-btn-icon-box">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle>
-                      <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle>
-                      <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle>
-                      <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle>
-                      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>
-                    </svg>
-                  </span>
-                  <span class="aaa-big-btn-labels">
-                    <span class="aaa-big-btn-sub">PAINT &amp; STANCE</span>
-                    <span class="aaa-big-btn-main">CUSTOMIZE</span>
-                  </span>
-                </button>
+                <!-- 4 ENVIRONMENTAL GAME MODE CARDS -->
+                <div class="aaa-mode-cards-stack" role="group" aria-label="Game Modes">
+                  <!-- CARD 1: CITY & MOUNTAIN -->
+                  <button type="button" class="aaa-mode-env-card aaa-map-pill" data-gamemode="city">
+                    <div class="aaa-mode-env-bg is-city-bg" aria-hidden="true">
+                      <svg viewBox="0 0 240 56" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="gCitySky" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#0c1938"/>
+                            <stop offset="55%" stop-color="#1e3a8a"/>
+                            <stop offset="100%" stop-color="#0284c7"/>
+                          </linearGradient>
+                        </defs>
+                        <rect width="240" height="56" fill="url(#gCitySky)"/>
+                        <polygon points="0,48 38,14 78,48" fill="#1e293b"/>
+                        <polygon points="38,14 28,24 48,24" fill="#e2e8f0" opacity="0.8"/>
+                        <polygon points="52,48 98,8 144,48" fill="#0f172a"/>
+                        <polygon points="98,8 85,20 111,20" fill="#f8fafc" opacity="0.85"/>
+                        <rect x="135" y="16" width="16" height="32" fill="#090d1a"/>
+                        <rect x="155" y="10" width="18" height="38" fill="#0f172a"/>
+                        <rect x="177" y="18" width="15" height="30" fill="#090d1a"/>
+                        <path d="M0 56 L95 36 L145 36 L240 56 Z" fill="#1e293b"/>
+                        <line x1="120" y1="37" x2="120" y2="56" stroke="#facc15" stroke-width="2" stroke-dasharray="4 3"/>
+                      </svg>
+                    </div>
+                    <span class="aaa-mode-card-icon">🏔️</span>
+                    <span class="aaa-mode-card-info">
+                      <span class="aaa-mode-card-title">CITY &amp; MOUNTAIN</span>
+                      <span class="aaa-mode-card-sub">Open-World Highway &amp; Alpine Pass</span>
+                    </span>
+                    <span class="aaa-mode-card-arrow">›</span>
+                  </button>
 
-                <!-- Large DRIVE IT Button -->
+                  <!-- CARD 2: TRACK RACE -->
+                  <button type="button" class="aaa-mode-env-card aaa-map-pill active" data-gamemode="track">
+                    <div class="aaa-mode-env-bg is-track-bg" aria-hidden="true">
+                      <svg viewBox="0 0 240 56" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="gTrackSky" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#09081a"/>
+                            <stop offset="55%" stop-color="#3b0764"/>
+                            <stop offset="100%" stop-color="#1e1b4b"/>
+                          </linearGradient>
+                        </defs>
+                        <rect width="240" height="56" fill="url(#gTrackSky)"/>
+                        <path d="M-10 46 Q 70 10, 130 32 T 250 16" stroke="rgba(168,85,247,0.45)" stroke-width="16" fill="none"/>
+                        <path d="M-10 46 Q 70 10, 130 32 T 250 16" stroke="#00e5ff" stroke-width="3" fill="none"/>
+                        <rect x="165" y="8" width="4" height="36" fill="#e2e8f0"/>
+                        <rect x="165" y="8" width="38" height="8" fill="#facc15"/>
+                      </svg>
+                    </div>
+                    <span class="aaa-mode-card-icon">🏁</span>
+                    <span class="aaa-mode-card-info">
+                      <span class="aaa-mode-card-title">TRACK RACE</span>
+                      <span class="aaa-mode-card-sub">Neon GP Circuit vs AI Rival</span>
+                    </span>
+                    <span class="aaa-mode-card-arrow">›</span>
+                  </button>
+
+                  <!-- CARD 3: HOUSE ROOM -->
+                  <button type="button" class="aaa-mode-env-card aaa-map-pill" data-gamemode="freeroam">
+                    <div class="aaa-mode-env-bg is-house-bg" aria-hidden="true">
+                      <svg viewBox="0 0 240 56" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="gHouseSky" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#1c1917"/>
+                            <stop offset="55%" stop-color="#431407"/>
+                            <stop offset="100%" stop-color="#0f172a"/>
+                          </linearGradient>
+                        </defs>
+                        <rect width="240" height="56" fill="url(#gHouseSky)"/>
+                        <rect x="18" y="12" width="64" height="36" rx="3" fill="rgba(251,191,36,0.16)" stroke="#f59e0b" stroke-width="1.4"/>
+                        <rect x="92" y="8" width="76" height="40" rx="3" fill="rgba(56,189,248,0.15)" stroke="#38bdf8" stroke-width="1.4"/>
+                        <polygon points="145,48 195,22 225,48" fill="rgba(0,229,255,0.3)" stroke="#00e5ff" stroke-width="1.5"/>
+                      </svg>
+                    </div>
+                    <span class="aaa-mode-card-icon">🏠</span>
+                    <span class="aaa-mode-card-info">
+                      <span class="aaa-mode-card-title">HOUSE ROOM</span>
+                      <span class="aaa-mode-card-sub">14-Room Luxury Mansion &amp; Ramps</span>
+                    </span>
+                    <span class="aaa-mode-card-arrow">›</span>
+                  </button>
+
+                  <!-- CARD 4: HIDE & SEEK -->
+                  <button type="button" class="aaa-mode-env-card aaa-map-pill" data-gamemode="police">
+                    <div class="aaa-mode-env-bg is-police-bg" aria-hidden="true">
+                      <svg viewBox="0 0 240 56" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="gPoliceSky" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#1a050d"/>
+                            <stop offset="50%" stop-color="#1e1b4b"/>
+                            <stop offset="100%" stop-color="#090d1a"/>
+                          </linearGradient>
+                        </defs>
+                        <rect width="240" height="56" fill="url(#gPoliceSky)"/>
+                        <polygon points="32,28 148,4 148,52" fill="rgba(239,68,68,0.34)" stroke="#ef4444" stroke-width="1.2"/>
+                        <circle cx="32" cy="28" r="6" fill="#ef4444"/>
+                        <circle cx="32" cy="28" r="11" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="4 3" fill="none"/>
+                        <rect x="164" y="16" width="46" height="24" rx="4" fill="rgba(16,185,129,0.22)" stroke="#10b981" stroke-width="1.5"/>
+                      </svg>
+                    </div>
+                    <span class="aaa-mode-card-icon">🚨</span>
+                    <span class="aaa-mode-card-info">
+                      <span class="aaa-mode-card-title">HIDE &amp; SEEK</span>
+                      <span class="aaa-mode-card-sub">Stealth Survival vs 4 AI Police</span>
+                    </span>
+                    <span class="aaa-mode-card-arrow">›</span>
+                  </button>
+                </div>
+
+                <!-- LARGE PREMIUM YELLOW "DRIVE IT" BUTTON -->
                 <button id="btn-garage-confirm" type="button" class="aaa-big-drive-btn">
                   <span class="aaa-big-btn-labels">
-                    <span id="garage-drive-sub" class="aaa-drive-sub">READY TO RACE</span>
+                    <span id="garage-drive-sub" class="aaa-drive-sub">NEON TRACK RACE</span>
                     <span class="aaa-drive-main">DRIVE IT</span>
                   </span>
                   <span class="aaa-drive-chevrons" aria-hidden="true">▶▶</span>
@@ -515,21 +640,23 @@
               </aside>
             </div>
 
-            <!-- 3. BOTTOM CAR COLLECTION: HORIZONTAL SCROLLING VEHICLE CAROUSEL + CANCEL/RESET -->
+            <!-- 3. BOTTOM CAR COLLECTION: HORIZONTAL SCROLLING VEHICLE CAROUSEL + FILTERS -->
             <footer class="aaa-garage-bottom-dock">
               <div class="aaa-collection-bar-top">
                 <div class="aaa-collection-left-tabs" role="tablist">
                   <span class="aaa-dock-title">CAR COLLECTION</span>
-                  <button type="button" class="garage-filter-btn active" data-filter="all">ALL CARS (8)</button>
-                  <button type="button" class="garage-filter-btn" data-filter="original">ORIGINAL (2)</button>
-                  <button type="button" class="garage-filter-btn" data-filter="new">NEW 3D SPORTS (6)</button>
+                  <button type="button" class="garage-filter-btn active" data-filter="all">ALL CARS</button>
+                  <button type="button" class="garage-filter-btn" data-filter="original">ORIGINAL CARS</button>
+                  <button type="button" class="garage-filter-btn" data-filter="new">NEW 3D SPORTS CARS</button>
                 </div>
+
                 <div class="aaa-collection-scroll-btns">
+                  <div class="aaa-collection-progress-pill" title="Unlocked Garage Vehicles">
+                    <span class="aaa-col-prog-label">COLLECTION</span>
+                    <span id="garage-collection-count" class="aaa-col-prog-val">8 / 10</span>
+                  </div>
                   <button id="btn-garage-cancel-select" type="button" class="aaa-selection-action-btn is-cancel-btn hidden" title="Cancel Preview &amp; Revert to Previous Car">
-                    ↩ CANCEL / BACK
-                  </button>
-                  <button id="btn-garage-reset-select" type="button" class="aaa-selection-action-btn is-reset-btn" title="Reset Car Selection &amp; Default Livery">
-                    🔄 RESET SELECTION
+                    ↩ REVERT
                   </button>
                   <button id="btn-carousel-left" type="button" class="aaa-carousel-nav-btn" aria-label="Scroll Cars Left">◀</button>
                   <button id="btn-carousel-right" type="button" class="aaa-carousel-nav-btn" aria-label="Scroll Cars Right">▶</button>

@@ -3854,6 +3854,28 @@ async function initApp() {
   let playerCash = Number(localStorage.getItem('deskracer_cash')) || 285000;
   let playerGold = Number(localStorage.getItem('deskracer_gold')) || 1650;
 
+  // Unlocked vehicles set (all 8 original/core cars unlocked by default + special-edition unlockable hypercars)
+  const unlockedCarIds = new Set(
+    VEHICLE_CATALOG.filter((c) => !c.defaultLocked).map((c) => c.id)
+  );
+  try {
+    const rawUnlocked = localStorage.getItem('deskracer_unlocked_cars');
+    if (rawUnlocked) {
+      const parsed = JSON.parse(rawUnlocked);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((id) => unlockedCarIds.add(id));
+      }
+    }
+  } catch (_e) {
+    // Ignore storage errors
+  }
+
+  function isCarUnlocked(carId) {
+    const spec = getVehicleSpecById(carId);
+    if (!spec || !spec.defaultLocked) return true;
+    return unlockedCarIds.has(carId);
+  }
+
   // Per-vehicle saved upgrade levels (1..5)
   let savedUpgradesMap = {};
   try {
@@ -3880,6 +3902,7 @@ async function initApp() {
       localStorage.setItem('deskracer_cash', String(playerCash));
       localStorage.setItem('deskracer_gold', String(playerGold));
       localStorage.setItem('deskracer_car_upgrades', JSON.stringify(savedUpgradesMap));
+      localStorage.setItem('deskracer_unlocked_cars', JSON.stringify(Array.from(unlockedCarIds)));
     } catch (_e) {
       // Ignore storage errors
     }
@@ -3892,6 +3915,11 @@ async function initApp() {
     if (elGarageCurrencyGold) {
       elGarageCurrencyGold.textContent = playerGold.toLocaleString('en-US');
     }
+    const elCollectionCount = document.getElementById('garage-collection-count');
+    if (elCollectionCount) {
+      const unlockedTotal = VEHICLE_CATALOG.filter((c) => isCarUnlocked(c.id)).length;
+      elCollectionCount.textContent = `${unlockedTotal} / ${VEHICLE_CATALOG.length}`;
+    }
   }
   updateGarageCurrencyDisplay();
 
@@ -3902,8 +3930,14 @@ async function initApp() {
       btnGarageCancelSelect.classList.toggle('hidden', !hasUnconfirmedChange);
     }
     if (elGarageSelectionPill) {
-      elGarageSelectionPill.textContent =
-        selectedCarId === confirmedCarId ? '✓ EQUIPPED' : 'PREVIEWING · CLICK DRIVE IT TO EQUIP';
+      if (!isCarUnlocked(selectedCarId)) {
+        const spec = getVehicleSpecById(selectedCarId);
+        const cost = spec.unlockCost || 45000;
+        elGarageSelectionPill.textContent = `🔒 LOCKED · $${(cost / 1000).toFixed(0)}K TO UNLOCK`;
+      } else {
+        elGarageSelectionPill.textContent =
+          selectedCarId === confirmedCarId ? '✓ EQUIPPED' : 'PREVIEWING · CLICK DRIVE IT TO EQUIP';
+      }
     }
   }
 
@@ -3937,37 +3971,71 @@ async function initApp() {
 
   function renderCarSvgThumbnail(car) {
     const col = car.defaultColor || '#38bdf8';
+    const uid = String(car.id || 'car').replace(/[^a-z0-9]/gi, '');
     if (car.id === 'classic_kart') {
       return `<svg viewBox="0 0 120 34" fill="none">
-        <ellipse cx="60" cy="29" rx="46" ry="3.5" fill="rgba(0,229,255,0.22)"/>
-        <path d="M22 24 L42 15 L76 15 L96 22 L98 26 L20 26 Z" fill="${col}" stroke="#ffffff" stroke-width="1"/>
-        <rect x="48" y="9" width="14" height="8" rx="3" fill="#fde047"/>
-        <rect x="18" y="12" width="8" height="10" rx="1.5" fill="#1e293b" stroke="#94a3b8" stroke-width="1"/>
-        <circle cx="32" cy="26" r="6" fill="#0f172a" stroke="#e2e8f0" stroke-width="2"/>
-        <circle cx="86" cy="26" r="6" fill="#0f172a" stroke="#e2e8f0" stroke-width="2"/>
+        <ellipse cx="60" cy="30" rx="48" ry="3.5" fill="rgba(56,189,248,0.28)"/>
+        <path d="M20 25 L38 15 L78 15 L98 22 L100 26 L18 26 Z" fill="${col}" stroke="#ffffff" stroke-width="1"/>
+        <rect x="48" y="8" width="14" height="8" rx="3" fill="#fde047" stroke="#090d16" stroke-width="0.8"/>
+        <rect x="16" y="11" width="8" height="11" rx="1.5" fill="#0f172a" stroke="#38bdf8" stroke-width="1"/>
+        <circle cx="32" cy="26" r="6.2" fill="#090d16" stroke="#e2e8f0" stroke-width="2"/>
+        <circle cx="86" cy="26" r="6.2" fill="#090d16" stroke="#e2e8f0" stroke-width="2"/>
       </svg>`;
     }
     if (car.id === 'offroad_raptor') {
       return `<svg viewBox="0 0 120 34" fill="none">
-        <ellipse cx="60" cy="30" rx="48" ry="3.5" fill="rgba(0,229,255,0.22)"/>
-        <path d="M16 24 L20 13 L42 10 L78 10 L96 15 L104 20 L104 26 L16 26 Z" fill="${col}" stroke="#e2e8f0" stroke-width="1"/>
-        <path d="M40 12 L74 12 L82 17 L36 17 Z" fill="#0f172a" stroke="#38bdf8" stroke-width="0.8"/>
-        <circle cx="32" cy="26" r="7" fill="#0f172a" stroke="#facc15" stroke-width="2.2"/>
-        <circle cx="88" cy="26" r="7" fill="#0f172a" stroke="#facc15" stroke-width="2.2"/>
+        <ellipse cx="60" cy="30" rx="50" ry="3.6" fill="rgba(56,189,248,0.28)"/>
+        <path d="M14 25 L19 12 L42 9 L78 9 L96 14 L106 19 L106 26 L14 26 Z" fill="${col}" stroke="#e2e8f0" stroke-width="1"/>
+        <path d="M39 11 L75 11 L83 17 L35 17 Z" fill="#090d1a" stroke="#38bdf8" stroke-width="0.9"/>
+        <circle cx="32" cy="26" r="7.2" fill="#090d16" stroke="#facc15" stroke-width="2.2"/>
+        <circle cx="88" cy="26" r="7.2" fill="#090d16" stroke="#facc15" stroke-width="2.2"/>
       </svg>`;
     }
     return `<svg viewBox="0 0 120 34" fill="none">
-      <ellipse cx="60" cy="29" rx="48" ry="3.5" fill="rgba(56,189,248,0.25)"/>
-      <path d="M12 24 L26 15 L48 10 L78 11 L104 18 L108 24 L104 26 L14 26 Z" fill="${col}" stroke="#ffffff" stroke-width="1"/>
-      <path d="M44 12 L74 12 L86 18 L34 18 Z" fill="#090d1a" stroke="#7dd3fc" stroke-width="0.9"/>
-      <path d="M12 13 L20 13 L18 19 Z" fill="#0f172a" stroke="#facc15" stroke-width="1"/>
-      <circle cx="31" cy="25.5" r="6.2" fill="#090d16" stroke="#fde047" stroke-width="2"/>
-      <circle cx="89" cy="25.5" r="6.2" fill="#090d16" stroke="#fde047" stroke-width="2"/>
+      <defs>
+        <linearGradient id="g_${uid}" x1="10" y1="8" x2="110" y2="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.45"/>
+          <stop offset="35%" stop-color="${col}" stop-opacity="1"/>
+          <stop offset="100%" stop-color="#090d1a" stop-opacity="0.92"/>
+        </linearGradient>
+      </defs>
+      <ellipse cx="60" cy="30" rx="50" ry="3.4" fill="rgba(56,189,248,0.34)"/>
+      <path d="M11 11 L19 11 L17 18 L11 18 Z" fill="#090d1a" stroke="#facc15" stroke-width="1"/>
+      <path d="M12 24 L25 14 L47 9.5 L78 10.5 L105 17.5 L109 23.5 L105 26.5 L14 26.5 Z" fill="${col}" stroke="#e2e8f0" stroke-width="0.9"/>
+      <path d="M12 24 L25 14 L47 9.5 L78 10.5 L105 17.5 L109 23.5 L105 26.5 L14 26.5 Z" fill="url(#g_${uid})"/>
+      <path d="M43 11.5 L75 11.5 L88 17.5 L33 17.5 Z" fill="#070b18" stroke="#7dd3fc" stroke-width="0.9"/>
+      <path d="M26 21 L94 21" stroke="#38bdf8" stroke-width="1" stroke-opacity="0.75"/>
+      <rect x="102" y="19" width="6" height="2.6" rx="1" fill="#fef08a"/>
+      <rect x="12" y="18.5" width="4.5" height="2.6" rx="1" fill="#fb7185"/>
+      <circle cx="31" cy="25.8" r="6.4" fill="#090d16" stroke="#fde047" stroke-width="2"/>
+      <circle cx="31" cy="25.8" r="2.4" fill="#38bdf8"/>
+      <circle cx="89" cy="25.8" r="6.4" fill="#090d16" stroke="#fde047" stroke-width="2"/>
+      <circle cx="89" cy="25.8" r="2.4" fill="#38bdf8"/>
     </svg>`;
   }
 
   async function applySelectedVehicleToGame(carId, customPaintHex = '') {
     const spec = getVehicleSpecById(carId);
+    if (!isCarUnlocked(spec.id)) {
+      const unlockCost = spec.unlockCost || 45000;
+      if (playerCash < unlockCost) {
+        playerCash += unlockCost;
+      }
+      playerCash = Math.max(0, playerCash - unlockCost);
+      unlockedCarIds.add(spec.id);
+      saveGarageStateToStorage();
+      updateGarageCurrencyDisplay();
+      renderGarageRosterGrid();
+      if (elGarageUpgradeToast) {
+        elGarageUpgradeToast.textContent = `🔓 ${spec.name.toUpperCase()} UNLOCKED!`;
+        elGarageUpgradeToast.classList.remove('hidden');
+        clearTimeout(elGarageUpgradeToast._hideTimer);
+        elGarageUpgradeToast._hideTimer = setTimeout(() => {
+          elGarageUpgradeToast.classList.add('hidden');
+        }, 2000);
+      }
+    }
+
     selectedCarId = spec.id;
     selectedCarPaint = customPaintHex || '';
     confirmedCarId = selectedCarId;
@@ -4010,7 +4078,7 @@ async function initApp() {
 
     const eyebrowEl = document.querySelector('#welcome-dialog-overlay .welcome-eyebrow');
     if (eyebrowEl) {
-      eyebrowEl.textContent = `${spec.name.toUpperCase()} · 8-CAR 3D GARAGE · 60FPS`;
+      eyebrowEl.textContent = `${spec.name.toUpperCase()} · ${VEHICLE_CATALOG.length}-CAR 3D GARAGE · 60FPS`;
     }
   }
 
@@ -4046,18 +4114,26 @@ async function initApp() {
     if (elGarageBarBraking) elGarageBarBraking.style.width = `${nitVal}%`;
     if (elGarageValBraking) elGarageValBraking.textContent = String(nitVal);
 
-    // Update Left Panel Stage Labels & Upgrade Action Button
+    // Update Left Panel Stage Labels, Progress Bars & Upgrade Action Button
     ['engine', 'handling', 'suspension', 'nitro'].forEach((cat) => {
       const lvlEl = document.getElementById(`up-lvl-${cat}`);
+      const progEl = document.getElementById(`up-prog-${cat}`);
       const lvl = up[cat] || 1;
       if (lvlEl) {
         lvlEl.textContent = lvl >= 5 ? 'MAX STAGE 5' : `STAGE ${lvl} / 5`;
+      }
+      if (progEl) {
+        progEl.style.width = `${Math.min(100, Math.max(20, lvl * 20))}%`;
       }
     });
 
     const currCatLvl = up[activeUpgradeCategory] || 1;
     const catUpper = activeUpgradeCategory.toUpperCase();
-    if (currCatLvl >= 5) {
+    if (!isCarUnlocked(spec.id)) {
+      const unlockCost = spec.unlockCost || 45000;
+      if (elGarageUpgradeSub) elGarageUpgradeSub.textContent = `UNLOCK ${spec.classLabel}`;
+      if (elGarageUpgradeCost) elGarageUpgradeCost.textContent = `$${unlockCost.toLocaleString('en-US')}`;
+    } else if (currCatLvl >= 5) {
       if (elGarageUpgradeSub) elGarageUpgradeSub.textContent = `${catUpper} MAXED OUT`;
       if (elGarageUpgradeCost) elGarageUpgradeCost.textContent = 'MAX';
     } else {
@@ -4082,12 +4158,23 @@ async function initApp() {
       .map((car) => {
         const isActive = car.id === selectedCarId;
         const isOrig = car.category === 'original';
-        const statusLabel = isActive ? 'SELECTED' : 'OWNED';
-        const statusClass = isActive ? 'is-selected' : 'is-owned';
+        const unlocked = isCarUnlocked(car.id);
+        let statusLabel = 'OWNED';
+        let statusClass = 'is-owned';
+        if (!unlocked) {
+          const kCost = Math.round((car.unlockCost || 45000) / 1000);
+          statusLabel = `🔒 $${kCost}K`;
+          statusClass = 'is-locked-status';
+        } else if (isActive) {
+          statusLabel = 'SELECTED';
+          statusClass = 'is-selected';
+        }
+        const tagClass = !unlocked ? 'is-locked-tag' : isOrig ? 'is-original' : '';
+        const tagText = !unlocked ? '🔒 SPECIAL' : car.badge;
         return `
-          <button type="button" class="garage-car-card ${isActive ? 'active' : ''}" data-carid="${car.id}">
+          <button type="button" class="garage-car-card ${isActive ? 'active' : ''} ${!unlocked ? 'is-locked' : ''}" data-carid="${car.id}">
             <div class="garage-card-top">
-              <span class="garage-card-tag ${isOrig ? 'is-original' : ''}">${car.badge}</span>
+              <span class="garage-card-tag ${tagClass}">${tagText}</span>
               <span class="garage-card-hp">${car.horsepower}</span>
             </div>
             <div class="garage-card-thumb">${renderCarSvgThumbnail(car)}</div>
@@ -4101,13 +4188,34 @@ async function initApp() {
       })
       .join('');
 
+    updateGarageCurrencyDisplay();
+
     elGarageCarGrid.querySelectorAll('.garage-car-card').forEach((cardBtn) => {
       cardBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const cid = cardBtn.dataset.carid || 'bmw_csl';
-        if (cid === selectedCarId) return;
-        selectedCarId = cid;
         const spec = getVehicleSpecById(cid);
+        if (cid === selectedCarId && !isCarUnlocked(cid)) {
+          // Clicking an already-previewed locked car unlocks it immediately
+          const unlockCost = spec.unlockCost || 45000;
+          if (playerCash < unlockCost) playerCash += unlockCost;
+          playerCash = Math.max(0, playerCash - unlockCost);
+          unlockedCarIds.add(cid);
+          saveGarageStateToStorage();
+          updateGarageTelemetryUI(spec);
+          renderGarageRosterGrid();
+          if (audioSynth.playLapChime) audioSynth.playLapChime();
+          if (elGarageUpgradeToast) {
+            elGarageUpgradeToast.textContent = `🔓 ${spec.name.toUpperCase()} UNLOCKED!`;
+            elGarageUpgradeToast.classList.remove('hidden');
+            clearTimeout(elGarageUpgradeToast._hideTimer);
+            elGarageUpgradeToast._hideTimer = setTimeout(() => {
+              elGarageUpgradeToast.classList.add('hidden');
+            }, 1800);
+          }
+          return;
+        }
+        selectedCarId = cid;
         updateGarageTelemetryUI(spec);
         renderGarageRosterGrid();
         if (showroomPreview) {

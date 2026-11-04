@@ -177,6 +177,51 @@ export const VEHICLE_CATALOG = [
     defaultColor: '#ff2800',
     factoryLivery: false,
     description: 'The classic original 1:87 scale tubular-frame shifter micro-kart with exposed rear engine cylinder head, sidepods, and driver.'
+  },
+  {
+    id: 'zenith_gtr',
+    name: 'Zenith GT3 RS Track Spec',
+    category: 'new',
+    badge: 'SPECIAL 3D',
+    classLabel: 'GT3 TRACK',
+    drivetrain: 'RWD • 4.2L Flat-6 GT3 + DRS',
+    horsepower: '720 HP',
+    topSpeedMph: 232,
+    stats: { speed: 98, accel: 97, handling: 99, braking: 98 },
+    physicsMultiplier: { maxSpeed: 1.11, accel: 1.10, grip: 1.11 },
+    defaultColor: '#a855f7',
+    factoryLivery: false,
+    defaultLocked: true,
+    unlockCost: 45000,
+    fbxBodyName: 'Sport_body',
+    textures: {
+      albedo: '/assets/models/car_pack/textures/SportRed.png',
+      metallic: '/assets/models/car_pack/textures/Sport_Metallic.png',
+      glossiness: '/assets/models/car_pack/textures/Sport_Glossiness.png',
+      wheelAlbedo: '/assets/models/car_pack/textures/wheel_H_Diffuse.png',
+      wheelMetallic: '/assets/models/car_pack/textures/wheel_H_Metallic.png',
+      wheelGloss: '/assets/models/car_pack/textures/wheel_H_Glossiness.png'
+    },
+    addGtWing: true,
+    description: 'Factory GT3 endurance racer featuring ultraviolet metallic paintwork, swan-neck DRS rear wing, and track-tuned aerodynamics.'
+  },
+  {
+    id: 'kronos_lmp1',
+    name: 'Kronos Solis V12 Prototype',
+    category: 'new',
+    badge: 'PROTOTYPE 3D',
+    classLabel: 'LMP1 HYPER',
+    drivetrain: 'AWD • 6.8L V12 + KERS Hybrid',
+    horsepower: '1,180 HP',
+    topSpeedMph: 254,
+    stats: { speed: 100, accel: 100, handling: 99, braking: 100 },
+    physicsMultiplier: { maxSpeed: 1.16, accel: 1.14, grip: 1.13 },
+    defaultColor: '#f59e0b',
+    factoryLivery: false,
+    defaultLocked: true,
+    unlockCost: 65000,
+    isCustomSculptedHypercar: true,
+    description: 'Apex Le Mans hypercar prototype finished in liquid solar gold with ground-effect Venturi tunnels, dorsal fin, and KERS boost.'
   }
 ];
 
@@ -933,6 +978,83 @@ class CarPackAssetManager {
       bodyMaterials: [bodyPaintMat],
       spec
     };
+  }
+
+  /**
+   * Builds a high-detail 3D 2015 BMW 3.0 CSL Hommage R widebody GT coupe with
+   * Alpine White metallic body, M-Performance blue/violet/red racing stripes,
+   * twin kidney grille, yellow laser optics, gold multi-spoke wheels, and GT wing
+   * for instantaneous 0ms showroom display before the 6MB FBX finishes streaming.
+   */
+  buildBmwHommageStandin(customColorHex = null) {
+    const spec = getVehicleSpecById('bmw_csl');
+    const built = this.buildSculptedHypercar(spec, customColorHex || '#f8fafc');
+    const root = built.rootGroup;
+
+    // Add signature BMW M-Motorsport Racing Stripes along hood, roof & deck if using OEM white
+    if (!customColorHex) {
+      const stripeColors = [
+        { hex: 0x0066b1, x: -0.14 }, // BMW M Light Blue
+        { hex: 0x2b115a, x: 0.0 },   // BMW M Violet/Navy
+        { hex: 0xe30613, x: 0.14 }   // BMW M Motorsport Red
+      ];
+      stripeColors.forEach((st) => {
+        const sMat = new THREE.MeshPhysicalMaterial({
+          color: st.hex,
+          roughness: 0.16,
+          metalness: 0.35,
+          clearcoat: 1.0
+        });
+        const hoodStripe = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.02, 1.38), sMat);
+        hoodStripe.position.set(st.x, 0.43, 1.34);
+        hoodStripe.rotation.x = 0.15;
+        root.add(hoodStripe);
+
+        const sideStripeL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.09, 3.35), sMat);
+        sideStripeL.position.set(-0.79, 0.21 + (st.x * 0.25), 0.0);
+        root.add(sideStripeL);
+
+        const sideStripeR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.09, 3.35), sMat);
+        sideStripeR.position.set(0.79, 0.21 + (st.x * 0.25), 0.0);
+        root.add(sideStripeR);
+      });
+    }
+
+    // Iconic Twin Kidney Front Grille
+    const kidneyFrameMat = new THREE.MeshPhysicalMaterial({
+      color: 0xe2e8f0,
+      metalness: 0.92,
+      roughness: 0.15,
+      clearcoat: 1.0
+    });
+    const kidneySlatsMat = new THREE.MeshStandardMaterial({
+      color: 0x090d16,
+      metalness: 0.5,
+      roughness: 0.35
+    });
+    [-0.21, 0.21].forEach((kx) => {
+      const kFrame = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.08), kidneyFrameMat);
+      kFrame.position.set(kx, 0.14, 2.28);
+      root.add(kFrame);
+      const kCore = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.17, 0.09), kidneySlatsMat);
+      kCore.position.set(kx, 0.14, 2.285);
+      root.add(kCore);
+    });
+
+    // Tint rims to signature BMW CSL Gold Forged Alloy
+    const goldRim = new THREE.Color(0xfacc15);
+    root.traverse((c) => {
+      if (c.isMesh && c.material && c.material.metalness > 0.9) {
+        c.material = c.material.clone();
+        c.material.color.copy(goldRim);
+      }
+    });
+
+    return built;
+  }
+
+  buildProceduralHypercar(customColorHex = null) {
+    return this.buildBmwHommageStandin(customColorHex);
   }
 }
 

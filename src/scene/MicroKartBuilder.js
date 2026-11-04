@@ -977,7 +977,10 @@ export function buildMicroKart() {
         if (!singleMatBuckets.has(mKey)) {
           singleMatBuckets.set(mKey, { mat: optMat, geos: [] });
         }
-        const g = child.geometry.clone();
+        let g = child.geometry.clone();
+        if (g.index) {
+          g = g.toNonIndexed();
+        }
         g.applyMatrix4(child.matrixWorld);
         for (const attrName of Object.keys(g.attributes)) {
           if (attrName !== 'position' && attrName !== 'normal' && attrName !== 'uv') {
@@ -987,13 +990,22 @@ export function buildMicroKart() {
         if (!g.attributes.normal) {
           g.computeVertexNormals();
         }
+        if (!g.attributes.uv && g.attributes.position) {
+          const uvArr = new Float32Array(g.attributes.position.count * 2);
+          g.setAttribute('uv', new THREE.BufferAttribute(uvArr, 2));
+        }
         singleMatBuckets.get(mKey).geos.push(g);
       }
     });
 
     for (const { mat, geos } of singleMatBuckets.values()) {
       if (geos.length === 0) continue;
-      const mergedGeo = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+      let mergedGeo = null;
+      try {
+        mergedGeo = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+      } catch (_err) {
+        mergedGeo = null;
+      }
       if (mergedGeo) {
         mergedGeo.computeBoundingSphere();
         const mergedMesh = new THREE.Mesh(mergedGeo, mat);
@@ -1001,6 +1013,15 @@ export function buildMicroKart() {
         mergedMesh.receiveShadow = true;
         mergedMesh.frustumCulled = true;
         bmwRoot.add(mergedMesh);
+      } else {
+        for (const g of geos) {
+          g.computeBoundingSphere();
+          const m = new THREE.Mesh(g, mat);
+          m.castShadow = true;
+          m.receiveShadow = true;
+          m.frustumCulled = true;
+          bmwRoot.add(m);
+        }
       }
     }
 
@@ -1062,12 +1083,14 @@ export function buildMicroKart() {
     const maxSpan = Math.max(rawSize.x, rawSize.y, rawSize.z, 0.001);
 
     // Add detailed 3D interior seats/dash/steering wheel scaled proportionally to the BMW cabin
-    const bmwInterior = carPackAssets.buildDetailedInteriorGroup(
-      rawSize.x * 0.52,
-      rawSize.z * 0.36,
-      rawBox.min.y + rawSize.y * 0.24
+    const bmwInterior = carPackAssets.buildDetailedInteriorGroup(1.36, 1.52, 0.04);
+    const interiorScale = maxSpan / 4.68;
+    bmwInterior.scale.setScalar(interiorScale);
+    bmwInterior.position.set(
+      rawCenter.x,
+      rawBox.min.y + rawSize.y * 0.22,
+      rawCenter.z - rawSize.z * 0.03
     );
-    bmwInterior.position.set(rawCenter.x, 0, rawCenter.z - rawSize.z * 0.03);
     bmwRoot.add(bmwInterior);
 
     const normalizedScale = 0.022 / maxSpan;
