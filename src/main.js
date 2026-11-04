@@ -3816,6 +3816,11 @@ async function initApp() {
   const elGarageUpgradeCost = document.getElementById('garage-upgrade-cost');
   const elGarageCurrencyCash = document.getElementById('garage-currency-cash');
   const elGarageCurrencyGold = document.getElementById('garage-currency-gold');
+  const btnGarageAddCurrency = document.getElementById('btn-garage-add-currency');
+  const elGarageDistanceVal = document.getElementById('garage-distance-val');
+  const elGarageFpsBadge = document.getElementById('garage-fps-badge');
+  const elGarageFpsVal = document.getElementById('garage-fps-val');
+  const btnToggleFpsDisplay = document.getElementById('btn-toggle-fps-display');
   const elGarageActiveMapTitle = document.getElementById('garage-active-map-title');
   const elGarageDriveSub = document.getElementById('garage-drive-sub');
 
@@ -3908,6 +3913,31 @@ async function initApp() {
     }
   }
 
+  let careerDistanceKm = Number(localStorage.getItem('deskracer_distance_km')) || 14.8;
+  let showFpsCounter = localStorage.getItem('deskracer_show_fps') !== '0';
+
+  function syncFpsDisplayUI() {
+    if (elGarageFpsBadge) {
+      elGarageFpsBadge.classList.toggle('hidden', !showFpsCounter);
+    }
+    if (btnToggleFpsDisplay) {
+      btnToggleFpsDisplay.classList.toggle('active', showFpsCounter);
+      btnToggleFpsDisplay.textContent = showFpsCounter ? 'FPS: ON' : 'FPS: OFF';
+    }
+  }
+  syncFpsDisplayUI();
+
+  if (btnToggleFpsDisplay) {
+    btnToggleFpsDisplay.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showFpsCounter = !showFpsCounter;
+      try {
+        localStorage.setItem('deskracer_show_fps', showFpsCounter ? '1' : '0');
+      } catch (_e) {}
+      syncFpsDisplayUI();
+    });
+  }
+
   function updateGarageCurrencyDisplay() {
     if (elGarageCurrencyCash) {
       elGarageCurrencyCash.textContent = playerCash.toLocaleString('en-US');
@@ -3915,13 +3945,34 @@ async function initApp() {
     if (elGarageCurrencyGold) {
       elGarageCurrencyGold.textContent = playerGold.toLocaleString('en-US');
     }
+    if (elGarageDistanceVal) {
+      elGarageDistanceVal.textContent = `${careerDistanceKm.toFixed(1)} KM`;
+    }
     const elCollectionCount = document.getElementById('garage-collection-count');
     if (elCollectionCount) {
       const unlockedTotal = VEHICLE_CATALOG.filter((c) => isCarUnlocked(c.id)).length;
-      elCollectionCount.textContent = `${unlockedTotal} / ${VEHICLE_CATALOG.length}`;
+      elCollectionCount.textContent = `${unlockedTotal}/${VEHICLE_CATALOG.length}`;
     }
   }
   updateGarageCurrencyDisplay();
+
+  if (btnGarageAddCurrency) {
+    btnGarageAddCurrency.addEventListener('click', (e) => {
+      e.stopPropagation();
+      playerCash += 25000;
+      saveGarageStateToStorage();
+      updateGarageCurrencyDisplay();
+      if (audioSynth.playLapChime) audioSynth.playLapChime();
+      if (elGarageUpgradeToast) {
+        elGarageUpgradeToast.textContent = '🪙 +$25,000 BONUS CREDITS ADDED!';
+        elGarageUpgradeToast.classList.remove('hidden');
+        clearTimeout(elGarageUpgradeToast._hideTimer);
+        elGarageUpgradeToast._hideTimer = setTimeout(() => {
+          elGarageUpgradeToast.classList.add('hidden');
+        }, 1600);
+      }
+    });
+  }
 
   function updateGarageSelectionActionUI() {
     const hasUnconfirmedChange =
@@ -4170,7 +4221,7 @@ async function initApp() {
           statusClass = 'is-selected';
         }
         const tagClass = !unlocked ? 'is-locked-tag' : isOrig ? 'is-original' : '';
-        const tagText = !unlocked ? '🔒 SPECIAL' : car.badge;
+        const tagText = !unlocked ? '🔒 LOCKED' : isOrig ? 'ORIGINAL' : 'NEW';
         return `
           <button type="button" class="garage-car-card ${isActive ? 'active' : ''} ${!unlocked ? 'is-locked' : ''}" data-carid="${car.id}">
             <div class="garage-card-top">
@@ -5327,8 +5378,23 @@ async function initApp() {
   const clock = new THREE.Clock();
   let lastHudUpdateMs = 0;
   let lastMainFrameMs = 0;
+  let fpsFrameCounter = 0;
+  let fpsLastSampleMs = performance.now();
 
   function animate(nowPerfMs = performance.now()) {
+    fpsFrameCounter++;
+    if (nowPerfMs - fpsLastSampleMs >= 500) {
+      const measuredFps = Math.min(
+        currentFpsLimit || 60,
+        Math.max(24, Math.round((fpsFrameCounter * 1000) / (nowPerfMs - fpsLastSampleMs)))
+      );
+      if (elGarageFpsVal && showFpsCounter) {
+        elGarageFpsVal.textContent = String(measuredFps);
+      }
+      fpsFrameCounter = 0;
+      fpsLastSampleMs = nowPerfMs;
+    }
+
     // Eliminate duplicate WebGL rendering & physics CPU load while the full-screen 3D Garage is open
     const isGarageOpen =
       !isScreenshotMode && elGarageModal && !elGarageModal.classList.contains('hidden');
@@ -5397,6 +5463,12 @@ async function initApp() {
     audioSynth.update(st);
     const nowMs = performance.now();
     if (isScreenshotMode || nowMs - lastHudUpdateMs >= 200) {
+      if (Math.abs(st.speed) > 0.01) {
+        careerDistanceKm += Math.abs(st.speed) * 0.045;
+        if (elGarageDistanceVal) {
+          elGarageDistanceVal.textContent = `${careerDistanceKm.toFixed(1)} KM`;
+        }
+      }
       lastHudUpdateMs = nowMs;
       updateHUD(st);
     }
