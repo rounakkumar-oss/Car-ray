@@ -37,6 +37,81 @@ jobs:
           npx cap add android || true
           npx cap sync android
 
+      - name: Configure Native Android Immersive Sticky Fullscreen Landscape Mode
+        run: |
+          # 1. Force sensorLandscape orientation in AndroidManifest.xml
+          sed -i 's/android:name=".MainActivity"/android:name=".MainActivity" android:screenOrientation="sensorLandscape"/g' android/app/src/main/AndroidManifest.xml
+
+          # 2. Inject windowFullscreen and shortEdges display cutout into styles.xml
+          sed -i 's/<item name="windowNoTitle">true<\/item>/<item name="windowNoTitle">true<\/item>\n        <item name="android:windowFullscreen">true<\/item>\n        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges<\/item>/g' android/app/src/main/res/values/styles.xml
+
+          # 3. Write MainActivity.java with Android Immersive Sticky Fullscreen Mode (Hides Status Bar & Navigation Bar 100%)
+          MAIN_ACT_PATH=$(find android/app/src/main/java -name "MainActivity.java" | head -n 1)
+          if [ -n "$MAIN_ACT_PATH" ]; then
+            cat << 'EOF' > "$MAIN_ACT_PATH"
+          package com.deskracer.game;
+
+          import android.content.pm.ActivityInfo;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.view.WindowInsets;
+          import android.view.WindowInsetsController;
+          import android.view.WindowManager;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                      WindowManager.LayoutParams lp = getWindow().getAttributes();
+                      lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                      getWindow().setAttributes(lp);
+                  }
+                  enableImmersiveStickyFullscreen();
+              }
+
+              @Override
+              public void onResume() {
+                  super.onResume();
+                  enableImmersiveStickyFullscreen();
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+                  if (hasFocus) {
+                      enableImmersiveStickyFullscreen();
+                  }
+              }
+
+              private void enableImmersiveStickyFullscreen() {
+                  View decorView = getWindow().getDecorView();
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                      getWindow().setDecorFitsSystemWindows(false);
+                      WindowInsetsController controller = decorView.getWindowInsetsController();
+                      if (controller != null) {
+                          controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                          controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                      }
+                  }
+                  decorView.setSystemUiVisibility(
+                      View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                      | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_FULLSCREEN
+                  );
+              }
+          }
+          EOF
+          fi
+
       - name: Build Debug APK with Gradle
         working-directory: ./android
         run: |
@@ -56,7 +131,7 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: "Desk Racer 3D — Android APK (Build #${{ github.run_number }})"
           body: |
-            ### Direct Android APK Download
+            ### Direct Android APK Download (True Immersive Sticky Fullscreen Landscape Mode)
             Click **`Desk-Racer-3D.apk`** below under **Assets** to download and install the game directly on your Android phone!
           files: Desk-Racer-3D.apk
           prerelease: false

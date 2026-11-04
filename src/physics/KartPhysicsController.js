@@ -280,13 +280,16 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     steerSmooth: 0.0, // Progressive smoothed manual steering input
     steerAngle: 0.0, // Front wheel steering angle in radians (+0.45 Left A, -0.45 Right D)
     topSpeedMultiplier: 1.0,
+    accelMultiplier: 1.0,
+    gripMultiplier: 1.0,
+    nitroMultiplier: 1.0,
     steerInput: 0.0,
     isDrifting: false,
     driftDir: 0, // -1 left, +1 right
     driftAngle: 0.0,
     driftChargeTimer: 0.0,
     cornerCleanTimer: 0.0,
-    boostCharge: 1.0, // 0.0 to 1.0 (3 tiers)
+    boostCharge: 1.0, // 0.0 to 1.0 (100% Nitro tank)
     boostActive: 0.0, // remaining turbo boost timer
     hopHeight: 0.0,
     hopVel: 0.0,
@@ -516,6 +519,23 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     syncCombinedKeys();
   }
 
+  function triggerNitroBoost() {
+    if (state.countdownLocked || state.raceFinished || state.bustedLocked || state.seekerBlindfolded) {
+      return false;
+    }
+    if (state.boostCharge < 0.18) {
+      return false;
+    }
+    if (state.autopilot) {
+      setAutopilot(false);
+    }
+    const consumeAmt = Math.min(state.boostCharge, 0.38);
+    state.boostCharge = Math.max(0.0, state.boostCharge - consumeAmt);
+    const boostDur = (1.15 + 0.25 * state.nitroMultiplier) * (consumeAmt / 0.38);
+    state.boostActive = Math.max(state.boostActive, boostDur);
+    return true;
+  }
+
   // Pure Grip Racing (W/A/S/D or Arrow Keys only, plus P for Autopilot and R for Reset)
   if (typeof window !== 'undefined' && window.addEventListener) {
     window.addEventListener('keydown', (e) => {
@@ -538,6 +558,8 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
         setAutopilot(!state.autopilot);
       } else if (code === 'KeyR') {
         resetToStart();
+      } else if (code === 'ShiftLeft' || code === 'ShiftRight' || code === 'KeyN') {
+        triggerNitroBoost();
       }
       syncCombinedKeys();
     });
@@ -570,9 +592,9 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
 
     // Calibrated speeds in real meters/second (1:150 N-scale: ~15% reduction from 1:87 to balance lower eye-height optical flow)
     const manualMaxSpeed = 0.195 * state.topSpeedMultiplier;
-    const boostMaxSpeed = 0.289 * state.topSpeedMultiplier;
+    const boostMaxSpeed = 0.289 * state.topSpeedMultiplier * (0.96 + 0.04 * state.nitroMultiplier);
     const autopilotCruiseSpeed = 0.204 * state.topSpeedMultiplier;
-    const manualAccel = 0.204; // Smooth progressive acceleration (0 -> top speed in ~1.0s)
+    const manualAccel = 0.204 * state.accelMultiplier; // Smooth progressive acceleration enhanced by Engine/Nitro upgrades
 
     if (state.railHitCooldown > 0) {
       state.railHitCooldown = Math.max(0.0, state.railHitCooldown - clampedDt);
@@ -1226,21 +1248,32 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     if (keys.backward) throttle -= 1.0;
     const turnRight = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
 
-    // Calibrated speeds so speedometer reads up to ~105 KM/H while traversing the 9.6m x 9.6m house briskly
-    const maxSpeed = 0.265 * state.topSpeedMultiplier;
-    const reverseMax = -0.14 * state.topSpeedMultiplier;
-    const accelRate = 0.34;
+    if (state.boostActive > 0) {
+      state.boostActive = Math.max(0.0, state.boostActive - clampedDt);
+    } else {
+      state.boostCharge = Math.min(
+        1.0,
+        state.boostCharge + clampedDt * (state.isDrifting ? 0.22 : 0.075) * state.nitroMultiplier
+      );
+    }
 
-    if (throttle === 0) {
+    // Calibrated speeds so speedometer reads up to ~105-145 KM/H with Nitro Boost
+    const boostFactor = state.boostActive > 0 ? 1.32 : 1.0;
+    const maxSpeed = 0.265 * state.topSpeedMultiplier * boostFactor;
+    const reverseMax = -0.14 * state.topSpeedMultiplier;
+    const accelRate = 0.34 * state.accelMultiplier * (state.boostActive > 0 ? 1.45 : 1.0);
+
+    if (throttle === 0 && state.boostActive <= 0) {
       const decel = 0.42 * clampedDt;
       if (Math.abs(state.speed) <= decel) {
         state.speed = 0.0;
       } else {
         state.speed -= Math.sign(state.speed) * decel;
       }
-    } else if (throttle > 0) {
+    } else if (throttle > 0 || state.boostActive > 0) {
+      const effThrottle = Math.max(throttle, state.boostActive > 0 ? 1.0 : 0.0);
       const a = state.speed < -0.01 ? 0.95 : accelRate;
-      state.speed = Math.min(maxSpeed, state.speed + a * throttle * clampedDt);
+      state.speed = Math.min(maxSpeed, state.speed + a * effThrottle * clampedDt);
     } else {
       const a = state.speed > 0.01 ? 0.95 : 0.24;
       state.speed = Math.max(reverseMax, state.speed + a * throttle * clampedDt);
@@ -1452,6 +1485,13 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     setAutopilot,
     setTouchKey,
     clearTouchKeys,
+    triggerNitroBoost,
+    setVehicleTuning: (tuning = {}) => {
+      if (tuning.maxSpeed !== undefined) state.topSpeedMultiplier = tuning.maxSpeed;
+      if (tuning.accel !== undefined) state.accelMultiplier = tuning.accel;
+      if (tuning.grip !== undefined) state.gripMultiplier = tuning.grip;
+      if (tuning.nitro !== undefined) state.nitroMultiplier = tuning.nitro;
+    },
     notifyLightsOut,
     setGiantHouseWorld,
     setGameMode,
