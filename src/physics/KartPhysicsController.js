@@ -1291,7 +1291,8 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
 
     const speedSign = state.speed >= -0.005 ? 1.0 : -1.0;
     const steerMobility = THREE.MathUtils.clamp(Math.abs(state.speed) / 0.035, 0.0, 1.0);
-    const yawRate = 2.45 * state.steerSmooth * steerMobility * speedSign;
+    const sensMult = state.steerSensitivity || 1.0;
+    const yawRate = 2.45 * sensMult * state.steerSmooth * steerMobility * speedSign;
     houseWorldYaw += yawRate * clampedDt;
 
     // Drift visual slip angle & sparks when turning hard at speed
@@ -1491,6 +1492,9 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
       if (tuning.accel !== undefined) state.accelMultiplier = tuning.accel;
       if (tuning.grip !== undefined) state.gripMultiplier = tuning.grip;
       if (tuning.nitro !== undefined) state.nitroMultiplier = tuning.nitro;
+    },
+    setControlSensitivity: (sens = 1.0) => {
+      state.steerSensitivity = THREE.MathUtils.clamp(Number(sens) || 1.0, 0.5, 1.6);
     },
     notifyLightsOut,
     setGiantHouseWorld,

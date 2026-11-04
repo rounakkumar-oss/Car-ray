@@ -268,13 +268,26 @@
                   <span id="garage-currency-gold" class="aaa-curr-val">1,650</span>
                 </div>
 
-                <button id="btn-garage-fullscreen" type="button" class="aaa-header-icon-btn" title="Toggle Immersive Fullscreen">
+                <!-- Clearly Visible Settings Gear Icon in Garage Header -->
+                <button id="btn-garage-settings" type="button" class="aaa-header-icon-btn is-settings-gear" title="Open Settings &amp; Graphics Quality" aria-label="Settings">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                  </svg>
+                </button>
+
+                <button id="btn-garage-fullscreen" type="button" class="aaa-header-icon-btn" title="Toggle Immersive Fullscreen" aria-label="Fullscreen">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
                   </svg>
                 </button>
               </div>
             </header>
+
+            <!-- Floating Exit 3D Inspection Mode Button (Visible when inspecting car full-screen) -->
+            <button id="btn-exit-inspection" type="button" class="aaa-exit-inspect-btn hidden">
+              <span>✕ EXIT INSPECTION · DONE</span>
+            </button>
 
             <!-- 2. MIDDLE WORKSPACE: LEFT UPGRADE PANEL | CENTER 3D CAR + SPECS | RIGHT ACTION PANEL -->
             <div class="aaa-garage-middle">
@@ -336,7 +349,7 @@
                   <span class="aaa-up-chevron">›</span>
                 </button>
 
-                <!-- Functional UPGRADE Action CTA -->
+                <!-- Functional UPGRADE Action CTA (Opens Confirmation Dialog before spending currency) -->
                 <button id="btn-garage-do-upgrade" type="button" class="aaa-left-action-btn is-upgrade-action">
                   <span class="aaa-act-left">
                     <span class="aaa-act-title">UPGRADE</span>
@@ -364,6 +377,7 @@
                       <span id="garage-selected-badge" class="aaa-origin-pill">ORIGINAL</span>
                       <span id="garage-selected-class" class="aaa-class-pill">GT CONCEPT</span>
                       <span id="garage-selected-hp" class="aaa-hp-pill">580 HP</span>
+                      <span id="garage-selection-status-pill" class="aaa-selection-pill">✓ EQUIPPED</span>
                     </div>
                     <h2 id="garage-selected-name" class="aaa-selected-car-name">2015 BMW 3.0 CSL Hommage R</h2>
                     <div id="garage-selected-drivetrain" class="aaa-selected-drivetrain">RWD • 3.0L TwinPower Turbo I6</div>
@@ -408,7 +422,10 @@
                   <button id="btn-garage-autorotate" type="button" class="aaa-spin-btn active" title="Toggle 360° Platform Rotation">
                     🔄 360° SPIN
                   </button>
-                  <span class="aaa-orbit-hint">↔ DRAG CAR TO INSPECT 360°</span>
+                  <button id="btn-garage-inspect" type="button" class="aaa-spin-btn is-inspect-btn" title="Full-Screen 3D Car Inspection Mode">
+                    🔍 INSPECT 3D
+                  </button>
+                  <span class="aaa-orbit-hint">↔ DRAG CAR TO ORBIT</span>
                   <span id="garage-upgrade-toast" class="aaa-upgrade-toast hidden">⚡ UPGRADED!</span>
                 </div>
 
@@ -449,6 +466,8 @@
                       <button type="button" class="glow-swatch-btn" data-glow="#10b981" style="background:#10b981" title="Nitro Green"></button>
                     </div>
                   </div>
+
+                  <button id="btn-close-customize-drawer" type="button" class="aaa-cust-done-btn" title="Close Customize Drawer">DONE ✓</button>
                 </div>
               </div>
 
@@ -492,7 +511,7 @@
               </aside>
             </div>
 
-            <!-- 3. BOTTOM CAR COLLECTION: HORIZONTAL SCROLLING VEHICLE CAROUSEL -->
+            <!-- 3. BOTTOM CAR COLLECTION: HORIZONTAL SCROLLING VEHICLE CAROUSEL + CANCEL/RESET -->
             <footer class="aaa-garage-bottom-dock">
               <div class="aaa-collection-bar-top">
                 <div class="aaa-collection-left-tabs" role="tablist">
@@ -502,6 +521,12 @@
                   <button type="button" class="garage-filter-btn" data-filter="new">NEW 3D SPORTS (6)</button>
                 </div>
                 <div class="aaa-collection-scroll-btns">
+                  <button id="btn-garage-cancel-select" type="button" class="aaa-selection-action-btn is-cancel-btn hidden" title="Cancel Preview &amp; Revert to Previous Car">
+                    ↩ CANCEL / BACK
+                  </button>
+                  <button id="btn-garage-reset-select" type="button" class="aaa-selection-action-btn is-reset-btn" title="Reset Car Selection &amp; Default Livery">
+                    🔄 RESET SELECTION
+                  </button>
                   <button id="btn-carousel-left" type="button" class="aaa-carousel-nav-btn" aria-label="Scroll Cars Left">◀</button>
                   <button id="btn-carousel-right" type="button" class="aaa-carousel-nav-btn" aria-label="Scroll Cars Right">▶</button>
                 </div>
@@ -509,6 +534,25 @@
 
               <div id="garage-car-grid" class="aaa-car-carousel"></div>
             </footer>
+
+            <!-- 4. UPGRADE PURCHASE CONFIRMATION MODAL (Prevents Accidental Purchases!) -->
+            <div id="garage-confirm-modal" class="aaa-confirm-overlay hidden" role="dialog" aria-labelledby="confirm-upgrade-title">
+              <div class="aaa-confirm-card">
+                <div class="aaa-confirm-kicker">PERFORMANCE TUNING CONFIRMATION</div>
+                <h3 id="confirm-upgrade-title" class="aaa-confirm-title">INSTALL ENGINE STAGE 3?</h3>
+                <p id="confirm-upgrade-desc" class="aaa-confirm-desc">
+                  Upgrade your selected vehicle's performance stage for <strong id="confirm-upgrade-price">$25,000</strong> Race Credits.
+                </p>
+                <div class="aaa-confirm-actions">
+                  <button id="btn-confirm-upgrade-yes" type="button" class="aaa-confirm-yes-btn">
+                    ✓ CONFIRM UPGRADE
+                  </button>
+                  <button id="btn-confirm-upgrade-no" type="button" class="aaa-confirm-no-btn">
+                    ✕ CANCEL
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- World / Mode Selection Hub (Opened via HOME button in Garage) -->
@@ -520,13 +564,16 @@
                   <span class="welcome-eyebrow">2015 BMW 3.0 CSL HOMMAGE R · 8-CAR 3D GARAGE · 60FPS</span>
                   <h1 id="welcome-title" class="welcome-title">SELECT RACE WORLD</h1>
                 </div>
-                <!-- Map / Lighting Theme Selector Pills -->
+                <!-- Map / Lighting Theme Selector Pills + Lobby Settings Gear Button -->
                 <div class="start-theme-selector" role="group" aria-label="Select Lighting Theme">
                   <span class="start-theme-label">ATMOSPHERE</span>
                   <div class="start-theme-pills">
                     <button type="button" class="theme-pill-btn active" data-theme="sunset">🌅 Warm Neon</button>
                     <button type="button" class="theme-pill-btn" data-theme="cyber">🌌 Cyber Night</button>
                     <button type="button" class="theme-pill-btn" data-theme="daylight">☀️ Daylight</button>
+                    <button id="btn-welcome-settings" type="button" class="theme-pill-btn lobby-settings-gear-btn" title="Open Graphics &amp; Game Settings">
+                      ⚙️ SETTINGS
+                    </button>
                   </div>
                 </div>
               </div>
@@ -660,39 +707,112 @@
             <div class="welcome-dialog-card water-glass-modal settings-modal-card">
               <div class="modal-top-bar">
                 <div>
-                  <div class="welcome-eyebrow">PAUSE &amp; CONFIGURATION</div>
-                  <h2 id="settings-modal-title" class="modal-heading">GAME MENU &amp; GRAPHICS</h2>
+                  <div class="welcome-eyebrow">PERFORMANCE, AUDIO &amp; CONTROLS</div>
+                  <h2 id="settings-modal-title" class="modal-heading">GAME SETTINGS &amp; GRAPHICS</h2>
                 </div>
                 <button id="btn-close-settings" class="modal-close-btn water-glass-btn" type="button" aria-label="Close Settings">✕</button>
               </div>
 
+              <!-- 1. GRAPHICS QUALITY PRESET (Default: LOW for maximum 60 FPS performance) -->
               <div class="settings-section">
-                <div class="settings-section-title">SWITCH GAME MODE &amp; GARAGE</div>
-                <div class="settings-quick-row">
-                  <button id="btn-settings-mode-city" type="button" class="settings-pill-btn water-glass-btn">
-                    🏔️ APEX CITY &amp; MOUNTAIN
+                <div class="settings-section-title">1. GRAPHICS QUALITY PRESET (DEFAULT: LOW FOR 60 FPS)</div>
+                <div class="gfx-preset-grid" role="radiogroup" aria-label="Graphics Quality">
+                  <button type="button" class="gfx-preset-card water-glass-subcard active" data-gfx="low">
+                    <span class="gfx-preset-badge">LOW (DEFAULT)</span>
+                    <span class="gfx-preset-name">Max 60 FPS</span>
+                    <span class="gfx-preset-desc">Fast Textures · Minimal Shadows</span>
                   </button>
-                  <button id="btn-settings-mode-house" type="button" class="settings-pill-btn water-glass-btn">
-                    🏠 FREE ROAM HOUSE
+                  <button type="button" class="gfx-preset-card water-glass-subcard" data-gfx="medium">
+                    <span class="gfx-preset-badge">MEDIUM</span>
+                    <span class="gfx-preset-name">Balanced</span>
+                    <span class="gfx-preset-desc">1.0x Res · Balanced Lighting</span>
                   </button>
-                  <button id="btn-settings-mode-track" type="button" class="settings-pill-btn water-glass-btn">
-                    🏎️ NEON TRACK RACE
+                  <button type="button" class="gfx-preset-card water-glass-subcard" data-gfx="high">
+                    <span class="gfx-preset-badge">HIGH</span>
+                    <span class="gfx-preset-name">HD Realism</span>
+                    <span class="gfx-preset-desc">1.35x Res · Rich Reflections</span>
                   </button>
-                  <button id="btn-settings-mode-police" type="button" class="settings-pill-btn water-glass-btn">
-                    🚨 POLICE HIDE &amp; SEEK
-                  </button>
-                  <button id="btn-settings-open-garage" type="button" class="settings-pill-btn water-glass-btn">
-                    🚘 3D GARAGE (8 CARS)
-                  </button>
-                  <button id="btn-settings-open-mp" type="button" class="settings-pill-btn water-glass-btn">
-                    👥 FRIENDS LOBBY
+                  <button type="button" class="gfx-preset-card water-glass-subcard" data-gfx="ultra">
+                    <span class="gfx-preset-badge">ULTRA</span>
+                    <span class="gfx-preset-name">Max + Bloom</span>
+                    <span class="gfx-preset-desc">Full Effects · High GPU</span>
                   </button>
                 </div>
               </div>
 
+              <!-- 2. FPS LIMIT, SHADOW QUALITY & REFLECTION QUALITY -->
+              <div class="settings-section settings-split-grid">
+                <div class="settings-subcol">
+                  <div class="settings-section-title">FPS LIMIT</div>
+                  <div class="settings-seg-group" role="group" aria-label="FPS Limit">
+                    <button type="button" class="settings-seg-btn" data-fps="30">30 FPS</button>
+                    <button type="button" class="settings-seg-btn active" data-fps="60">60 FPS</button>
+                    <button type="button" class="settings-seg-btn" data-fps="90">90 FPS</button>
+                  </div>
+                </div>
+
+                <div class="settings-subcol">
+                  <div class="settings-section-title">SHADOW QUALITY</div>
+                  <div class="settings-seg-group" role="group" aria-label="Shadow Quality">
+                    <button type="button" class="settings-seg-btn active" data-shadow="off">OFF / MIN</button>
+                    <button type="button" class="settings-seg-btn" data-shadow="medium">MEDIUM</button>
+                    <button type="button" class="settings-seg-btn" data-shadow="high">HIGH</button>
+                  </div>
+                </div>
+
+                <div class="settings-subcol">
+                  <div class="settings-section-title">REFLECTION QUALITY</div>
+                  <div class="settings-seg-group" role="group" aria-label="Reflection Quality">
+                    <button type="button" class="settings-seg-btn active" data-refl="low">LOW</button>
+                    <button type="button" class="settings-seg-btn" data-refl="medium">MEDIUM</button>
+                    <button type="button" class="settings-seg-btn" data-refl="high">HIGH</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. SOUND VOLUME, MUSIC VOLUME & CONTROL SENSITIVITY SLIDERS -->
+              <div class="settings-section settings-sliders-grid">
+                <div class="settings-slider-box water-glass-subcard">
+                  <div class="settings-slider-head">
+                    <label for="slider-sfx-volume">🔊 SOUND VOLUME</label>
+                    <span id="val-sfx-volume" class="settings-slider-val">85%</span>
+                  </div>
+                  <input id="slider-sfx-volume" type="range" min="0" max="100" step="5" value="85" class="settings-range-input" />
+                </div>
+
+                <div class="settings-slider-box water-glass-subcard">
+                  <div class="settings-slider-head">
+                    <label for="slider-music-volume">🎵 MUSIC &amp; AMBIENCE</label>
+                    <span id="val-music-volume" class="settings-slider-val">70%</span>
+                  </div>
+                  <input id="slider-music-volume" type="range" min="0" max="100" step="5" value="70" class="settings-range-input" />
+                </div>
+
+                <div class="settings-slider-box water-glass-subcard">
+                  <div class="settings-slider-head">
+                    <label for="slider-ctrl-sens">🎮 CONTROL SENSITIVITY</label>
+                    <span id="val-ctrl-sens" class="settings-slider-val">100%</span>
+                  </div>
+                  <input id="slider-ctrl-sens" type="range" min="50" max="150" step="5" value="100" class="settings-range-input" />
+                </div>
+              </div>
+
+              <!-- 4. QUICK GAME MODE, AI DIFFICULTY & LIGHTING THEME -->
               <div class="settings-section">
-                <div class="settings-section-title">🤖 AI RIVAL &amp; HIDE-AND-SEEK DIFFICULTY</div>
-                <div class="settings-quick-row settings-ai-row">
+                <div class="settings-section-title">QUICK SWITCH MAP, AI DIFFICULTY &amp; LIGHTING</div>
+                <div class="settings-quick-row">
+                  <button id="btn-settings-mode-city" type="button" class="settings-pill-btn water-glass-btn">
+                    🏔️ CITY &amp; MOUNTAIN
+                  </button>
+                  <button id="btn-settings-mode-track" type="button" class="settings-pill-btn water-glass-btn">
+                    🏎️ NEON TRACK
+                  </button>
+                  <button id="btn-settings-mode-house" type="button" class="settings-pill-btn water-glass-btn">
+                    🏠 HOUSE ROAM
+                  </button>
+                  <button id="btn-settings-mode-police" type="button" class="settings-pill-btn water-glass-btn">
+                    🚨 HIDE &amp; SEEK
+                  </button>
                   <button type="button" class="settings-pill-btn water-glass-btn ai-diff-pill-btn diff-normal active" data-aidiff="normal">
                     🟢 NORMAL AI
                   </button>
@@ -702,12 +822,6 @@
                   <button type="button" class="settings-pill-btn water-glass-btn ai-diff-pill-btn diff-hard" data-aidiff="hard">
                     🔴 HARD AI
                   </button>
-                </div>
-              </div>
-
-              <div class="settings-section">
-                <div class="settings-section-title">MAP LIGHTING THEME</div>
-                <div class="settings-quick-row">
                   <button type="button" class="settings-pill-btn water-glass-btn theme-pill-btn active" data-theme="sunset">
                     🌅 WARM NEON
                   </button>
@@ -715,7 +829,7 @@
                     🌌 CYBER NIGHT
                   </button>
                   <button type="button" class="settings-pill-btn water-glass-btn theme-pill-btn" data-theme="daylight">
-                    ☀️ DAYLIGHT STUDIO
+                    ☀️ DAYLIGHT
                   </button>
                   <button id="btn-settings-reset-car" type="button" class="settings-pill-btn water-glass-btn">
                     🔄 RESPAWN CAR
@@ -723,38 +837,21 @@
                 </div>
               </div>
 
-              <div class="settings-section">
-                <div class="settings-section-title">GRAPHICS QUALITY PRESET</div>
-                <div class="gfx-preset-grid" role="radiogroup" aria-label="Graphics Quality">
-                  <button type="button" class="gfx-preset-card water-glass-subcard" data-gfx="low">
-                    <span class="gfx-preset-badge">LOW</span>
-                    <span class="gfx-preset-name">Max FPS</span>
-                    <span class="gfx-preset-desc">0.75x Res · 60 FPS</span>
-                  </button>
-                  <button type="button" class="gfx-preset-card water-glass-subcard active" data-gfx="medium">
-                    <span class="gfx-preset-badge">MEDIUM</span>
-                    <span class="gfx-preset-name">Balanced</span>
-                    <span class="gfx-preset-desc">1.0x Native · Smooth</span>
-                  </button>
-                  <button type="button" class="gfx-preset-card water-glass-subcard" data-gfx="high">
-                    <span class="gfx-preset-badge">HIGH</span>
-                    <span class="gfx-preset-name">HD Reflections</span>
-                    <span class="gfx-preset-desc">1.35x Res · Rich PBR</span>
-                  </button>
-                  <button type="button" class="gfx-preset-card water-glass-subcard" data-gfx="ultra">
-                    <span class="gfx-preset-badge">ULTRA</span>
-                    <span class="gfx-preset-name">2x + Bloom</span>
-                    <span class="gfx-preset-desc">pixelRatio 2 · Bloom</span>
-                  </button>
-                </div>
-              </div>
-
               <div class="settings-footer-row">
                 <button id="btn-settings-resume" type="button" class="welcome-start-btn water-glass-cta settings-resume-btn">
-                  <span class="welcome-start-text">RESUME DRIVING</span>
+                  <span class="welcome-start-text">APPLY &amp; RESUME</span>
                 </button>
                 <button id="btn-settings-main-menu" type="button" class="busted-secondary-btn water-glass-btn">
-                  OPEN GARAGE
+                  🏎️ OPEN GARAGE
+                </button>
+                <button id="btn-settings-open-garage" type="button" class="busted-secondary-btn water-glass-btn hidden">
+                  GARAGE
+                </button>
+                <button id="btn-settings-open-mp" type="button" class="busted-secondary-btn water-glass-btn">
+                  👥 FRIENDS CODE
+                </button>
+                <button id="btn-settings-reset-defaults" type="button" class="busted-secondary-btn water-glass-btn settings-reset-btn">
+                  ↺ RESET SETTINGS
                 </button>
               </div>
             </div>

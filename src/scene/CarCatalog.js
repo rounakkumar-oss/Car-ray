@@ -203,7 +203,10 @@ class CarPackAssetManager {
     if (this.textureCache.has(key)) return this.textureCache.get(key);
     const tex = this.textureLoader.load(url);
     tex.colorSpace = isSRGB ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-    tex.anisotropy = 8;
+    tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = 2;
     this.textureCache.set(key, tex);
     return tex;
   }

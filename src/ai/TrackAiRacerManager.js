@@ -200,8 +200,8 @@ export function createTrackAiRacerManager({
     const cfg = botConfigs[i];
     const bKart = buildMicroKart();
     bKart.kartRoot.scale.setScalar(3.6);
-    if (bKart.switchToCatalogVehicle) {
-      bKart.switchToCatalogVehicle(cfg.carId);
+    if (bKart.setChassisColor) {
+      bKart.setChassisColor(cfg.colorHex);
     }
     const bSprite = createAiRacerNametagSprite('normal');
     bSprite.scale.set(0.085, 0.019, 1.0);
@@ -215,6 +215,7 @@ export function createTrackAiRacerManager({
     houseAiBots.push({
       id: `house_ai_${i + 1}`,
       name: cfg.name,
+      carId: cfg.carId,
       colorHex: cfg.colorHex,
       kart: bKart,
       sprite: bSprite,
@@ -226,12 +227,25 @@ export function createTrackAiRacerManager({
       currentWp: cfg.startWp,
       targetWp: cfg.targetWp,
       stuckTimer: 0.0,
+      upgraded3d: false,
     });
   }
 
-  // Upgrade Track AI Rival to a realistic 3D sports car as well
-  if (aiKart.switchToCatalogVehicle) {
-    aiKart.switchToCatalogVehicle('sport_gt');
+  let aiTrackUpgraded3d = false;
+  function upgradeAiModelsLazy(mode = 'track') {
+    if (mode === 'track') {
+      if (!aiTrackUpgraded3d && aiKart.switchToCatalogVehicle) {
+        aiTrackUpgraded3d = true;
+        aiKart.switchToCatalogVehicle('sport_gt');
+      }
+    } else {
+      houseAiBots.forEach((bot) => {
+        if (!bot.upgraded3d && bot.kart.switchToCatalogVehicle) {
+          bot.upgraded3d = true;
+          bot.kart.switchToCatalogVehicle(bot.carId);
+        }
+      });
+    }
   }
 
   let currentDifficulty = 'normal'; // 'normal' | 'medium' | 'hard'
@@ -756,6 +770,7 @@ export function createTrackAiRacerManager({
     resetAiRacer,
     syncScaleForCamera,
     setModeVisibility,
+    upgradeAiModelsLazy,
     update,
     getMinimapMarkers,
     getStartFinishInfo: () => ({

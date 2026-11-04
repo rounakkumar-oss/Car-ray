@@ -25,26 +25,34 @@ export class CarShowroomPreview {
       this.scene.environmentIntensity = 1.85;
     }
 
-    this.camera = new THREE.PerspectiveCamera(34, 16 / 9, 0.2, 80);
-    this.camera.position.set(4.35, 1.68, 4.85);
-    this.cameraTarget = new THREE.Vector3(0, 0.22, 0);
+    this.camera = new THREE.PerspectiveCamera(32, 16 / 9, 0.25, 48);
+    this.camera.position.set(3.85, 1.48, 4.35);
+    this.cameraTarget = new THREE.Vector3(0, 0.18, 0);
     this.camera.lookAt(this.cameraTarget);
 
-    // Smooth camera focus presets when clicking ENGINE / HANDLING / SUSPENSION / NITRO / CUSTOMIZE
-    this.targetCamDist = 6.25;
-    this.currentCamDist = 6.25;
-    this.targetCamHeight = 1.65;
-    this.currentCamHeight = 1.65;
+    // Smooth camera focus presets when clicking ENGINE / HANDLING / SUSPENSION / NITRO / CUSTOMIZE / INSPECT
+    this.targetCamDist = 5.55;
+    this.currentCamDist = 5.55;
+    this.targetCamHeight = 1.48;
+    this.currentCamHeight = 1.48;
+    this.isInspectMode = false;
+
+    // Performance & Graphics settings (defaults to LOW for instant 60 FPS startup)
+    this.graphicsQuality = 'low';
+    this.fpsLimit = 60;
+    this.reflectionQuality = 'low';
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
-      antialias: true,
+      antialias: false,
       alpha: false,
       powerPreference: 'high-performance',
+      stencil: false,
+      depth: true,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(0.85);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.28;
+    this.renderer.toneMappingExposure = 1.18;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     // Turntable root that rotates smoothly
@@ -72,6 +80,56 @@ export class CarShowroomPreview {
 
     this._setupGarageArchitecture();
     this._setupPointerControls();
+    this.setGraphicsConfig({ quality: 'low', fpsLimit: 60, reflections: 'low' });
+  }
+
+  setGraphicsConfig(cfg = {}) {
+    if (cfg.quality) this.graphicsQuality = cfg.quality;
+    if (cfg.fpsLimit) this.fpsLimit = Number(cfg.fpsLimit) || 60;
+    if (cfg.reflections) this.reflectionQuality = cfg.reflections;
+
+    const dpr = window.devicePixelRatio || 1;
+    let targetPr = 0.85;
+    if (this.graphicsQuality === 'low') {
+      targetPr = Math.min(dpr, 0.85);
+    } else if (this.graphicsQuality === 'medium') {
+      targetPr = Math.min(dpr, 1.05);
+    } else if (this.graphicsQuality === 'high') {
+      targetPr = Math.min(dpr, 1.35);
+    } else {
+      targetPr = Math.min(dpr, 1.65);
+    }
+    this.renderer.setPixelRatio(targetPr);
+
+    const refl = this.reflectionQuality || this.graphicsQuality;
+    if (refl === 'low') {
+      this.scene.environmentIntensity = 0.65;
+      if (this.purpleFillLight) this.purpleFillLight.visible = false;
+      if (this.goldAccentLight) this.goldAccentLight.visible = false;
+    } else if (refl === 'medium') {
+      this.scene.environmentIntensity = 1.15;
+      if (this.purpleFillLight) this.purpleFillLight.visible = true;
+      if (this.goldAccentLight) this.goldAccentLight.visible = false;
+    } else {
+      this.scene.environmentIntensity = 1.65;
+      if (this.purpleFillLight) this.purpleFillLight.visible = true;
+      if (this.goldAccentLight) this.goldAccentLight.visible = true;
+    }
+
+    if (this.isActive) {
+      this.resize();
+    }
+  }
+
+  setInspectMode(enabled) {
+    this.isInspectMode = Boolean(enabled);
+    if (this.isInspectMode) {
+      this.targetCamDist = 4.85;
+      this.targetCamHeight = 1.35;
+    } else {
+      this.targetCamDist = 5.55;
+      this.targetCamHeight = 1.48;
+    }
   }
 
   setBmwTemplate(fbxTemplate, liveryTex) {
@@ -83,52 +141,50 @@ export class CarShowroomPreview {
   }
 
   _setupGarageArchitecture() {
-    // 1. Multi-point AAA Automotive Showroom Lighting (Blue, Purple, Warm Key & Gold Rim)
-    const hemi = new THREE.HemisphereLight(0xc7d2fe, 0x090d1a, 1.55);
+    // 1. Optimized Automotive Showroom Lighting
+    const hemi = new THREE.HemisphereLight(0xc7d2fe, 0x090d1a, 1.5);
     this.scene.add(hemi);
 
-    const keyLight = new THREE.DirectionalLight(0xfffbeb, 3.1);
+    const keyLight = new THREE.DirectionalLight(0xfffbeb, 2.8);
     keyLight.position.set(5.5, 8.0, 5.2);
     this.scene.add(keyLight);
 
-    const cyanRimLight = new THREE.DirectionalLight(0x38bdf8, 2.4);
+    const cyanRimLight = new THREE.DirectionalLight(0x38bdf8, 2.0);
     cyanRimLight.position.set(-6.5, 4.0, -5.5);
     this.scene.add(cyanRimLight);
 
-    const purpleFillLight = new THREE.PointLight(0xa855f7, 2.2, 18);
-    purpleFillLight.position.set(-4.8, 2.4, 3.6);
-    this.scene.add(purpleFillLight);
+    this.purpleFillLight = new THREE.PointLight(0xa855f7, 1.8, 16);
+    this.purpleFillLight.position.set(-4.8, 2.4, 3.6);
+    this.scene.add(this.purpleFillLight);
 
-    const goldAccentLight = new THREE.PointLight(0xfacc15, 1.65, 16);
-    goldAccentLight.position.set(4.8, 1.9, -3.8);
-    this.scene.add(goldAccentLight);
+    this.goldAccentLight = new THREE.PointLight(0xfacc15, 1.4, 15);
+    this.goldAccentLight.position.set(4.8, 1.9, -3.8);
+    this.scene.add(this.goldAccentLight);
 
     // Under-car customizable Neon Underglow Light
-    this.underglowLight = new THREE.PointLight(0x00e5ff, 2.4, 5.5);
+    this.underglowLight = new THREE.PointLight(0x00e5ff, 2.0, 5.2);
     this.underglowLight.position.set(0, -0.18, 0);
     this.turntableGroup.add(this.underglowLight);
 
-    // 2. Expansive Reflective Dark Showroom Floor
-    const floorGeo = new THREE.CircleGeometry(24, 64);
+    // 2. Lightweight Showroom Floor (MeshStandardMaterial instead of heavy clearcoat Physical)
+    const floorGeo = new THREE.CircleGeometry(18, 36);
     floorGeo.rotateX(-Math.PI / 2);
-    const floorMat = new THREE.MeshPhysicalMaterial({
+    const floorMat = new THREE.MeshStandardMaterial({
       color: 0x070a15,
-      metalness: 0.72,
-      roughness: 0.22,
-      clearcoat: 0.85,
-      clearcoatRoughness: 0.14,
+      metalness: 0.55,
+      roughness: 0.32,
     });
     const floorMesh = new THREE.Mesh(floorGeo, floorMat);
     floorMesh.position.y = -0.46;
     this.scene.add(floorMesh);
 
-    // Subtle hexagonal/radial grid ring on showroom floor
-    const outerFloorRingGeo = new THREE.RingGeometry(4.45, 4.52, 64);
+    // Subtle radial ring on showroom floor
+    const outerFloorRingGeo = new THREE.RingGeometry(4.42, 4.5, 48);
     outerFloorRingGeo.rotateX(-Math.PI / 2);
     const outerFloorRingMat = new THREE.MeshBasicMaterial({
       color: 0x4f46e5,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.42,
       side: THREE.DoubleSide,
     });
     const outerFloorRing = new THREE.Mesh(outerFloorRingGeo, outerFloorRingMat);
@@ -136,32 +192,28 @@ export class CarShowroomPreview {
     this.scene.add(outerFloorRing);
 
     // 3. Multi-Tier Rotating Display Platform (Pedestal)
-    const baseTierGeo = new THREE.CylinderGeometry(3.65, 3.92, 0.12, 64);
-    const baseTierMat = new THREE.MeshPhysicalMaterial({
+    const baseTierGeo = new THREE.CylinderGeometry(3.62, 3.88, 0.12, 48);
+    const baseTierMat = new THREE.MeshStandardMaterial({
       color: 0x0b1022,
-      metalness: 0.78,
-      roughness: 0.2,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.1,
+      metalness: 0.68,
+      roughness: 0.24,
     });
     const baseTier = new THREE.Mesh(baseTierGeo, baseTierMat);
     baseTier.position.y = -0.41;
     this.turntableGroup.add(baseTier);
 
-    const topStageGeo = new THREE.CylinderGeometry(3.22, 3.38, 0.1, 64);
-    const topStageMat = new THREE.MeshPhysicalMaterial({
+    const topStageGeo = new THREE.CylinderGeometry(3.2, 3.35, 0.1, 48);
+    const topStageMat = new THREE.MeshStandardMaterial({
       color: 0x11172e,
-      metalness: 0.65,
-      roughness: 0.16,
-      clearcoat: 0.95,
-      clearcoatRoughness: 0.08,
+      metalness: 0.62,
+      roughness: 0.2,
     });
     const topStage = new THREE.Mesh(topStageGeo, topStageMat);
     topStage.position.y = -0.34;
     this.turntableGroup.add(topStage);
 
     // Glowing Inner Neon Ring on Platform
-    const innerRingGeo = new THREE.RingGeometry(3.08, 3.21, 64);
+    const innerRingGeo = new THREE.RingGeometry(3.08, 3.19, 48);
     innerRingGeo.rotateX(-Math.PI / 2);
     this.pedestalRingMat = new THREE.MeshBasicMaterial({
       color: 0x00e5ff,
@@ -172,7 +224,7 @@ export class CarShowroomPreview {
     this.turntableGroup.add(innerRingMesh);
 
     // Glowing Outer Gold/Purple Trim Ring on Platform
-    const outerRingGeo = new THREE.RingGeometry(3.52, 3.63, 64);
+    const outerRingGeo = new THREE.RingGeometry(3.5, 3.6, 48);
     outerRingGeo.rotateX(-Math.PI / 2);
     this.outerPedestalRingMat = new THREE.MeshBasicMaterial({
       color: 0xa855f7,
@@ -182,36 +234,36 @@ export class CarShowroomPreview {
     outerRingMesh.position.y = -0.346;
     this.turntableGroup.add(outerRingMesh);
 
-    // 12 Radial Turntable Accent Struts (gives clear visual feedback as platform spins)
-    const strutGeo = new THREE.BoxGeometry(0.06, 0.015, 0.42);
+    // 8 Radial Turntable Accent Struts
+    const strutGeo = new THREE.BoxGeometry(0.06, 0.015, 0.4);
     const strutMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
-    for (let i = 0; i < 12; i++) {
-      const ang = (i / 12) * Math.PI * 2;
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
       const strut = new THREE.Mesh(strutGeo, strutMat);
-      strut.position.set(Math.sin(ang) * 3.36, -0.29, Math.cos(ang) * 3.36);
+      strut.position.set(Math.sin(ang) * 3.34, -0.29, Math.cos(ang) * 3.34);
       strut.rotation.y = ang;
       this.turntableGroup.add(strut);
     }
 
     // Underglow Aura Disc directly beneath car
-    const underglowGeo = new THREE.CircleGeometry(2.15, 48);
+    const underglowGeo = new THREE.CircleGeometry(2.1, 32);
     underglowGeo.rotateX(-Math.PI / 2);
     this.underglowDiscMat = new THREE.MeshBasicMaterial({
       color: 0x00e5ff,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.24,
       depthWrite: false,
     });
     const underglowDisc = new THREE.Mesh(underglowGeo, this.underglowDiscMat);
     underglowDisc.position.y = -0.283;
     this.turntableGroup.add(underglowDisc);
 
-    // 4. Modern Showroom Architectural Pillars & Overhead Light Bays
+    // 4. Showroom Architectural Pillars & Overhead Light Bays
     const pillarGeo = new THREE.BoxGeometry(0.45, 5.5, 0.45);
     const pillarMat = new THREE.MeshStandardMaterial({
       color: 0x0d1326,
-      metalness: 0.6,
-      roughness: 0.32,
+      metalness: 0.55,
+      roughness: 0.35,
     });
     const neonStripGeo = new THREE.BoxGeometry(0.06, 4.8, 0.06);
     const neonBlueMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
@@ -222,8 +274,6 @@ export class CarShowroomPreview {
       [-3.2, -7.2],
       [3.2, -7.2],
       [6.5, -5.8],
-      [-7.5, -1.8],
-      [7.5, -1.8],
     ];
     pillarCoords.forEach(([px, pz], idx) => {
       const p = new THREE.Mesh(pillarGeo, pillarMat);
@@ -240,8 +290,8 @@ export class CarShowroomPreview {
       this.scene.add(strip);
     });
 
-    // Overhead Halo Light Canopy & Softbox Panels (reflected in car clearcoat)
-    const haloRingGeo = new THREE.RingGeometry(2.9, 3.25, 64);
+    // Overhead Halo Light Canopy & Softbox Panels
+    const haloRingGeo = new THREE.RingGeometry(2.9, 3.22, 48);
     haloRingGeo.rotateX(Math.PI / 2);
     const haloRingMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
@@ -251,20 +301,8 @@ export class CarShowroomPreview {
     haloRing.position.y = 3.75;
     this.scene.add(haloRing);
 
-    const softboxGeo = new THREE.PlaneGeometry(5.6, 0.48);
-    const softboxMat = new THREE.MeshBasicMaterial({
-      color: 0xe0f2fe,
-      side: THREE.DoubleSide,
-    });
-    [-1.05, 1.05].forEach((sx) => {
-      const sb = new THREE.Mesh(softboxGeo, softboxMat);
-      sb.position.set(sx, 3.72, 0);
-      sb.rotation.x = Math.PI / 2;
-      this.scene.add(sb);
-    });
-
     // Twin Nitro Exhaust Preview Flame Cones (activated when testing/upgrading NITRO)
-    const flameGeo = new THREE.ConeGeometry(0.14, 0.85, 16);
+    const flameGeo = new THREE.ConeGeometry(0.14, 0.85, 12);
     flameGeo.rotateX(-Math.PI / 2);
     this.nitroFlameMat = new THREE.MeshBasicMaterial({
       color: 0x38bdf8,
@@ -297,8 +335,8 @@ export class CarShowroomPreview {
       this.turntableAngle += dx * 0.011;
       this.targetCamHeight = THREE.MathUtils.clamp(
         this.targetCamHeight + dy * 0.006,
-        0.85,
-        2.85
+        0.78,
+        2.65
       );
     });
     const stopDrag = () => {
@@ -309,25 +347,26 @@ export class CarShowroomPreview {
   }
 
   focusUpgradeSection(section) {
+    if (this.isInspectMode) return;
     if (section === 'engine') {
-      this.targetCamDist = 5.45;
-      this.targetCamHeight = 1.82;
+      this.targetCamDist = 5.05;
+      this.targetCamHeight = 1.62;
     } else if (section === 'handling') {
-      this.targetCamDist = 5.6;
-      this.targetCamHeight = 1.25;
+      this.targetCamDist = 5.15;
+      this.targetCamHeight = 1.18;
     } else if (section === 'suspension') {
-      this.targetCamDist = 5.35;
-      this.targetCamHeight = 0.98;
+      this.targetCamDist = 4.95;
+      this.targetCamHeight = 0.94;
     } else if (section === 'nitro') {
-      this.targetCamDist = 5.55;
-      this.targetCamHeight = 1.35;
+      this.targetCamDist = 5.1;
+      this.targetCamHeight = 1.25;
       this.triggerNitroPreviewBurst();
     } else if (section === 'customize') {
-      this.targetCamDist = 5.75;
-      this.targetCamHeight = 1.52;
+      this.targetCamDist = 5.25;
+      this.targetCamHeight = 1.38;
     } else {
-      this.targetCamDist = 6.25;
-      this.targetCamHeight = 1.65;
+      this.targetCamDist = 5.55;
+      this.targetCamHeight = 1.48;
     }
   }
 
@@ -345,7 +384,6 @@ export class CarShowroomPreview {
 
   setSuspensionLevel(level) {
     this.currentSuspensionLevel = Math.max(1, Math.min(5, Number(level) || 1));
-    // Lower the vehicle stance slightly with higher sport suspension level
     const stanceDrop = (this.currentSuspensionLevel - 1) * 0.022;
     this.vehicleHolder.position.y = -stanceDrop;
   }
@@ -366,6 +404,22 @@ export class CarShowroomPreview {
     });
   }
 
+  _clearVehicleHolder() {
+    while (this.vehicleHolder.children.length > 0) {
+      const root = this.vehicleHolder.children[0];
+      this.vehicleHolder.remove(root);
+      root.traverse((node) => {
+        if (node.isMesh && node.material) {
+          const mats = Array.isArray(node.material) ? node.material : [node.material];
+          mats.forEach((m) => {
+            if (m && typeof m.dispose === 'function') m.dispose();
+          });
+        }
+      });
+    }
+    this.activeWheels = [];
+  }
+
   resize() {
     if (!this.canvas) return;
     const rect = this.canvas.getBoundingClientRect();
@@ -377,18 +431,25 @@ export class CarShowroomPreview {
   }
 
   async previewCar(carId, customColorHex = null) {
+    const cleanPaint = customColorHex || null;
+    if (
+      this.currentCarId === carId &&
+      this.currentColorHex === cleanPaint &&
+      this.vehicleHolder.children.length > 0 &&
+      !(carId === 'bmw_csl' && this.cachedBmwFbxTemplate && !this._bmwFbxApplied)
+    ) {
+      return;
+    }
+
     this.currentCarId = carId;
-    this.currentColorHex = customColorHex;
-    const requestToken = `${carId}_${customColorHex || 'default'}_${Date.now()}`;
+    this.currentColorHex = cleanPaint;
+    const requestToken = `${carId}_${cleanPaint || 'default'}_${Date.now()}`;
     this._latestToken = requestToken;
 
-    while (this.vehicleHolder.children.length > 0) {
-      this.vehicleHolder.remove(this.vehicleHolder.children[0]);
-    }
-    this.activeWheels = [];
+    this._clearVehicleHolder();
 
     const spec = getVehicleSpecById(carId);
-    const accentHex = customColorHex || spec.defaultColor || '#00e5ff';
+    const accentHex = cleanPaint || spec.defaultColor || '#00e5ff';
     if (this.pedestalRingMat && !this.currentUnderglowHex) {
       this.pedestalRingMat.color.set(accentHex);
     }
@@ -400,10 +461,10 @@ export class CarShowroomPreview {
           tireRubberTex: null,
           brushedMetalTex: null,
         });
-        tempKart.kartRoot.scale.setScalar(215);
+        tempKart.kartRoot.scale.setScalar(225);
         tempKart.kartRoot.position.set(0, -0.28, 0);
-        if (customColorHex) {
-          tempKart.setChassisColor(customColorHex);
+        if (cleanPaint) {
+          tempKart.setChassisColor(cleanPaint);
         }
         this.vehicleHolder.add(tempKart.kartRoot);
         this.activeWheels = tempKart.wheelMeshes || [];
@@ -417,16 +478,19 @@ export class CarShowroomPreview {
           tireRubberTex: null,
           brushedMetalTex: null,
         });
-        tempKart.kartRoot.scale.setScalar(215);
+        tempKart.kartRoot.scale.setScalar(225);
         tempKart.kartRoot.position.set(0, -0.28, 0);
         if (this.cachedBmwFbxTemplate) {
+          this._bmwFbxApplied = true;
           tempKart.attachBmwFbxKart(
             this.cachedBmwFbxTemplate.clone(true),
             this.cachedBmwLiveryTex
           );
-          if (customColorHex) {
-            tempKart.setChassisColor(customColorHex);
+          if (cleanPaint) {
+            tempKart.setChassisColor(cleanPaint);
           }
+        } else {
+          this._bmwFbxApplied = false;
         }
         this.vehicleHolder.add(tempKart.kartRoot);
         this.activeWheels = tempKart.wheelMeshes || [];
@@ -434,8 +498,9 @@ export class CarShowroomPreview {
         return;
       }
 
-      const instance = await carPackAssets.buildCarInstance(carId, customColorHex);
+      const instance = await carPackAssets.buildCarInstance(carId, cleanPaint);
       if (this._latestToken !== requestToken) return;
+      instance.rootGroup.scale.setScalar(1.06);
       this.vehicleHolder.add(instance.rootGroup);
       this.activeWheels = instance.wheelVisuals || [];
       if (this.currentRimColorHex) this.setRimColor(this.currentRimColorHex);
@@ -452,14 +517,22 @@ export class CarShowroomPreview {
     this.isActive = true;
     this.resize();
     let lastTime = performance.now();
+    let lastRenderTime = 0;
 
     const tick = (now) => {
       if (!this.isActive) return;
+      this.rafId = requestAnimationFrame(tick);
+
+      // Respect FPS limit (30 / 60 / 90)
+      const minFrameInterval = this.fpsLimit === 30 ? 31.5 : this.fpsLimit === 90 ? 10.2 : 15.2;
+      if (now - lastRenderTime < minFrameInterval) return;
+      lastRenderTime = now;
+
       const dt = Math.min((now - lastTime) / 1000, 0.05);
       lastTime = now;
 
       if (this.autoRotate && !this.isDragging) {
-        this.turntableAngle += dt * 0.45;
+        this.turntableAngle += dt * 0.42;
       }
       this.turntableGroup.rotation.y = this.turntableAngle;
 
@@ -474,8 +547,12 @@ export class CarShowroomPreview {
       );
       this.camera.lookAt(this.cameraTarget);
 
-      if (this.spinWheelsPreview && this.activeWheels.length > 0) {
-        const wheelSpeed = this.nitroPreviewTimer > 0 ? 18.0 : 4.5;
+      if (
+        this.spinWheelsPreview &&
+        this.activeWheels.length > 0 &&
+        (this.graphicsQuality !== 'low' || this.nitroPreviewTimer > 0)
+      ) {
+        const wheelSpeed = this.nitroPreviewTimer > 0 ? 18.0 : 3.8;
         for (let i = 0; i < this.activeWheels.length; i++) {
           const w = this.activeWheels[i];
           if (w) w.rotation.x += dt * wheelSpeed;
@@ -495,7 +572,6 @@ export class CarShowroomPreview {
       }
 
       this.renderer.render(this.scene, this.camera);
-      this.rafId = requestAnimationFrame(tick);
     };
 
     this.rafId = requestAnimationFrame(tick);

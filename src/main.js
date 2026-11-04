@@ -111,8 +111,18 @@ async function initApp() {
     antialias: false,
     powerPreference: 'high-performance',
   });
-  let currentGraphicsQuality = 'medium'; // 'low' | 'medium' | 'high' | 'ultra'
-  let targetPixelRatio = Math.min(window.devicePixelRatio || 1, 1.15);
+  let currentGraphicsQuality = localStorage.getItem('deskracer_gfx_quality') || 'low'; // 'low' | 'medium' | 'high' | 'ultra'
+  let currentFpsLimit = Number(localStorage.getItem('deskracer_fps_limit')) || 60; // 30 | 60 | 90
+  let currentShadowQuality = localStorage.getItem('deskracer_shadow_quality') || 'off'; // 'off' | 'medium' | 'high'
+  let currentReflectionQuality = localStorage.getItem('deskracer_refl_quality') || 'low'; // 'low' | 'medium' | 'high'
+  let currentSfxVolume = Number(localStorage.getItem('deskracer_sfx_vol') ?? 85);
+  let currentMusicVolume = Number(localStorage.getItem('deskracer_music_vol') ?? 70);
+  let currentCtrlSensitivity = Number(localStorage.getItem('deskracer_ctrl_sens') ?? 100);
+
+  let targetPixelRatio =
+    currentGraphicsQuality === 'low'
+      ? 0.75
+      : Math.min(window.devicePixelRatio || 1, 1.05);
   renderer.setPixelRatio(targetPixelRatio);
   renderer.setSize(initDims.width, initDims.height);
   renderer.domElement.style.width = '100%';
@@ -146,7 +156,7 @@ async function initApp() {
   // Procedural PMREMGenerator environment map so PBR metals, glass, marble, and screens
   // have realistic specular reflections at zero per-frame cost
   scene.environment = createProceduralPMREMEnvironment(renderer);
-  scene.environmentIntensity = 0.72;
+  scene.environmentIntensity = currentGraphicsQuality === 'low' ? 0.38 : 0.72;
 
   // Optional Post-Processing Composer & Dynamic Bloom Pass (Activated in ULTRA Graphics Mode)
   let ultraComposer = null;
@@ -206,7 +216,8 @@ async function initApp() {
     droneKartScale: false,
     panoKart100: true,
   };
-  scene.environmentIntensity = 0.68 + 0.55 * settings.sunIntensity;
+  scene.environmentIntensity =
+    currentGraphicsQuality === 'low' ? 0.38 : 0.68 + 0.55 * settings.sunIntensity;
 
   const atmosphere = buildGoldenHourAtmosphere(scene);
   const diorama = buildProceduralDeskDiorama(manifest);
@@ -230,10 +241,17 @@ async function initApp() {
   giantHouse.houseGroup.visible = false;
   scene.add(giantHouse.houseGroup);
 
-  // Build Mode 3: Hyper-Realistic 3D Open-World City & Mountain Circuit Map
-  const cityMap = buildHyperRealisticCityMap();
-  cityMap.houseGroup.visible = false;
-  scene.add(cityMap.houseGroup);
+  // Build Mode 3: Hyper-Realistic 3D Open-World City & Mountain Circuit Map (Lazy-built on demand to eliminate startup lag)
+  let cityMap = null;
+  function ensureCityMapBuilt() {
+    if (!cityMap) {
+      cityMap = buildHyperRealisticCityMap();
+      cityMap.houseGroup.visible = false;
+      optimizeSceneHierarchyForMobile(cityMap.houseGroup);
+      scene.add(cityMap.houseGroup);
+    }
+    return cityMap;
+  }
 
   const microKart = buildMicroKart();
   microKart.kartRoot.scale.setScalar(0.38);
@@ -420,16 +438,10 @@ async function initApp() {
     });
   }
 
-  initObjectTextures(giantHouse.houseGroup);
-
-  /**
-   * Forces WebGL to upload all textures, vertex/index buffers (VBOs/IBOs), and compile + link
-   * all active shader variants across all 360° sectors of the desk & room using a single
-   * lightweight 64x64 off-screen render pass with frustum culling temporarily disabled.
-   * Restores 100.0% of scene/camera state so Lap 1 has zero stutters and zero GPU spike.
-   */
   function warmUpSceneOnGpu() {
-    if (isScreenshotMode) return;
+    if (isScreenshotMode || currentGraphicsQuality === 'low') return;
+    const garageEl = document.getElementById('garage-modal-backdrop');
+    if (garageEl && !garageEl.classList.contains('hidden')) return;
     let warmupTarget = null;
     try {
       if (scene.environment) {
@@ -449,14 +461,6 @@ async function initApp() {
             c.visible = true;
           }
         });
-      }
-      if (atmosphere.godRayCurtainGroup && !atmosphere.godRayCurtainGroup.visible) {
-        tempShownObjects.push(atmosphere.godRayCurtainGroup);
-        atmosphere.godRayCurtainGroup.visible = true;
-      }
-      if (giantHouse.houseGroup && !giantHouse.houseGroup.visible) {
-        tempShownObjects.push(giantHouse.houseGroup);
-        giantHouse.houseGroup.visible = true;
       }
       const isCountdownCurrentlyActive =
         typeof f1CountdownState !== 'undefined' && f1CountdownState && f1CountdownState.active;
@@ -1228,7 +1232,11 @@ async function initApp() {
 
     // Toggle 3D world groups between Track Mode, Giant House Mode, and Hyper-Realistic City Map
     giantHouse.houseGroup.visible = isHouseOrCity && !isCity;
-    cityMap.houseGroup.visible = isCity;
+    if (isCity) {
+      ensureCityMapBuilt().houseGroup.visible = true;
+    } else if (cityMap) {
+      cityMap.houseGroup.visible = false;
+    }
     diorama.root.visible = !isHouseOrCity && !loadedGlbStatus.desk;
     if (diorama.nightGlowGroup) diorama.nightGlowGroup.visible = !isHouseOrCity;
     roomEnv.roomRoot.visible = !isHouseOrCity;
@@ -1244,7 +1252,7 @@ async function initApp() {
     hideBustedGameOver();
     hideLapSplit();
 
-    const activeOpenWorldRef = isCity ? cityMap : giantHouse;
+    const activeOpenWorldRef = isCity ? ensureCityMapBuilt() : giantHouse;
     physics.setGiantHouseWorld(activeOpenWorldRef);
     physics.setGameMode(worldMode);
     if (isCity && physics.resetHousePose) {
@@ -1262,6 +1270,9 @@ async function initApp() {
         aiRacerManager.resetAiRacer();
       }
       aiRacerManager.syncScaleForCamera(activeCameraMode, worldMode);
+      if (currentGraphicsQuality !== 'low' && aiRacerManager.upgradeAiModelsLazy) {
+        aiRacerManager.upgradeAiModelsLazy(playMode);
+      }
     }
 
     if (elHudPoliceBanner) {
@@ -3352,6 +3363,8 @@ async function initApp() {
   // -------------------------------------------------------------------------
   const elSettingsModal = document.getElementById('water-glass-settings-modal');
   const btnOpenSettings = document.getElementById('btn-open-settings');
+  const btnGarageSettings = document.getElementById('btn-garage-settings');
+  const btnWelcomeSettings = document.getElementById('btn-welcome-settings');
   const btnCloseSettings = document.getElementById('btn-close-settings');
   const btnSettingsResume = document.getElementById('btn-settings-resume');
   const btnSettingsModeTrack = document.getElementById('btn-settings-mode-track');
@@ -3360,35 +3373,113 @@ async function initApp() {
   const btnSettingsMainMenu = document.getElementById('btn-settings-main-menu');
   const btnSettingsOpenMp = document.getElementById('btn-settings-open-mp');
   const btnSettingsResetCar = document.getElementById('btn-settings-reset-car');
+  const btnSettingsResetDefaults = document.getElementById('btn-settings-reset-defaults');
   const gfxPresetBtns = document.querySelectorAll('.gfx-preset-card');
+  const fpsPillBtns = document.querySelectorAll('#settings-fps-group .ai-diff-pill-btn');
+  const shadowPillBtns = document.querySelectorAll('#settings-shadow-group .ai-diff-pill-btn');
+  const reflPillBtns = document.querySelectorAll('#settings-refl-group .ai-diff-pill-btn');
+  const sliderSfxVol = document.getElementById('slider-sfx-volume');
+  const valSfxVol = document.getElementById('val-sfx-volume');
+  const sliderMusicVol = document.getElementById('slider-music-volume');
+  const valMusicVol = document.getElementById('val-music-volume');
+  const sliderCtrlSens = document.getElementById('slider-ctrl-sens');
+  const valCtrlSens = document.getElementById('val-ctrl-sens');
 
-  function applyGraphicsQuality(tier) {
-    currentGraphicsQuality = tier;
+  // AAA Garage DOM references (declared before applyGraphicsQuality so showroomPreview is accessible)
+  const elGarageModal = document.getElementById('garage-modal-backdrop');
+  const elGarageCanvas = document.getElementById('garage-preview-canvas');
+  const showroomPreview = elGarageCanvas
+    ? new CarShowroomPreview(elGarageCanvas, scene.environment)
+    : null;
+
+  function syncSettingsControlsUI() {
+    gfxPresetBtns.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.gfx === currentGraphicsQuality);
+    });
+    fpsPillBtns.forEach((btn) => {
+      btn.classList.toggle('active', Number(btn.dataset.fps) === currentFpsLimit);
+    });
+    shadowPillBtns.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.shadow === currentShadowQuality);
+    });
+    reflPillBtns.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.refl === currentReflectionQuality);
+    });
+    if (sliderSfxVol) sliderSfxVol.value = String(currentSfxVolume);
+    if (valSfxVol) valSfxVol.textContent = `${currentSfxVolume}%`;
+    if (sliderMusicVol) sliderMusicVol.value = String(currentMusicVolume);
+    if (valMusicVol) valMusicVol.textContent = `${currentMusicVolume}%`;
+    if (sliderCtrlSens) sliderCtrlSens.value = String(currentCtrlSensitivity);
+    if (valCtrlSens) valCtrlSens.textContent = `${currentCtrlSensitivity}%`;
+  }
+
+  function applyGraphicsQuality(tier, syncSubOptions = true) {
+    currentGraphicsQuality = tier || 'low';
+    try {
+      localStorage.setItem('deskracer_gfx_quality', currentGraphicsQuality);
+    } catch (_e) {}
+
     const dims = getStageDimensions();
 
-    if (tier === 'low') {
+    if (currentGraphicsQuality === 'low') {
       targetPixelRatio = 0.75;
-      scene.environmentIntensity = 0.38;
+      scene.environmentIntensity = 0.35;
       renderer.toneMappingExposure = 0.72;
       useUltraBloomComposer = false;
-    } else if (tier === 'medium') {
-      targetPixelRatio = Math.min(window.devicePixelRatio || 1, 1.05);
-      scene.environmentIntensity = 0.75;
+      if (syncSubOptions) {
+        currentShadowQuality = 'off';
+        currentReflectionQuality = 'low';
+      }
+      if (atmosphere.dustMotesPoints) atmosphere.dustMotesPoints.visible = false;
+    } else if (currentGraphicsQuality === 'medium') {
+      targetPixelRatio = Math.min(window.devicePixelRatio || 1, 1.0);
+      scene.environmentIntensity = 0.72;
       renderer.toneMappingExposure = 0.78;
       useUltraBloomComposer = false;
-    } else if (tier === 'high') {
-      targetPixelRatio = Math.min(window.devicePixelRatio || 1.5, 1.45);
-      scene.environmentIntensity = 1.08;
+      if (syncSubOptions) {
+        currentShadowQuality = 'medium';
+        currentReflectionQuality = 'medium';
+      }
+    } else if (currentGraphicsQuality === 'high') {
+      targetPixelRatio = Math.min(window.devicePixelRatio || 1.35, 1.35);
+      scene.environmentIntensity = 1.05;
       renderer.toneMappingExposure = 0.85;
       useUltraBloomComposer = false;
-    } else if (tier === 'ultra') {
-      // Ultra: Max Resolution pixelRatio: 2, Dynamic Bloom & Full PBR Reflections
-      targetPixelRatio = 2.0;
-      scene.environmentIntensity = 1.42;
+      if (syncSubOptions) {
+        currentShadowQuality = 'high';
+        currentReflectionQuality = 'high';
+      }
+    } else if (currentGraphicsQuality === 'ultra') {
+      targetPixelRatio = Math.min(window.devicePixelRatio || 1.75, 1.75);
+      scene.environmentIntensity = 1.35;
       renderer.toneMappingExposure = 0.90;
       useUltraBloomComposer = true;
       ensureUltraComposer(dims.width, dims.height);
+      if (syncSubOptions) {
+        currentShadowQuality = 'high';
+        currentReflectionQuality = 'high';
+      }
     }
+
+    // Apply reflection quality override
+    if (currentReflectionQuality === 'low') {
+      scene.environmentIntensity = Math.min(scene.environmentIntensity, 0.38);
+    } else if (currentReflectionQuality === 'medium') {
+      scene.environmentIntensity = Math.max(0.68, Math.min(scene.environmentIntensity, 0.85));
+    } else if (currentReflectionQuality === 'high') {
+      scene.environmentIntensity = Math.max(1.05, scene.environmentIntensity);
+    }
+
+    // Apply shadow/contact AO quality
+    if (roomEnv.roomContactAoGroup) {
+      roomEnv.roomContactAoGroup.visible =
+        activeGameMode === 'track' && currentShadowQuality !== 'off';
+    }
+
+    try {
+      localStorage.setItem('deskracer_shadow_quality', currentShadowQuality);
+      localStorage.setItem('deskracer_refl_quality', currentReflectionQuality);
+    } catch (_e) {}
 
     renderer.setPixelRatio(targetPixelRatio);
     renderer.setSize(dims.width, dims.height);
@@ -3397,20 +3488,126 @@ async function initApp() {
       ultraComposer.setSize(dims.width, dims.height);
     }
 
-    gfxPresetBtns.forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.gfx === tier);
-    });
+    if (showroomPreview && showroomPreview.setGraphicsConfig) {
+      showroomPreview.setGraphicsConfig({
+        quality: currentGraphicsQuality,
+        fpsLimit: currentFpsLimit,
+        reflections: currentReflectionQuality,
+      });
+    }
+
+    syncSettingsControlsUI();
   }
 
   gfxPresetBtns.forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      applyGraphicsQuality(btn.dataset.gfx || 'medium');
+      applyGraphicsQuality(btn.dataset.gfx || 'low', true);
     });
   });
 
+  fpsPillBtns.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentFpsLimit = Number(btn.dataset.fps) || 60;
+      try {
+        localStorage.setItem('deskracer_fps_limit', String(currentFpsLimit));
+      } catch (_e) {}
+      if (showroomPreview && showroomPreview.setGraphicsConfig) {
+        showroomPreview.setGraphicsConfig({ fpsLimit: currentFpsLimit });
+      }
+      syncSettingsControlsUI();
+    });
+  });
+
+  shadowPillBtns.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentShadowQuality = btn.dataset.shadow || 'off';
+      applyGraphicsQuality(currentGraphicsQuality, false);
+    });
+  });
+
+  reflPillBtns.forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentReflectionQuality = btn.dataset.refl || 'low';
+      applyGraphicsQuality(currentGraphicsQuality, false);
+    });
+  });
+
+  if (sliderSfxVol) {
+    sliderSfxVol.addEventListener('input', () => {
+      currentSfxVolume = Number(sliderSfxVol.value);
+      if (valSfxVol) valSfxVol.textContent = `${currentSfxVolume}%`;
+      if (audioSynth.setMasterVolume) {
+        audioSynth.setMasterVolume(currentSfxVolume / 100);
+      }
+      try {
+        localStorage.setItem('deskracer_sfx_vol', String(currentSfxVolume));
+      } catch (_e) {}
+    });
+  }
+
+  if (sliderMusicVol) {
+    sliderMusicVol.addEventListener('input', () => {
+      currentMusicVolume = Number(sliderMusicVol.value);
+      if (valMusicVol) valMusicVol.textContent = `${currentMusicVolume}%`;
+      if (audioSynth.setRumbleAmount) {
+        audioSynth.setRumbleAmount(currentMusicVolume / 100);
+      }
+      try {
+        localStorage.setItem('deskracer_music_vol', String(currentMusicVolume));
+      } catch (_e) {}
+    });
+  }
+
+  if (sliderCtrlSens) {
+    sliderCtrlSens.addEventListener('input', () => {
+      currentCtrlSensitivity = Number(sliderCtrlSens.value);
+      if (valCtrlSens) valCtrlSens.textContent = `${currentCtrlSensitivity}%`;
+      if (physics && physics.setControlSensitivity) {
+        physics.setControlSensitivity(currentCtrlSensitivity / 100);
+      }
+      try {
+        localStorage.setItem('deskracer_ctrl_sens', String(currentCtrlSensitivity));
+      } catch (_e) {}
+    });
+  }
+
+  if (btnSettingsResetDefaults) {
+    btnSettingsResetDefaults.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentFpsLimit = 60;
+      currentShadowQuality = 'off';
+      currentReflectionQuality = 'low';
+      currentSfxVolume = 85;
+      currentMusicVolume = 70;
+      currentCtrlSensitivity = 100;
+      try {
+        localStorage.setItem('deskracer_fps_limit', '60');
+        localStorage.setItem('deskracer_sfx_vol', '85');
+        localStorage.setItem('deskracer_music_vol', '70');
+        localStorage.setItem('deskracer_ctrl_sens', '100');
+      } catch (_e) {}
+      if (audioSynth.setMasterVolume) audioSynth.setMasterVolume(0.85);
+      if (audioSynth.setRumbleAmount) audioSynth.setRumbleAmount(0.70);
+      if (physics && physics.setControlSensitivity) physics.setControlSensitivity(1.0);
+      applyGraphicsQuality('low', true);
+    });
+  }
+
+  // Initialize saved settings on startup (starts in LOW GRAPHICS by default on first launch)
+  if (audioSynth.setMasterVolume) audioSynth.setMasterVolume(currentSfxVolume / 100);
+  if (audioSynth.setRumbleAmount) audioSynth.setRumbleAmount(currentMusicVolume / 100);
+  if (physics && physics.setControlSensitivity) {
+    physics.setControlSensitivity(currentCtrlSensitivity / 100);
+  }
+  applyGraphicsQuality(currentGraphicsQuality, false);
+
   function openSettingsModal() {
     if (!elSettingsModal) return;
+    syncSettingsControlsUI();
     elSettingsModal.classList.remove('hidden');
     syncMobileTouchControlsVisibility();
   }
@@ -3426,6 +3623,18 @@ async function initApp() {
       e.stopPropagation();
       openSettingsModal();
       btnOpenSettings.blur();
+    });
+  }
+  if (btnGarageSettings) {
+    btnGarageSettings.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openSettingsModal();
+    });
+  }
+  if (btnWelcomeSettings) {
+    btnWelcomeSettings.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openSettingsModal();
     });
   }
   if (btnCloseSettings) {
@@ -3503,8 +3712,6 @@ async function initApp() {
   // AAA FULL-SCREEN 3D CAR GARAGE, UPGRADES, CUSTOMIZATION & COLLECTION SYSTEM
   // Preserves all existing cars ('bmw_csl', 'classic_kart') + 6 new 3D cars!
   // -------------------------------------------------------------------------
-  const elGarageModal = document.getElementById('garage-modal-backdrop');
-  const elGarageCanvas = document.getElementById('garage-preview-canvas');
   const elGarageCarGrid = document.getElementById('garage-car-grid');
   const btnOpenGarageHud = document.getElementById('btn-open-garage');
   const btnOpenGarageWelcome = document.getElementById('btn-open-garage-welcome');
@@ -3512,12 +3719,18 @@ async function initApp() {
   const btnCloseGarage = document.getElementById('btn-close-garage');
   const btnGarageConfirm = document.getElementById('btn-garage-confirm');
   const btnGarageAutoRotate = document.getElementById('btn-garage-autorotate');
+  const btnGarageInspect = document.getElementById('btn-garage-inspect');
+  const btnExitInspection = document.getElementById('btn-exit-inspection');
   const btnGarageFullscreen = document.getElementById('btn-garage-fullscreen');
   const btnGarageDoUpgrade = document.getElementById('btn-garage-do-upgrade');
   const btnGarageLeftCustomize = document.getElementById('btn-garage-left-customize');
   const btnGarageRightCustomize = document.getElementById('btn-garage-right-customize');
+  const btnCloseCustomizeDrawer = document.getElementById('btn-close-customize-drawer');
   const btnGarageChangeMap = document.getElementById('btn-garage-change-map');
   const btnGarageFriends = document.getElementById('btn-garage-friends');
+  const btnGarageCancelSelect = document.getElementById('btn-garage-cancel-select');
+  const btnGarageResetSelect = document.getElementById('btn-garage-reset-select');
+  const elGarageSelectionPill = document.getElementById('garage-selection-status-pill');
   const btnCarouselLeft = document.getElementById('btn-carousel-left');
   const btnCarouselRight = document.getElementById('btn-carousel-right');
   const elCustomizeDrawer = document.getElementById('garage-customize-drawer');
@@ -3528,6 +3741,14 @@ async function initApp() {
   const elGarageCurrencyGold = document.getElementById('garage-currency-gold');
   const elGarageActiveMapTitle = document.getElementById('garage-active-map-title');
   const elGarageDriveSub = document.getElementById('garage-drive-sub');
+
+  // Upgrade Purchase Confirmation Modal Elements
+  const elConfirmModal = document.getElementById('garage-confirm-modal');
+  const elConfirmTitle = document.getElementById('confirm-upgrade-title');
+  const elConfirmDesc = document.getElementById('confirm-upgrade-desc');
+  const elConfirmPrice = document.getElementById('confirm-upgrade-price');
+  const btnConfirmUpgradeYes = document.getElementById('btn-confirm-upgrade-yes');
+  const btnConfirmUpgradeNo = document.getElementById('btn-confirm-upgrade-no');
 
   const elGarageBadge = document.getElementById('garage-selected-badge');
   const elGarageClass = document.getElementById('garage-selected-class');
@@ -3544,14 +3765,12 @@ async function initApp() {
   const elGarageBarBraking = document.getElementById('garage-bar-braking');
   const elGarageValBraking = document.getElementById('garage-val-braking');
 
-  const showroomPreview = elGarageCanvas
-    ? new CarShowroomPreview(elGarageCanvas, scene.environment)
-    : null;
-
   let selectedCarId = localStorage.getItem('deskracer_selected_car') || 'bmw_csl';
   let selectedCarPaint = localStorage.getItem('deskracer_selected_paint') || '';
   let selectedCarRim = localStorage.getItem('deskracer_selected_rim') || '';
   let selectedCarGlow = localStorage.getItem('deskracer_selected_glow') || '#00e5ff';
+  let confirmedCarId = selectedCarId;
+  let confirmedCarPaint = selectedCarPaint;
   let currentGarageFilter = 'all';
   let activeUpgradeCategory = 'engine'; // 'engine' | 'handling' | 'suspension' | 'nitro'
 
@@ -3598,6 +3817,18 @@ async function initApp() {
     }
   }
   updateGarageCurrencyDisplay();
+
+  function updateGarageSelectionActionUI() {
+    const hasUnconfirmedChange =
+      selectedCarId !== confirmedCarId || selectedCarPaint !== confirmedCarPaint;
+    if (btnGarageCancelSelect) {
+      btnGarageCancelSelect.classList.toggle('hidden', !hasUnconfirmedChange);
+    }
+    if (elGarageSelectionPill) {
+      elGarageSelectionPill.textContent =
+        selectedCarId === confirmedCarId ? '✓ EQUIPPED' : 'PREVIEWING · CLICK DRIVE IT TO EQUIP';
+    }
+  }
 
   function syncGarageMapModeUI(modeStr) {
     const m = modeStr || selectedPlayMode || 'track';
@@ -3662,6 +3893,8 @@ async function initApp() {
     const spec = getVehicleSpecById(carId);
     selectedCarId = spec.id;
     selectedCarPaint = customPaintHex || '';
+    confirmedCarId = selectedCarId;
+    confirmedCarPaint = selectedCarPaint;
     try {
       localStorage.setItem('deskracer_selected_car', selectedCarId);
       localStorage.setItem('deskracer_selected_paint', selectedCarPaint);
@@ -3695,6 +3928,8 @@ async function initApp() {
     if (showroomPreview) {
       showroomPreview.setSuspensionLevel(up.suspension);
     }
+
+    updateGarageSelectionActionUI();
 
     const eyebrowEl = document.querySelector('#welcome-dialog-overlay .welcome-eyebrow');
     if (eyebrowEl) {
@@ -3757,6 +3992,7 @@ async function initApp() {
         elGarageUpgradeCost.textContent = `$${nextCost.toLocaleString('en-US')}`;
       }
     }
+    updateGarageSelectionActionUI();
   }
 
   function renderGarageRosterGrid() {
@@ -3792,6 +4028,7 @@ async function initApp() {
       cardBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const cid = cardBtn.dataset.carid || 'bmw_csl';
+        if (cid === selectedCarId) return;
         selectedCarId = cid;
         const spec = getVehicleSpecById(cid);
         updateGarageTelemetryUI(spec);
@@ -3801,16 +4038,34 @@ async function initApp() {
           showroomPreview.setSuspensionLevel(up.suspension);
           showroomPreview.previewCar(selectedCarId, selectedCarPaint || null);
         }
-        applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
         if (audioSynth.playLapChime) audioSynth.playLapChime();
       });
     });
+  }
+
+  function setGarageInspectMode(enabled) {
+    const active = Boolean(enabled);
+    if (elGarageModal) {
+      elGarageModal.classList.toggle('is-inspecting', active);
+    }
+    if (btnGarageInspect) {
+      btnGarageInspect.classList.toggle('active', active);
+    }
+    if (btnExitInspection) {
+      btnExitInspection.classList.toggle('hidden', !active);
+    }
+    if (showroomPreview && showroomPreview.setInspectMode) {
+      showroomPreview.setInspectMode(active);
+    }
   }
 
   function openGarageModal() {
     if (!elGarageModal) return;
     closeSettingsModal();
     hideWelcomeDialog();
+    setGarageInspectMode(false);
+    confirmedCarId = selectedCarId;
+    confirmedCarPaint = selectedCarPaint;
     elGarageModal.classList.remove('hidden');
     const spec = getVehicleSpecById(selectedCarId);
     syncGarageMapModeUI(selectedPlayMode);
@@ -3828,11 +4083,77 @@ async function initApp() {
 
   function closeGarageModal() {
     if (!elGarageModal) return;
+    setGarageInspectMode(false);
+    if (elConfirmModal) elConfirmModal.classList.add('hidden');
     elGarageModal.classList.add('hidden');
     if (showroomPreview) {
       showroomPreview.stop();
     }
     syncMobileTouchControlsVisibility();
+  }
+
+  // Cancel / Revert Unconfirmed Car Selection & Reset Selection Buttons
+  if (btnGarageCancelSelect) {
+    btnGarageCancelSelect.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectedCarId = confirmedCarId;
+      selectedCarPaint = confirmedCarPaint;
+      const spec = getVehicleSpecById(selectedCarId);
+      updateGarageTelemetryUI(spec);
+      renderGarageRosterGrid();
+      if (showroomPreview) {
+        const up = getCarUpgrades(selectedCarId);
+        showroomPreview.setSuspensionLevel(up.suspension);
+        showroomPreview.previewCar(selectedCarId, selectedCarPaint || null);
+      }
+    });
+  }
+
+  if (btnGarageResetSelect) {
+    btnGarageResetSelect.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectedCarPaint = '';
+      selectedCarRim = '';
+      try {
+        localStorage.setItem('deskracer_selected_paint', '');
+        localStorage.setItem('deskracer_selected_rim', '');
+      } catch (_e) {}
+      document.querySelectorAll('#garage-paint-swatches .paint-swatch-btn').forEach((b, idx) => {
+        b.classList.toggle('active', idx === 0);
+      });
+      document.querySelectorAll('#garage-rim-swatches .rim-swatch-btn').forEach((b, idx) => {
+        b.classList.toggle('active', idx === 0);
+      });
+      const spec = getVehicleSpecById(selectedCarId);
+      updateGarageTelemetryUI(spec);
+      if (showroomPreview) {
+        showroomPreview.previewCar(selectedCarId, null);
+      }
+      if (elGarageUpgradeToast) {
+        elGarageUpgradeToast.textContent = '🔄 FACTORY OEM PAINT & RIMS RESTORED';
+        elGarageUpgradeToast.classList.remove('hidden');
+        clearTimeout(elGarageUpgradeToast._hideTimer);
+        elGarageUpgradeToast._hideTimer = setTimeout(() => {
+          elGarageUpgradeToast.classList.add('hidden');
+        }, 1600);
+      }
+    });
+  }
+
+  // 3D Inspection Mode Toggle Buttons
+  if (btnGarageInspect) {
+    btnGarageInspect.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isCurrentlyInspecting =
+        elGarageModal && elGarageModal.classList.contains('is-inspecting');
+      setGarageInspectMode(!isCurrentlyInspecting);
+    });
+  }
+  if (btnExitInspection) {
+    btnExitInspection.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setGarageInspectMode(false);
+    });
   }
 
   // Left Panel Upgrade Category Tabs (ENGINE, HANDLING, SUSPENSION, NITRO)
@@ -3851,7 +4172,41 @@ async function initApp() {
     });
   });
 
-  // Functional UPGRADE Button on Left Panel
+  function executeConfirmedUpgrade() {
+    const up = getCarUpgrades(selectedCarId);
+    const currLvl = up[activeUpgradeCategory] || 1;
+    if (currLvl >= 5) return;
+    const cost = currLvl * 12500;
+    if (playerCash < cost) {
+      playerCash += 50000;
+    }
+    playerCash = Math.max(0, playerCash - cost);
+    up[activeUpgradeCategory] = currLvl + 1;
+    saveGarageStateToStorage();
+    updateGarageCurrencyDisplay();
+
+    const spec = getVehicleSpecById(selectedCarId);
+    updateGarageTelemetryUI(spec);
+    applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
+
+    if (showroomPreview) {
+      showroomPreview.setSuspensionLevel(up.suspension);
+      showroomPreview.triggerNitroPreviewBurst();
+    }
+    if (audioSynth.playLapChime) {
+      audioSynth.playLapChime();
+    }
+    if (elGarageUpgradeToast) {
+      elGarageUpgradeToast.textContent = `⚡ ${activeUpgradeCategory.toUpperCase()} STAGE ${up[activeUpgradeCategory]} INSTALLED!`;
+      elGarageUpgradeToast.classList.remove('hidden');
+      clearTimeout(elGarageUpgradeToast._hideTimer);
+      elGarageUpgradeToast._hideTimer = setTimeout(() => {
+        elGarageUpgradeToast.classList.add('hidden');
+      }, 1800);
+    }
+  }
+
+  // Functional UPGRADE Button on Left Panel -> Opens Confirmation Dialog to prevent accidental purchases
   if (btnGarageDoUpgrade) {
     btnGarageDoUpgrade.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -3862,40 +4217,47 @@ async function initApp() {
         return;
       }
       const cost = currLvl * 12500;
-      if (playerCash < cost) {
-        // Sponsor bonus top-up so player can always experience upgrades
-        playerCash += 50000;
-      }
-      playerCash = Math.max(0, playerCash - cost);
-      up[activeUpgradeCategory] = currLvl + 1;
-      saveGarageStateToStorage();
-      updateGarageCurrencyDisplay();
-
       const spec = getVehicleSpecById(selectedCarId);
-      updateGarageTelemetryUI(spec);
-      applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
-
-      if (showroomPreview) {
-        showroomPreview.setSuspensionLevel(up.suspension);
-        showroomPreview.triggerNitroPreviewBurst();
-      }
-      if (audioSynth.playLapChime) {
-        audioSynth.playLapChime();
-      }
-      if (elGarageUpgradeToast) {
-        elGarageUpgradeToast.textContent = `⚡ ${activeUpgradeCategory.toUpperCase()} STAGE ${up[activeUpgradeCategory]} INSTALLED!`;
-        elGarageUpgradeToast.classList.remove('hidden');
-        clearTimeout(elGarageUpgradeToast._hideTimer);
-        elGarageUpgradeToast._hideTimer = setTimeout(() => {
-          elGarageUpgradeToast.classList.add('hidden');
-        }, 1800);
+      const catUpper = activeUpgradeCategory.toUpperCase();
+      if (elConfirmModal) {
+        if (elConfirmTitle) {
+          elConfirmTitle.textContent = `INSTALL ${catUpper} STAGE ${currLvl + 1}?`;
+        }
+        if (elConfirmDesc) {
+          elConfirmDesc.textContent = `Upgrade ${spec.name} ${catUpper} to Stage ${currLvl + 1} / 5 for enhanced track performance.`;
+        }
+        if (elConfirmPrice) {
+          elConfirmPrice.textContent = `$${cost.toLocaleString('en-US')}`;
+        }
+        elConfirmModal.classList.remove('hidden');
+      } else {
+        executeConfirmedUpgrade();
       }
     });
   }
 
-  // Toggle Customize Drawer (Both Left Panel & Right Panel CUSTOMIZE Buttons)
-  function toggleGarageCustomizeDrawer() {
+  if (btnConfirmUpgradeYes) {
+    btnConfirmUpgradeYes.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (elConfirmModal) elConfirmModal.classList.add('hidden');
+      executeConfirmedUpgrade();
+    });
+  }
+  if (btnConfirmUpgradeNo) {
+    btnConfirmUpgradeNo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (elConfirmModal) elConfirmModal.classList.add('hidden');
+    });
+  }
+
+  // Toggle Customize Drawer (Both Left Panel & Right Panel CUSTOMIZE Buttons + Close Button)
+  function toggleGarageCustomizeDrawer(forceClose = false) {
     if (!elCustomizeDrawer) return;
+    if (forceClose) {
+      elCustomizeDrawer.classList.add('hidden');
+      if (btnGarageLeftCustomize) btnGarageLeftCustomize.classList.remove('active');
+      return;
+    }
     const isHidden = elCustomizeDrawer.classList.toggle('hidden');
     if (btnGarageLeftCustomize) {
       btnGarageLeftCustomize.classList.toggle('active', !isHidden);
@@ -3908,13 +4270,19 @@ async function initApp() {
   if (btnGarageLeftCustomize) {
     btnGarageLeftCustomize.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleGarageCustomizeDrawer();
+      toggleGarageCustomizeDrawer(false);
     });
   }
   if (btnGarageRightCustomize) {
     btnGarageRightCustomize.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleGarageCustomizeDrawer();
+      toggleGarageCustomizeDrawer(false);
+    });
+  }
+  if (btnCloseCustomizeDrawer) {
+    btnCloseCustomizeDrawer.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleGarageCustomizeDrawer(true);
     });
   }
 
@@ -3944,6 +4312,7 @@ async function initApp() {
   if (btnCloseGarage) {
     btnCloseGarage.addEventListener('click', (e) => {
       e.stopPropagation();
+      applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
       closeGarageModal();
       showWelcomeDialog();
     });
@@ -3951,6 +4320,7 @@ async function initApp() {
   if (btnGarageChangeMap) {
     btnGarageChangeMap.addEventListener('click', (e) => {
       e.stopPropagation();
+      applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
       closeGarageModal();
       showWelcomeDialog();
     });
@@ -3958,6 +4328,7 @@ async function initApp() {
   if (btnGarageFriends) {
     btnGarageFriends.addEventListener('click', (e) => {
       e.stopPropagation();
+      applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
       closeGarageModal();
       openMultiplayerModal();
     });
@@ -4024,7 +4395,7 @@ async function initApp() {
       if (showroomPreview) {
         showroomPreview.previewCar(selectedCarId, selectedCarPaint || null);
       }
-      applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
+      updateGarageSelectionActionUI();
     });
   });
 
@@ -4067,15 +4438,16 @@ async function initApp() {
   });
 
   // Restore saved vehicle & tuning on startup and launch into the AAA 3D Garage Screen
-  applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
   if (
     !isScreenshotMode &&
     urlParams.get('welcome') !== '0' &&
     urlParams.get('finish') !== '1'
   ) {
     openGarageModal();
-  } else if (elGarageModal) {
-    elGarageModal.classList.add('hidden');
+    // Defer loading the background gameplay kart model until the player actually leaves the Garage
+  } else {
+    if (elGarageModal) elGarageModal.classList.add('hidden');
+    applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
   }
 
   // -------------------------------------------------------------------------
@@ -4730,8 +5102,27 @@ async function initApp() {
 
   const clock = new THREE.Clock();
   let lastHudUpdateMs = 0;
+  let lastMainFrameMs = 0;
 
-  function animate() {
+  function animate(nowPerfMs = performance.now()) {
+    // Eliminate duplicate WebGL rendering & physics CPU load while the full-screen 3D Garage is open
+    const isGarageOpen =
+      !isScreenshotMode && elGarageModal && !elGarageModal.classList.contains('hidden');
+    if (isGarageOpen) {
+      clock.getDelta(); // keep delta clock fresh without stepping background scene
+      requestAnimationFrame(animate);
+      return;
+    }
+
+    // Respect FPS Limit (30 / 60 / 90 FPS) from Settings
+    if (!isScreenshotMode && currentFpsLimit === 30) {
+      if (nowPerfMs - lastMainFrameMs < 31.5) {
+        requestAnimationFrame(animate);
+        return;
+      }
+      lastMainFrameMs = nowPerfMs;
+    }
+
     const rawDt = clock.getDelta();
     const dt = isScreenshotMode ? 1 / 60 : Math.min(Math.max(rawDt, 0.001), 0.1);
     const elapsedTime =

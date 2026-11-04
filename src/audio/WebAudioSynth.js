@@ -979,6 +979,13 @@ export function createDeskRacerHybridAudio(options = {}) {
     setSputterAmount: (v) => {
       userSputterAmount = Math.max(0.0, Math.min(2.5, Number(v)));
     },
+    setMasterVolume: (volNorm) => {
+      const clamped = Math.max(0.0, Math.min(1.5, Number(volNorm) ?? 1.0));
+      const targetGain = Math.max(0.0001, 0.28 * clamped);
+      if (masterGain && ctx && enabled) {
+        masterGain.gain.setTargetAtTime(targetGain, ctx.currentTime, 0.04);
+      }
+    },
     isEnabled: () => enabled,
     getDiagnostics: () => {
       const clampedNorm = Math.min(1.08, smoothNormSpeed);
