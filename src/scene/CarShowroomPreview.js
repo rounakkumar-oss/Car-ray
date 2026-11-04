@@ -258,39 +258,7 @@ export class CarShowroomPreview {
     underglowDisc.position.y = -0.283;
     this.turntableGroup.add(underglowDisc);
 
-    // 4. Showroom Architectural Pillars & Overhead Light Bays
-    const pillarGeo = new THREE.BoxGeometry(0.45, 5.5, 0.45);
-    const pillarMat = new THREE.MeshStandardMaterial({
-      color: 0x0d1326,
-      metalness: 0.55,
-      roughness: 0.35,
-    });
-    const neonStripGeo = new THREE.BoxGeometry(0.06, 4.8, 0.06);
-    const neonBlueMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    const neonPurpleMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
-
-    const pillarCoords = [
-      [-6.5, -5.8],
-      [-3.2, -7.2],
-      [3.2, -7.2],
-      [6.5, -5.8],
-    ];
-    pillarCoords.forEach(([px, pz], idx) => {
-      const p = new THREE.Mesh(pillarGeo, pillarMat);
-      p.position.set(px, 2.2, pz);
-      p.lookAt(0, 2.2, 0);
-      this.scene.add(p);
-
-      const strip = new THREE.Mesh(
-        neonStripGeo,
-        idx % 2 === 0 ? neonBlueMat : neonPurpleMat
-      );
-      strip.position.set(px * 0.94, 2.2, pz * 0.94);
-      strip.lookAt(0, 2.2, 0);
-      this.scene.add(strip);
-    });
-
-    // Overhead Halo Light Canopy & Softbox Panels
+    // 4. Overhead Halo Light Canopy Ring (No vertical background pillars behind the telemetry HUD!)
     const haloRingGeo = new THREE.RingGeometry(2.9, 3.22, 48);
     haloRingGeo.rotateX(Math.PI / 2);
     const haloRingMat = new THREE.MeshBasicMaterial({
@@ -300,6 +268,19 @@ export class CarShowroomPreview {
     const haloRing = new THREE.Mesh(haloRingGeo, haloRingMat);
     haloRing.position.y = 3.75;
     this.scene.add(haloRing);
+
+    // Subtle horizontal floor accent ring in the background
+    const studioHorizonRingGeo = new THREE.RingGeometry(6.2, 6.28, 64);
+    studioHorizonRingGeo.rotateX(-Math.PI / 2);
+    const studioHorizonRingMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.25,
+      side: THREE.DoubleSide,
+    });
+    const studioHorizonRing = new THREE.Mesh(studioHorizonRingGeo, studioHorizonRingMat);
+    studioHorizonRing.position.y = -0.45;
+    this.scene.add(studioHorizonRing);
 
     // Twin Nitro Exhaust Preview Flame Cones (activated when testing/upgrading NITRO)
     const flameGeo = new THREE.ConeGeometry(0.14, 0.85, 12);
@@ -321,6 +302,7 @@ export class CarShowroomPreview {
   _setupPointerControls() {
     if (!this.canvas) return;
     this.canvas.addEventListener('pointerdown', (e) => {
+      if (e.target !== this.canvas) return;
       this.isDragging = true;
       this.lastPointerX = e.clientX;
       this.lastPointerY = e.clientY;
@@ -339,11 +321,36 @@ export class CarShowroomPreview {
         2.65
       );
     });
-    const stopDrag = () => {
+    const stopDrag = (e) => {
       this.isDragging = false;
+      if (e && e.pointerId !== undefined) {
+        try {
+          this.canvas.releasePointerCapture?.(e.pointerId);
+        } catch (_err) {}
+      }
     };
     this.canvas.addEventListener('pointerup', stopDrag);
     this.canvas.addEventListener('pointercancel', stopDrag);
+  }
+
+  resetCameraView() {
+    this.turntableAngle = 0.62;
+    this.targetCamDist = this.isInspectMode ? 4.85 : 5.55;
+    this.targetCamHeight = this.isInspectMode ? 1.35 : 1.48;
+    this.cameraTarget.set(0, 0.18, 0);
+    this.renderOnce();
+  }
+
+  renderOnce() {
+    if (!this.renderer || !this.scene || !this.camera) return;
+    this.turntableGroup.rotation.y = this.turntableAngle;
+    this.camera.position.set(
+      this.currentCamDist * 0.68,
+      this.currentCamHeight,
+      this.currentCamDist * 0.74
+    );
+    this.camera.lookAt(this.cameraTarget);
+    this.renderer.render(this.scene, this.camera);
   }
 
   focusUpgradeSection(section) {
@@ -438,6 +445,7 @@ export class CarShowroomPreview {
       this.vehicleHolder.children.length > 0 &&
       !(carId === 'bmw_csl' && this.cachedBmwFbxTemplate && !this._bmwFbxApplied)
     ) {
+      this.renderOnce();
       return;
     }
 
@@ -461,7 +469,7 @@ export class CarShowroomPreview {
           tireRubberTex: null,
           brushedMetalTex: null,
         });
-        tempKart.kartRoot.scale.setScalar(225);
+        tempKart.kartRoot.scale.setScalar(205);
         tempKart.kartRoot.position.set(0, -0.28, 0);
         if (cleanPaint) {
           tempKart.setChassisColor(cleanPaint);
@@ -469,33 +477,43 @@ export class CarShowroomPreview {
         this.vehicleHolder.add(tempKart.kartRoot);
         this.activeWheels = tempKart.wheelMeshes || [];
         if (this.currentRimColorHex) this.setRimColor(this.currentRimColorHex);
+        this.renderOnce();
         return;
       }
 
       if (carId === 'bmw_csl') {
-        const tempKart = buildMicroKart({
-          carbonTex: null,
-          tireRubberTex: null,
-          brushedMetalTex: null,
-        });
-        tempKart.kartRoot.scale.setScalar(225);
-        tempKart.kartRoot.position.set(0, -0.28, 0);
         if (this.cachedBmwFbxTemplate) {
           this._bmwFbxApplied = true;
+          const tempKart = buildMicroKart({
+            carbonTex: null,
+            tireRubberTex: null,
+            brushedMetalTex: null,
+          });
+          tempKart.kartRoot.scale.setScalar(205);
+          tempKart.kartRoot.position.set(0, -0.28, 0);
           tempKart.attachBmwFbxKart(
-            this.cachedBmwFbxTemplate.clone(true),
+            this.cachedBmwFbxTemplate,
             this.cachedBmwLiveryTex
           );
           if (cleanPaint) {
             tempKart.setChassisColor(cleanPaint);
           }
+          this.vehicleHolder.add(tempKart.kartRoot);
+          this.activeWheels = tempKart.wheelMeshes || [];
+          if (this.currentRimColorHex) this.setRimColor(this.currentRimColorHex);
+          this.renderOnce();
+          return;
         } else {
+          // Immediately render a full-size 3D GT sports coupe while FINAL_MODEL_CSLR.fbx finishes streaming
           this._bmwFbxApplied = false;
+          const instantBmwStandin = carPackAssets.buildProceduralHypercar(cleanPaint || '#f8fafc');
+          instantBmwStandin.rootGroup.scale.setScalar(1.06);
+          this.vehicleHolder.add(instantBmwStandin.rootGroup);
+          this.activeWheels = instantBmwStandin.wheelVisuals || [];
+          if (this.currentRimColorHex) this.setRimColor(this.currentRimColorHex);
+          this.renderOnce();
+          return;
         }
-        this.vehicleHolder.add(tempKart.kartRoot);
-        this.activeWheels = tempKart.wheelMeshes || [];
-        if (this.currentRimColorHex) this.setRimColor(this.currentRimColorHex);
-        return;
       }
 
       const instance = await carPackAssets.buildCarInstance(carId, cleanPaint);
@@ -504,6 +522,7 @@ export class CarShowroomPreview {
       this.vehicleHolder.add(instance.rootGroup);
       this.activeWheels = instance.wheelVisuals || [];
       if (this.currentRimColorHex) this.setRimColor(this.currentRimColorHex);
+      this.renderOnce();
     } catch (err) {
       console.warn('Showroom preview fallback:', err);
     }

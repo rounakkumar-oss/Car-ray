@@ -3499,7 +3499,13 @@ body {
 
 @media (max-width: 720px) {
   .aaa-header-map-pills {
-    display: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+  .aaa-map-pill {
+    padding: 3px 6px;
+    font-size: 7px;
   }
   .aaa-garage-middle {
     grid-template-columns: 158px 1fr 164px;
@@ -3514,5 +3520,54 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================================
+   GUARANTEED TOUCH & CLICK DETECTION FOR ALL GARAGE, LOBBY & HUD BUTTONS
+   ========================================================================= */
+.aaa-garage-top-bar,
+.aaa-garage-bottom-dock {
+  z-index: 25;
+  pointer-events: auto;
+}
+
+.aaa-garage-middle {
+  z-index: 20;
+}
+
+.aaa-left-upgrade-panel,
+.aaa-right-action-panel,
+.aaa-turntable-controls,
+.aaa-customize-drawer,
+.aaa-header-map-pills,
+.aaa-top-right-currencies,
+.aaa-collection-bar-top,
+.aaa-collection-left-tabs,
+.aaa-collection-scroll-btns {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 25;
+}
+
+.aaa-car-carousel {
+  pointer-events: auto !important;
+  touch-action: pan-x !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.aaa-garage-screen button,
+.welcome-dialog-overlay button,
+#water-glass-settings-modal button,
+#multiplayer-modal button {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+  cursor: pointer;
+}
+
+.aaa-garage-screen button > *,
+.welcome-dialog-overlay button > *,
+#water-glass-settings-modal button > * {
+  pointer-events: none;
+}
+
 
 

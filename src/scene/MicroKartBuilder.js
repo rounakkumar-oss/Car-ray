@@ -949,7 +949,6 @@ export function buildMicroKart() {
       if (!child.isMesh || !child.geometry) return;
       const n = child.name || '';
       if (n.startsWith('csl_hommage_r_int')) {
-        child.geometry.dispose();
         return;
       }
 
@@ -1051,10 +1050,33 @@ export function buildMicroKart() {
       }
     }
 
-    // Add detailed 3D interior seats/dash/steering wheel inside the BMW cabin
-    const bmwInterior = carPackAssets.buildDetailedInteriorGroup(260, 290, 42);
-    bmwInterior.position.set(0, 12, -15);
+    // Measure actual unscaled BMW mesh bounds so interior and scale are always exact
+    bmwRoot.scale.setScalar(1);
+    bmwRoot.position.set(0, 0, 0);
+    bmwRoot.updateMatrixWorld(true);
+    const rawBox = new THREE.Box3().setFromObject(bmwRoot);
+    const rawSize = new THREE.Vector3();
+    const rawCenter = new THREE.Vector3();
+    rawBox.getSize(rawSize);
+    rawBox.getCenter(rawCenter);
+    const maxSpan = Math.max(rawSize.x, rawSize.y, rawSize.z, 0.001);
+
+    // Add detailed 3D interior seats/dash/steering wheel scaled proportionally to the BMW cabin
+    const bmwInterior = carPackAssets.buildDetailedInteriorGroup(
+      rawSize.x * 0.52,
+      rawSize.z * 0.36,
+      rawBox.min.y + rawSize.y * 0.24
+    );
+    bmwInterior.position.set(rawCenter.x, 0, rawCenter.z - rawSize.z * 0.03);
     bmwRoot.add(bmwInterior);
+
+    const normalizedScale = 0.022 / maxSpan;
+    bmwRoot.scale.setScalar(normalizedScale);
+    bmwRoot.position.set(
+      -rawCenter.x * normalizedScale,
+      0.0001 - rawBox.min.y * normalizedScale,
+      -rawCenter.z * normalizedScale
+    );
 
     savedBmwScene = bmwRoot;
     savedBmwWheels = bmwWheels;

@@ -425,11 +425,14 @@
                   <button id="btn-garage-inspect" type="button" class="aaa-spin-btn is-inspect-btn" title="Full-Screen 3D Car Inspection Mode">
                     🔍 INSPECT 3D
                   </button>
+                  <button id="btn-garage-reset-view" type="button" class="aaa-spin-btn" title="Reset 3D Camera Angle &amp; Rotation">
+                    ↺ RESET VIEW
+                  </button>
                   <span class="aaa-orbit-hint">↔ DRAG CAR TO ORBIT</span>
                   <span id="garage-upgrade-toast" class="aaa-upgrade-toast hidden">⚡ UPGRADED!</span>
                 </div>
 
-                <!-- Live Visual Customization Drawer (Paint, Wheel Rims, Neon Underglow) -->
+                <!-- Live Visual Customization Drawer (Paint, Wheel Rims, Wheel Spin, Neon Underglow) -->
                 <div id="garage-customize-drawer" class="aaa-customize-drawer hidden">
                   <div class="aaa-cust-group">
                     <span class="aaa-cust-label">BODY PAINT</span>
@@ -453,6 +456,7 @@
                       <button type="button" class="rim-swatch-btn" data-rim="#e2e8f0" style="background:#e2e8f0" title="Chrome Silver"></button>
                       <button type="button" class="rim-swatch-btn" data-rim="#38bdf8" style="background:#38bdf8" title="Electric Cyan"></button>
                       <button type="button" class="rim-swatch-btn" data-rim="#ef4444" style="background:#ef4444" title="Track Red"></button>
+                      <button id="btn-cust-wheel-spin" type="button" class="rim-swatch-btn paint-factory active" title="Toggle Wheel Rotation Preview">SPIN: ON</button>
                     </div>
                   </div>
 
@@ -839,10 +843,13 @@
 
               <div class="settings-footer-row">
                 <button id="btn-settings-resume" type="button" class="welcome-start-btn water-glass-cta settings-resume-btn">
-                  <span class="welcome-start-text">APPLY &amp; RESUME</span>
+                  <span class="welcome-start-text">▶ RESUME</span>
+                </button>
+                <button id="btn-settings-restart-race" type="button" class="busted-secondary-btn water-glass-btn">
+                  🔄 RESTART RACE
                 </button>
                 <button id="btn-settings-main-menu" type="button" class="busted-secondary-btn water-glass-btn">
-                  🏎️ OPEN GARAGE
+                  🏎️ EXIT TO GARAGE
                 </button>
                 <button id="btn-settings-open-garage" type="button" class="busted-secondary-btn water-glass-btn hidden">
                   GARAGE

@@ -643,6 +643,9 @@ async function initApp() {
   const texLoader = new THREE.TextureLoader();
   let bmwFbxLoaded = false;
   let bmwFbxLoading = false;
+  let showroomPreview = null;
+  let cachedBmwFbxGroup = null;
+  let cachedBmwFallbackLiveryTex = null;
 
   function tryLoadBmwCslFbx() {
     if (bmwFbxLoaded || bmwFbxLoading) return;
@@ -661,6 +664,8 @@ async function initApp() {
       (fbxGroup) => {
         bmwFbxLoading = false;
         bmwFbxLoaded = true;
+        cachedBmwFbxGroup = fbxGroup;
+        cachedBmwFallbackLiveryTex = fallbackLiveryTex;
         loadedGlbStatus.kart = true;
         settledGlbStatus.kart = true;
         glbDownloadProgress.kart = 1.0;
@@ -668,7 +673,7 @@ async function initApp() {
           if (microKart.attachBmwFbxKart) {
             microKart.attachBmwFbxKart(fbxGroup, fallbackLiveryTex);
           }
-          if (typeof showroomPreview !== 'undefined' && showroomPreview) {
+          if (showroomPreview) {
             showroomPreview.setBmwTemplate(fbxGroup, fallbackLiveryTex);
           }
           optimizeSceneHierarchyForMobile(microKart.chassisGroup);
@@ -2533,8 +2538,17 @@ async function initApp() {
     cCtx.fill();
     cCtx.stroke();
 
-    // City Sector Labels
-    for (const r of cityMap.rooms) {
+    // City Sector Labels (safe even when cityMap is lazy-built on demand)
+    const citySectorRooms = cityMap
+      ? cityMap.rooms
+      : [
+          { shortName: 'GP MAIN STRAIGHT', cx: 1.2, cz: -2.6, accentColor: '#38bdf8' },
+          { shortName: 'DOWNTOWN SKYLINE', cx: -2.4, cz: 1.2, accentColor: '#60a5fa' },
+          { shortName: 'CENTRAL PLAZA', cx: 1.2, cz: 1.2, accentColor: '#f59e0b' },
+          { shortName: 'COASTAL HIGHWAY', cx: 4.8, cz: 1.2, accentColor: '#06b6d4' },
+          { shortName: 'ALPINE PASS', cx: 1.2, cz: 4.9, accentColor: '#22c55e' },
+        ];
+    for (const r of citySectorRooms) {
       const rcx = mapHouseMinimapX(r.cx);
       const rcy = mapHouseMinimapY(r.cz);
       cCtx.save();
@@ -3367,6 +3381,7 @@ async function initApp() {
   const btnWelcomeSettings = document.getElementById('btn-welcome-settings');
   const btnCloseSettings = document.getElementById('btn-close-settings');
   const btnSettingsResume = document.getElementById('btn-settings-resume');
+  const btnSettingsRestartRace = document.getElementById('btn-settings-restart-race');
   const btnSettingsModeTrack = document.getElementById('btn-settings-mode-track');
   const btnSettingsModeHouse = document.getElementById('btn-settings-mode-house');
   const btnSettingsModePolice = document.getElementById('btn-settings-mode-police');
@@ -3388,9 +3403,62 @@ async function initApp() {
   // AAA Garage DOM references (declared before applyGraphicsQuality so showroomPreview is accessible)
   const elGarageModal = document.getElementById('garage-modal-backdrop');
   const elGarageCanvas = document.getElementById('garage-preview-canvas');
-  const showroomPreview = elGarageCanvas
+  showroomPreview = elGarageCanvas
     ? new CarShowroomPreview(elGarageCanvas, scene.environment)
     : null;
+  if (showroomPreview && cachedBmwFbxGroup) {
+    showroomPreview.setBmwTemplate(cachedBmwFbxGroup, cachedBmwFallbackLiveryTex);
+  }
+
+  // Universal Mobile Touch-to-Click Enhancer: ensures every UI button in Garage/Lobby/Settings
+  // responds on the very first touch on Android phones even when portrait-to-landscape rotation is active
+  let _touchTapTargetBtn = null;
+  let _touchTapStartX = 0;
+  let _touchTapStartY = 0;
+  let _lastNativeClickTime = 0;
+
+  document.addEventListener(
+    'click',
+    () => {
+      _lastNativeClickTime = performance.now();
+    },
+    true
+  );
+
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (e.pointerType === 'mouse') return;
+      const btn = e.target && e.target.closest ? e.target.closest('button') : null;
+      if (!btn || btn.classList.contains('mobile-ctrl-btn')) {
+        _touchTapTargetBtn = null;
+        return;
+      }
+      _touchTapTargetBtn = btn;
+      _touchTapStartX = e.clientX;
+      _touchTapStartY = e.clientY;
+    },
+    { passive: true }
+  );
+
+  document.addEventListener(
+    'pointerup',
+    (e) => {
+      if (e.pointerType === 'mouse' || !_touchTapTargetBtn) return;
+      const btn = _touchTapTargetBtn;
+      _touchTapTargetBtn = null;
+      const dx = Math.abs(e.clientX - _touchTapStartX);
+      const dy = Math.abs(e.clientY - _touchTapStartY);
+      if (dx > 28 || dy > 28) return;
+      const upTime = performance.now();
+      setTimeout(() => {
+        if (_lastNativeClickTime < upTime - 10) {
+          btn.click();
+        }
+      }, 45);
+    },
+    { passive: true }
+  );
 
   function syncSettingsControlsUI() {
     gfxPresetBtns.forEach((btn) => {
@@ -3689,6 +3757,13 @@ async function initApp() {
       openGarageModal();
     });
   }
+  if (btnSettingsRestartRace) {
+    btnSettingsRestartRace.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeSettingsModal();
+      dismissWelcomeAndStartRace();
+    });
+  }
   if (btnSettingsResetCar) {
     btnSettingsResetCar.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -3720,12 +3795,14 @@ async function initApp() {
   const btnGarageConfirm = document.getElementById('btn-garage-confirm');
   const btnGarageAutoRotate = document.getElementById('btn-garage-autorotate');
   const btnGarageInspect = document.getElementById('btn-garage-inspect');
+  const btnGarageResetView = document.getElementById('btn-garage-reset-view');
   const btnExitInspection = document.getElementById('btn-exit-inspection');
   const btnGarageFullscreen = document.getElementById('btn-garage-fullscreen');
   const btnGarageDoUpgrade = document.getElementById('btn-garage-do-upgrade');
   const btnGarageLeftCustomize = document.getElementById('btn-garage-left-customize');
   const btnGarageRightCustomize = document.getElementById('btn-garage-right-customize');
   const btnCloseCustomizeDrawer = document.getElementById('btn-close-customize-drawer');
+  const btnCustWheelSpin = document.getElementById('btn-cust-wheel-spin');
   const btnGarageChangeMap = document.getElementById('btn-garage-change-map');
   const btnGarageFriends = document.getElementById('btn-garage-friends');
   const btnGarageCancelSelect = document.getElementById('btn-garage-cancel-select');
@@ -4140,7 +4217,7 @@ async function initApp() {
     });
   }
 
-  // 3D Inspection Mode Toggle Buttons
+  // 3D Inspection Mode & Reset View Buttons
   if (btnGarageInspect) {
     btnGarageInspect.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -4153,6 +4230,31 @@ async function initApp() {
     btnExitInspection.addEventListener('click', (e) => {
       e.stopPropagation();
       setGarageInspectMode(false);
+    });
+  }
+  if (btnGarageResetView) {
+    btnGarageResetView.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (showroomPreview && showroomPreview.resetCameraView) {
+        showroomPreview.resetCameraView();
+      }
+      if (elGarageUpgradeToast) {
+        elGarageUpgradeToast.textContent = '↺ 3D CAMERA VIEW RESET';
+        elGarageUpgradeToast.classList.remove('hidden');
+        clearTimeout(elGarageUpgradeToast._hideTimer);
+        elGarageUpgradeToast._hideTimer = setTimeout(() => {
+          elGarageUpgradeToast.classList.add('hidden');
+        }, 1400);
+      }
+    });
+  }
+  if (btnCustWheelSpin) {
+    btnCustWheelSpin.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!showroomPreview) return;
+      showroomPreview.spinWheelsPreview = !showroomPreview.spinWheelsPreview;
+      btnCustWheelSpin.classList.toggle('active', showroomPreview.spinWheelsPreview);
+      btnCustWheelSpin.textContent = showroomPreview.spinWheelsPreview ? 'SPIN: ON' : 'SPIN: OFF';
     });
   }
 
@@ -4168,6 +4270,20 @@ async function initApp() {
       updateGarageTelemetryUI(spec);
       if (showroomPreview) {
         showroomPreview.focusUpgradeSection(activeUpgradeCategory);
+      }
+      const up = getCarUpgrades(selectedCarId);
+      const currLvl = up[activeUpgradeCategory] || 1;
+      const catUpper = activeUpgradeCategory.toUpperCase();
+      if (elGarageUpgradeToast) {
+        elGarageUpgradeToast.textContent =
+          currLvl >= 5
+            ? `⚡ ${catUpper} STAGE 5/5 (MAXED)`
+            : `🔧 ${catUpper} STAGE ${currLvl}/5 · NEXT: $${(currLvl * 12500).toLocaleString('en-US')}`;
+        elGarageUpgradeToast.classList.remove('hidden');
+        clearTimeout(elGarageUpgradeToast._hideTimer);
+        elGarageUpgradeToast._hideTimer = setTimeout(() => {
+          elGarageUpgradeToast.classList.add('hidden');
+        }, 1800);
       }
     });
   });
