@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { carPackAssets } from './CarCatalog.js';
 
 /**
- * Builds the 1:87 HO Micro-Coaster Racing Vehicle (supports the 2015 BMW 3.0 CSL Hommage R Concept FBX
- * as well as GLB / procedural fallback) with 4 steerable/spinning wheels,
+ * Builds the 1:87 HO Micro-Coaster Racing Vehicle (supports the 2015 BMW 3.0 CSL Hommage R Concept FBX,
+ * all new 3D sports/supercars from CarCatalog, as well as GLB / procedural fallback) with 4 steerable/spinning wheels,
  * twin turbo exhaust flames, tail-light glow halos, and a 64-particle drift spark emitter.
  */
 export function buildMicroKart() {
@@ -722,7 +723,18 @@ export function buildMicroKart() {
     wheelMeshes[3],
   ];
 
+  // Preserve original 1:87 procedural kart wheel references so players can switch back anytime
+  const originalProceduralWheels = [...wheelMeshes];
+  const originalProceduralFrontPivots = [...frontPivots];
+
   let attachedCarScene = null;
+  let savedBmwScene = null;
+  let savedBmwWheels = [];
+  let savedBmwFrontPivots = [];
+  let savedBmwPaintMats = [];
+  let activeCatalogPaintMats = [];
+  let currentVehicleId = 'bmw_csl';
+  let currentCustomPaintHex = null;
   let bmwLoaded = false;
   let cockpitRoadOnly = false;
 
@@ -758,13 +770,34 @@ export function buildMicroKart() {
     });
   }
 
+  function showProceduralClassicKart() {
+    if (attachedCarScene && attachedCarScene.parent) {
+      attachedCarScene.parent.remove(attachedCarScene);
+    }
+    attachedCarScene = null;
+    for (const part of proceduralParts) {
+      if (part) {
+        part.visible = !cockpitRoadOnly;
+        part.traverse?.((c) => {
+          if (c.isMesh) c.visible = !cockpitRoadOnly;
+        });
+      }
+    }
+    wheelMeshes.length = 0;
+    wheelMeshes.push(...originalProceduralWheels);
+    frontPivots.length = 0;
+    frontPivots.push(...originalProceduralFrontPivots);
+    if (flameCones[0]) flameCones[0].position.set(-0.00125, 0.0022, -0.0092);
+    if (flameCones[1]) flameCones[1].position.set(0.00125, 0.0022, -0.0092);
+  }
+
   /**
    * Attaches and optimizes the user's 2015 BMW 3.0 CSL Hommage R Concept FBX model:
    * - Strips 39,600+ unseen interior dashboard micro-vertices for zero mobile lag.
    * - Merges static single-material body parts by material into ~11 draw calls.
    * - Extracts all 4 wheels (FL, FR, RL, RR), centers their vertices on each axle pivot,
    *   and wires them to `wheelMeshes` (60 FPS spin) and `frontPivots` (smooth steering).
-   * - Converts materials to lightweight mobile-friendly MeshLambertMaterial with crisp textures.
+   * - Enhances materials with realistic PBR clearcoat reflections and carbon normal maps.
    */
   function attachBmwFbxKart(fbxGroup, fallbackLiveryTex = null) {
     bmwLoaded = true;
@@ -781,9 +814,29 @@ export function buildMicroKart() {
 
     fbxGroup.updateMatrixWorld(true);
 
+    const carbonNormal = carPackAssets.loadTextureCached(
+      '/assets/models/bmw_csl/textures/common_carbon05_norm.png',
+      false
+    );
+    if (carbonNormal) {
+      carbonNormal.wrapS = THREE.RepeatWrapping;
+      carbonNormal.wrapT = THREE.RepeatWrapping;
+      carbonNormal.repeat.set(12, 12);
+    }
+    const rotorTex = carPackAssets.loadTextureCached(
+      '/assets/models/bmw_csl/textures/car_rotor_00.etc.png',
+      true
+    );
+    const wheelTex = carPackAssets.loadTextureCached(
+      '/assets/models/bmw_csl/textures/2015_bmw_csl_hommage_r_wheel.etc.png',
+      true
+    );
+
     const convertedMatCache = new Map();
+    const bmwPaintMats = [];
+
     function optimizeBmwMaterial(oldMat) {
-      if (!oldMat) return new THREE.MeshLambertMaterial({ color: 0xffffff });
+      if (!oldMat) return new THREE.MeshStandardMaterial({ color: 0xffffff });
       const cacheKey = oldMat.uuid || oldMat.name;
       if (convertedMatCache.has(cacheKey)) {
         return convertedMatCache.get(cacheKey);
@@ -793,73 +846,95 @@ export function buildMicroKart() {
       let texMap = oldMat.map || null;
       if (mName.includes('livery') && !texMap && fallbackLiveryTex) {
         texMap = fallbackLiveryTex;
+      } else if ((mName.includes('rim') || mName.includes('wheel')) && !texMap && wheelTex) {
+        texMap = wheelTex;
+      } else if (mName.includes('rotor') && !texMap && rotorTex) {
+        texMap = rotorTex;
       }
       if (texMap) {
         texMap.colorSpace = THREE.SRGBColorSpace;
-        texMap.generateMipmaps = false;
-        texMap.minFilter = THREE.LinearFilter;
-        texMap.magFilter = THREE.LinearFilter;
         texMap.needsUpdate = true;
       }
 
-      const mat = new THREE.MeshLambertMaterial({
+      const mat = new THREE.MeshPhysicalMaterial({
         name: oldMat.name || 'bmw_mat',
         color: 0xffffff,
         map: texMap,
         transparent: Boolean(oldMat.transparent),
         opacity: oldMat.opacity !== undefined ? oldMat.opacity : 1.0,
+        roughness: 0.22,
+        metalness: 0.35,
+        clearcoat: 0.85,
+        clearcoatRoughness: 0.08,
         side: THREE.FrontSide,
       });
 
       if (mName.includes('windwos') || mName.includes('glass_surr')) {
-        // Sleek dark smoked racing windshield & side windows
         mat.color.setHex(0x0b1524);
         mat.emissive.setHex(0x071222);
-        mat.emissiveIntensity = 0.45;
+        mat.emissiveIntensity = 0.35;
+        mat.roughness = 0.05;
+        mat.metalness = 0.15;
+        mat.clearcoat = 1.0;
         mat.transparent = true;
-        mat.opacity = 0.84;
+        mat.opacity = 0.82;
       } else if (mName.includes('glass_l') || mName.includes('light_glass')) {
         mat.color.setHex(0xd8f0ff);
         mat.emissive.setHex(0x285577);
         mat.emissiveIntensity = 0.55;
+        mat.roughness = 0.06;
         mat.transparent = true;
         mat.opacity = 0.65;
       } else if (mName.includes('break_light')) {
         mat.color.setHex(0xff1428);
         mat.emissive.setHex(0xff0a1e);
-        mat.emissiveIntensity = 1.9;
+        mat.emissiveIntensity = 2.2;
         mat.transparent = true;
-        mat.opacity = 0.92;
+        mat.opacity = 0.94;
       } else if (mName.includes('light_emiss') || mName.includes('lights')) {
         mat.color.setHex(0xffffff);
         mat.emissive.setHex(0xffe8b0);
-        mat.emissiveIntensity = 0.95;
+        mat.emissiveIntensity = 1.25;
       } else if (mName.includes('livery')) {
-        // Full showroom brightness for the BMW M-Performance White/Blue/Red/Gold livery
         mat.color.setHex(0xffffff);
-        mat.emissive.setHex(0x222630);
-        mat.emissiveIntensity = 0.28;
+        mat.emissive.setHex(0x181c24);
+        mat.emissiveIntensity = 0.18;
+        mat.roughness = 0.16;
+        mat.metalness = 0.32;
+        mat.clearcoat = 1.0;
+        mat.clearcoatRoughness = 0.05;
+        bmwPaintMats.push(mat);
       } else if (mName.includes('rim') || mName.includes('wheel')) {
         mat.color.setHex(0xf5d278);
         mat.emissive.setHex(0x241a08);
-        mat.emissiveIntensity = 0.24;
+        mat.emissiveIntensity = 0.2;
+        mat.metalness = 0.82;
+        mat.roughness = 0.22;
       } else if (mName.includes('tire') || mName.includes('tyre')) {
         mat.color.setHex(0x1b1e24);
         mat.emissive.setHex(0x06080b);
-        mat.emissiveIntensity = 0.2;
+        mat.emissiveIntensity = 0.15;
+        mat.roughness = 0.72;
+        mat.metalness = 0.1;
+        mat.clearcoat = 0.0;
       } else if (mName.includes('carbon')) {
         mat.color.setHex(0x242932);
         mat.emissive.setHex(0x0a0d12);
-        mat.emissiveIntensity = 0.22;
+        mat.emissiveIntensity = 0.18;
+        mat.roughness = 0.24;
+        mat.metalness = 0.42;
+        mat.clearcoat = 0.9;
+        if (carbonNormal) mat.normalMap = carbonNormal;
       } else if (mName.includes('badges')) {
         mat.color.setHex(0xffffff);
         mat.emissive.setHex(0x20242c);
-        mat.emissiveIntensity = 0.28;
+        mat.emissiveIntensity = 0.25;
         mat.alphaTest = 0.1;
       } else {
         mat.color.setHex(0xeef3fa);
         mat.emissive.setHex(0x141820);
-        mat.emissiveIntensity = 0.22;
+        mat.emissiveIntensity = 0.18;
+        bmwPaintMats.push(mat);
       }
 
       convertedMatCache.set(cacheKey, mat);
@@ -873,7 +948,6 @@ export function buildMicroKart() {
     fbxGroup.traverse((child) => {
       if (!child.isMesh || !child.geometry) return;
       const n = child.name || '';
-      // Skip the 39,648 hidden interior dashboard micro-vertices for locked 60 FPS mobile performance
       if (n.startsWith('csl_hommage_r_int')) {
         child.geometry.dispose();
         return;
@@ -894,8 +968,8 @@ export function buildMicroKart() {
         g.applyMatrix4(child.matrixWorld);
         const newMats = child.material.map((m) => optimizeBmwMaterial(m));
         const m = new THREE.Mesh(g, newMats);
-        m.castShadow = false;
-        m.receiveShadow = false;
+        m.castShadow = true;
+        m.receiveShadow = true;
         m.frustumCulled = true;
         multiMatMeshes.push(m);
       } else {
@@ -918,29 +992,26 @@ export function buildMicroKart() {
       }
     });
 
-    // 1. Add merged single-material body groups (~11 draw calls total)
     for (const { mat, geos } of singleMatBuckets.values()) {
       if (geos.length === 0) continue;
       const mergedGeo = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
       if (mergedGeo) {
         mergedGeo.computeBoundingSphere();
         const mergedMesh = new THREE.Mesh(mergedGeo, mat);
-        mergedMesh.castShadow = false;
-        mergedMesh.receiveShadow = false;
+        mergedMesh.castShadow = true;
+        mergedMesh.receiveShadow = true;
         mergedMesh.frustumCulled = true;
         bmwRoot.add(mergedMesh);
       }
     }
 
-    // 2. Add remaining multi-material exterior body parts
     for (const m of multiMatMeshes) {
       if (m.geometry) m.geometry.computeBoundingSphere();
       bmwRoot.add(m);
     }
 
-    // 3. Build axle-centered spinning & steerable wheel groups for FL, FR, RL, RR
-    wheelMeshes.length = 0;
-    frontPivots.length = 0;
+    const bmwWheels = [];
+    const bmwPivots = [];
 
     for (const [cornerKey, parts] of Object.entries(wheelBuckets)) {
       if (parts.length === 0) continue;
@@ -968,34 +1039,58 @@ export function buildMicroKart() {
           ? p.mesh.material.map((m) => optimizeBmwMaterial(m))
           : optimizeBmwMaterial(p.mesh.material);
         const wMesh = new THREE.Mesh(g, optMat);
-        wMesh.castShadow = false;
-        wMesh.receiveShadow = false;
+        wMesh.castShadow = true;
+        wMesh.receiveShadow = true;
         spinGroup.add(wMesh);
       }
 
       bmwRoot.add(steerPivot);
-      wheelMeshes.push(spinGroup);
+      bmwWheels.push(spinGroup);
       if (cornerKey === 'FL' || cornerKey === 'FR') {
-        frontPivots.push(steerPivot);
+        bmwPivots.push(steerPivot);
       }
     }
 
-    // Align twin exhaust flames & ruby tail-light glow halos with the BMW 3.0 CSL Hommage R rear
+    // Add detailed 3D interior seats/dash/steering wheel inside the BMW cabin
+    const bmwInterior = carPackAssets.buildDetailedInteriorGroup(260, 290, 42);
+    bmwInterior.position.set(0, 12, -15);
+    bmwRoot.add(bmwInterior);
+
+    savedBmwScene = bmwRoot;
+    savedBmwWheels = bmwWheels;
+    savedBmwFrontPivots = bmwPivots;
+    savedBmwPaintMats = bmwPaintMats;
+
+    // Only activate BMW right now if currentVehicleId is 'bmw_csl'
+    if (currentVehicleId === 'bmw_csl') {
+      activateSavedBmw();
+    }
+  }
+
+  function activateSavedBmw() {
+    if (!savedBmwScene) return;
+    if (attachedCarScene && attachedCarScene.parent) {
+      attachedCarScene.parent.remove(attachedCarScene);
+    }
+    attachedCarScene = savedBmwScene;
+    hideProceduralFallback();
+    savedBmwScene.visible = !cockpitRoadOnly;
+    kartShadowQuad.visible = !cockpitRoadOnly;
+    chassisGroup.add(savedBmwScene);
+
+    wheelMeshes.length = 0;
+    wheelMeshes.push(...savedBmwWheels);
+    frontPivots.length = 0;
+    frontPivots.push(...savedBmwFrontPivots);
+
     if (flameCones[0]) flameCones[0].position.set(-0.0014, 0.0016, -0.0102);
     if (flameCones[1]) flameCones[1].position.set(0.0014, 0.0016, -0.0102);
     if (tailLightGlowPlanes[0]) tailLightGlowPlanes[0].position.set(-0.0021, 0.0039, -0.0096);
     if (tailLightGlowPlanes[1]) tailLightGlowPlanes[1].position.set(0.0021, 0.0039, -0.0096);
-
-    attachedCarScene = bmwRoot;
-    hideProceduralFallback();
-    bmwRoot.visible = !cockpitRoadOnly;
-    kartShadowQuad.visible = !cockpitRoadOnly;
-    chassisGroup.add(bmwRoot);
   }
 
   function attachGlbKart(glbScene) {
-    // If the user's BMW 3.0 CSL Hommage R is already attached, keep the BMW as primary!
-    if (bmwLoaded) return;
+    if (bmwLoaded || currentVehicleId !== 'bmw_csl') return;
     attachedCarScene = glbScene;
     glbScene.position.set(0, 0, 0);
     glbScene.rotation.set(0, 0, 0);
@@ -1029,9 +1124,94 @@ export function buildMicroKart() {
     }
   }
 
+  /**
+   * Switches the active vehicle to any existing or newly added car from `VEHICLE_CATALOG`.
+   * Preserves all existing vehicles ('bmw_csl' and 'classic_kart') and supports all 6 new 3D cars.
+   */
+  async function switchToCatalogVehicle(carId, customColorHex = null) {
+    currentVehicleId = carId || 'bmw_csl';
+    currentCustomPaintHex = customColorHex || null;
+
+    if (currentVehicleId === 'classic_kart') {
+      showProceduralClassicKart();
+      if (customColorHex) setChassisColor(customColorHex);
+      return;
+    }
+
+    if (currentVehicleId === 'bmw_csl') {
+      if (savedBmwScene) {
+        activateSavedBmw();
+        if (customColorHex) setChassisColor(customColorHex);
+      }
+      return;
+    }
+
+    // Build and attach one of the brand-new 3D vehicles from CarCatalog
+    try {
+      const reqId = `${currentVehicleId}_${Date.now()}`;
+      kartRoot.userData._switchReqId = reqId;
+      const instance = await carPackAssets.buildCarInstance(currentVehicleId, customColorHex);
+      if (kartRoot.userData._switchReqId !== reqId) return;
+
+      if (attachedCarScene && attachedCarScene.parent) {
+        attachedCarScene.parent.remove(attachedCarScene);
+      }
+
+      // Scale from world-normalized 4.68 units into 1:87 local chassisGroup space (1 / 210)
+      const wrapper = new THREE.Group();
+      wrapper.name = `CatalogVehicle_${currentVehicleId}`;
+      const invKartScale = 1 / 210;
+      wrapper.scale.setScalar(invKartScale);
+      wrapper.position.set(0, 0.30 * invKartScale + 0.0001, 0);
+      wrapper.add(instance.rootGroup);
+
+      attachedCarScene = wrapper;
+      activeCatalogPaintMats = instance.bodyMaterials || [];
+      hideProceduralFallback();
+      wrapper.visible = !cockpitRoadOnly;
+      kartShadowQuad.visible = !cockpitRoadOnly;
+      chassisGroup.add(wrapper);
+
+      wheelMeshes.length = 0;
+      wheelMeshes.push(...(instance.wheelVisuals || []));
+      frontPivots.length = 0;
+      frontPivots.push(...(instance.frontPivots || []));
+
+      if (flameCones[0]) flameCones[0].position.set(-0.0014, 0.0016, -0.0102);
+      if (flameCones[1]) flameCones[1].position.set(0.0014, 0.0016, -0.0102);
+      if (tailLightGlowPlanes[0]) tailLightGlowPlanes[0].position.set(-0.0021, 0.0039, -0.0096);
+      if (tailLightGlowPlanes[1]) tailLightGlowPlanes[1].position.set(0.0021, 0.0039, -0.0096);
+    } catch (err) {
+      console.warn('Vehicle switch error:', err);
+    }
+  }
+
+  function setChassisColor(hexColor) {
+    if (!hexColor) return;
+    currentCustomPaintHex = hexColor;
+    const col = new THREE.Color(hexColor);
+    redFairingMat.color.copy(col);
+
+    if (currentVehicleId === 'bmw_csl' && savedBmwPaintMats.length > 0) {
+      for (const m of savedBmwPaintMats) {
+        m.color.copy(col);
+      }
+    } else if (activeCatalogPaintMats.length > 0) {
+      for (const m of activeCatalogPaintMats) {
+        m.map = null;
+        m.color.copy(col);
+        m.metalness = 0.72;
+        m.roughness = 0.16;
+        m.needsUpdate = true;
+      }
+    }
+  }
+
   return {
     kartRoot,
     chassisGroup,
+    wheelMeshes,
+    frontPivots,
     sparkPoints,
     sparkFireLight,
     setFireLightMultiplier,
@@ -1040,5 +1220,8 @@ export function buildMicroKart() {
     updateKartVisuals,
     attachGlbKart,
     attachBmwFbxKart,
+    switchToCatalogVehicle,
+    setChassisColor,
+    getCurrentVehicleId: () => currentVehicleId,
   };
 }

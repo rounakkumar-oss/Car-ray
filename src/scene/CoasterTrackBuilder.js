@@ -1302,7 +1302,101 @@ export function buildCoasterTrack(splineData) {
   const gSample = samples[646] || samples[0];
   const gCenter = new THREE.Vector3(...gSample.position);
   const gRightHoriz = new THREE.Vector3(gSample.right[0], 0, gSample.right[2]).normalize();
+  const gTanHoriz = new THREE.Vector3(gSample.tangent[0], 0, gSample.tangent[2]).normalize();
   const gUpVec = new THREE.Vector3(0, 1, 0);
+
+  // Persistent High-Visibility 3D Start / Finish Line Checkered Road Strip & Neon Arch
+  // (Placed inside underTrackLedGroup so it stays 100% visible even when track_coaster.glb loads!)
+  const persistentFinishArch = new THREE.Group();
+  persistentFinishArch.name = 'PersistentStartFinishLineArch';
+  persistentFinishArch.position.copy(gCenter);
+  const finishBasis = new THREE.Matrix4().makeBasis(gRightHoriz, gUpVec, gTanHoriz);
+  persistentFinishArch.quaternion.setFromRotationMatrix(finishBasis);
+
+  // High-contrast 3x16 Checkered Road Finish Line CanvasTexture
+  const chkCanvas = document.createElement('canvas');
+  chkCanvas.width = 512;
+  chkCanvas.height = 128;
+  const chkCtx = chkCanvas.getContext('2d');
+  const cols = 16;
+  const rows = 4;
+  const cw = chkCanvas.width / cols;
+  const ch = chkCanvas.height / rows;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      chkCtx.fillStyle = (r + c) % 2 === 0 ? '#ffffff' : '#0b0e14';
+      chkCtx.fillRect(c * cw, r * ch, cw, ch);
+    }
+  }
+  // Glowing cyan/gold border lines along front and back edges of the finish line
+  chkCtx.fillStyle = '#00e5ff';
+  chkCtx.fillRect(0, 0, chkCanvas.width, 6);
+  chkCtx.fillStyle = '#ffca28';
+  chkCtx.fillRect(0, chkCanvas.height - 6, chkCanvas.width, 6);
+
+  const finishRoadTex = new THREE.CanvasTexture(chkCanvas);
+  finishRoadTex.colorSpace = THREE.SRGBColorSpace;
+  finishRoadTex.anisotropy = 4;
+
+  // Wide Checkered Road Surface Ribbon spanning the full 22mm coaster width
+  const finishRoadRibbon = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.0216, 0.0068),
+    new THREE.MeshBasicMaterial({
+      map: finishRoadTex,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
+    })
+  );
+  finishRoadRibbon.rotation.x = -Math.PI / 2;
+  finishRoadRibbon.position.set(0, 0.00055, 0);
+  persistentFinishArch.add(finishRoadRibbon);
+
+  // Twin Glowing Cyan/Gold Finish Line Portal Pillars on Left & Right Curbs
+  const pillarGeo = new THREE.BoxGeometry(0.0014, 0.0165, 0.0018);
+  const pillarMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff });
+  for (const sideSign of [-1, 1]) {
+    const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+    pillar.position.set(sideSign * 0.0112, 0.0082, 0);
+    persistentFinishArch.add(pillar);
+  }
+
+  // Overhead Checkered "FINISH LINE" Banner Beam
+  const bannerCanvas = document.createElement('canvas');
+  bannerCanvas.width = 512;
+  bannerCanvas.height = 96;
+  const bCtx = bannerCanvas.getContext('2d');
+  bCtx.fillStyle = '#091224';
+  bCtx.fillRect(0, 0, 512, 96);
+  bCtx.strokeStyle = '#00e5ff';
+  bCtx.lineWidth = 6;
+  bCtx.strokeRect(3, 3, 506, 90);
+  // Checkered left & right end caps
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 3; c++) {
+      bCtx.fillStyle = (r + c) % 2 === 0 ? '#ffffff' : '#101828';
+      bCtx.fillRect(10 + c * 18, 12 + r * 18, 18, 18);
+      bCtx.fillRect(512 - 64 + c * 18, 12 + r * 18, 18, 18);
+    }
+  }
+  bCtx.fillStyle = '#ffd27d';
+  bCtx.font = 'italic 900 34px "Orbitron", sans-serif';
+  bCtx.textAlign = 'center';
+  bCtx.textBaseline = 'middle';
+  bCtx.fillText('FINISH LINE', 256, 50);
+
+  const bannerTex = new THREE.CanvasTexture(bannerCanvas);
+  bannerTex.colorSpace = THREE.SRGBColorSpace;
+  const bannerMat = new THREE.MeshBasicMaterial({
+    map: bannerTex,
+    side: THREE.DoubleSide,
+  });
+  const overheadBanner = new THREE.Mesh(new THREE.PlaneGeometry(0.0235, 0.0044), bannerMat);
+  overheadBanner.position.set(0, 0.0158, 0);
+  persistentFinishArch.add(overheadBanner);
+
+  underTrackLedGroup.add(persistentFinishArch);
 
   // Ordered strictly from RIGHT (+0.0064) to LEFT (-0.0064) as seen by the driver at the start line
   const f1PodOffsetsRightToLeft = [0.0064, 0.0032, 0.0, -0.0032, -0.0064];

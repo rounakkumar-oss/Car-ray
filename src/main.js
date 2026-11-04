@@ -12,11 +12,15 @@ import { buildMicroKart } from './scene/MicroKartBuilder.js';
 import { buildGoldenHourAtmosphere } from './scene/GoldenHourAtmosphere.js';
 import { buildRoomEnvironment } from './scene/RoomEnvironmentBuilder.js';
 import { buildGiantHouseWorld } from './scene/GiantHouseBuilder.js';
+import { buildHyperRealisticCityMap } from './scene/HyperCityMapBuilder.js';
+import { VEHICLE_CATALOG, getVehicleSpecById } from './scene/CarCatalog.js';
+import { CarShowroomPreview } from './scene/CarShowroomPreview.js';
 import { createProceduralPMREMEnvironment } from './scene/ProceduralTextures.js';
 import { createKartPhysicsController } from './physics/KartPhysicsController.js';
 import { createWebAudioSynth } from './audio/WebAudioSynth.js';
 import { createFriendsMultiplayerManager } from './multiplayer/FriendsMultiplayerManager.js';
 import { createPoliceChaseManager } from './police/PoliceChaseManager.js';
+import { createTrackAiRacerManager } from './ai/TrackAiRacerManager.js';
 
 async function initApp() {
   const gameContainer = document.getElementById('game-container');
@@ -225,6 +229,11 @@ async function initApp() {
   const giantHouse = buildGiantHouseWorld();
   giantHouse.houseGroup.visible = false;
   scene.add(giantHouse.houseGroup);
+
+  // Build Mode 3: Hyper-Realistic 3D Open-World City & Mountain Circuit Map
+  const cityMap = buildHyperRealisticCityMap();
+  cityMap.houseGroup.visible = false;
+  scene.add(cityMap.houseGroup);
 
   const microKart = buildMicroKart();
   microKart.kartRoot.scale.setScalar(0.38);
@@ -655,6 +664,9 @@ async function initApp() {
           if (microKart.attachBmwFbxKart) {
             microKart.attachBmwFbxKart(fbxGroup, fallbackLiveryTex);
           }
+          if (typeof showroomPreview !== 'undefined' && showroomPreview) {
+            showroomPreview.setBmwTemplate(fbxGroup, fallbackLiveryTex);
+          }
           optimizeSceneHierarchyForMobile(microKart.chassisGroup);
           initObjectTextures(microKart.chassisGroup);
           syncKartScaleForCamera(activeCameraMode);
@@ -836,6 +848,9 @@ async function initApp() {
     activeCameraMode = mode;
     sync1PRoomAndCurtainVisibility(mode);
     syncKartScaleForCamera(mode);
+    if (typeof aiRacerManager !== 'undefined' && aiRacerManager) {
+      aiRacerManager.syncScaleForCamera(mode, activeGameMode);
+    }
     if (microKart.setCockpitRoadOnly) {
       // Camera 3 is Hood / Cockpit First-Person Cam
       microKart.setCockpitRoadOnly(mode === 3);
@@ -1066,6 +1081,61 @@ async function initApp() {
   });
   optimizeSceneHierarchyForMobile(policeManager.policeGroup);
 
+  const aiRacerManager = createTrackAiRacerManager({
+    scene,
+    splineData,
+    physics,
+    giantHouse,
+    onAiFinish: (aiFinishTime, aiBestLap, difficulty) => {
+      if (activeGameMode !== 'track') return;
+      // If the AI Rival reached the Finish Line before the player, AI wins 1st Place!
+      if (!physics.state.raceFinished && !physics.state.autopilot) {
+        physics.state.raceFinished = true;
+        physics.state.victoryCruise = true;
+        physics.state.finishTotalTime = aiFinishTime;
+        showFinishOverlay(aiFinishTime, physics.state.bestLapTime ?? aiBestLap, true, {
+          winner: 'ai',
+          aiTime: aiFinishTime,
+          difficulty,
+        });
+      }
+    },
+    onAiLapComplete: (_doneLap, _lapTime, _difficulty) => {
+      // Multi-lap progress handled automatically on HUD
+    },
+  });
+  optimizeSceneHierarchyForMobile(aiRacerManager.aiRootGroup);
+  optimizeSceneHierarchyForMobile(aiRacerManager.houseRoamersGroup);
+
+  const AI_DIFF_DESCRIPTIONS = {
+    normal: 'Normal AI — Balanced speed & smooth cornering (Track Race & Hide-and-Seek)',
+    medium: 'Medium AI — Faster straights, tighter apex lines & sharper Police patrols',
+    hard: 'Hard AI — Pro speed, aggressive cornering & high-alert Police Interceptors!',
+  };
+
+  function applyAiDifficulty(diffKey) {
+    const clean = aiRacerManager.setDifficulty(diffKey);
+    if (policeManager && policeManager.setDifficulty) {
+      policeManager.setDifficulty(clean);
+    }
+    const descEl = document.getElementById('ai-diff-desc-text');
+    if (descEl) {
+      descEl.textContent = AI_DIFF_DESCRIPTIONS[clean] || AI_DIFF_DESCRIPTIONS.normal;
+    }
+    document.querySelectorAll('.ai-diff-pill-btn').forEach((btn) => {
+      const isAct = btn.dataset.aidiff === clean;
+      btn.classList.toggle('active', isAct);
+      btn.setAttribute('aria-pressed', isAct ? 'true' : 'false');
+    });
+  }
+
+  document.querySelectorAll('.ai-diff-pill-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyAiDifficulty(btn.dataset.aidiff || 'normal');
+    });
+  });
+
   function applyMapLightingTheme(themeName) {
     selectedLightingTheme = themeName || 'sunset';
     const isHouse = activeGameMode === 'house';
@@ -1139,40 +1209,59 @@ async function initApp() {
     });
   });
 
+  const btnModeCity = document.getElementById('btn-mode-city');
+  const btnSettingsModeCity = document.getElementById('btn-settings-mode-city');
+
   function setActiveGameMode(nextMode) {
     let playMode = nextMode;
     if (nextMode === 'house') playMode = 'freeroam';
-    if (!['freeroam', 'track', 'police'].includes(playMode)) {
+    if (!['freeroam', 'track', 'police', 'city'].includes(playMode)) {
       playMode = 'freeroam';
     }
     selectedPlayMode = playMode;
 
     const worldMode = playMode === 'track' ? 'track' : 'house';
     activeGameMode = worldMode;
-    const isHouse = worldMode === 'house';
+    const isHouseOrCity = worldMode === 'house';
+    const isCity = playMode === 'city';
     const isPolice = playMode === 'police';
 
-    // Toggle 3D world groups between Track Mode and Giant House Mode
-    giantHouse.houseGroup.visible = isHouse;
-    diorama.root.visible = !isHouse && !loadedGlbStatus.desk;
-    if (diorama.nightGlowGroup) diorama.nightGlowGroup.visible = !isHouse;
-    roomEnv.roomRoot.visible = !isHouse;
-    coaster.trackGroup.visible = !isHouse && !loadedGlbStatus.track;
-    if (coaster.underTrackLedGroup) coaster.underTrackLedGroup.visible = !isHouse;
+    // Toggle 3D world groups between Track Mode, Giant House Mode, and Hyper-Realistic City Map
+    giantHouse.houseGroup.visible = isHouseOrCity && !isCity;
+    cityMap.houseGroup.visible = isCity;
+    diorama.root.visible = !isHouseOrCity && !loadedGlbStatus.desk;
+    if (diorama.nightGlowGroup) diorama.nightGlowGroup.visible = !isHouseOrCity;
+    roomEnv.roomRoot.visible = !isHouseOrCity;
+    coaster.trackGroup.visible = !isHouseOrCity && !loadedGlbStatus.track;
+    if (coaster.underTrackLedGroup) coaster.underTrackLedGroup.visible = !isHouseOrCity;
     coaster.debugGroup.visible = false;
-    glbContainerGroup.visible = !isHouse;
+    glbContainerGroup.visible = !isHouseOrCity;
 
-    applyMapLightingTheme(selectedLightingTheme);
+    applyMapLightingTheme(isCity ? 'daylight' : selectedLightingTheme);
 
     cancelF1StartCountdown();
     hideFinishOverlay();
     hideBustedGameOver();
     hideLapSplit();
 
+    const activeOpenWorldRef = isCity ? cityMap : giantHouse;
+    physics.setGiantHouseWorld(activeOpenWorldRef);
     physics.setGameMode(worldMode);
+    if (isCity && physics.resetHousePose) {
+      // Spawn on the South Grand Prix Main Straight right behind the Start/Finish Gantry
+      physics.resetHousePose(-0.75, -2.4, 0.0);
+    }
+
     policeManager.setEnabled(isPolice);
     if (isPolice) {
       policeManager.resetRound();
+    }
+    if (aiRacerManager) {
+      aiRacerManager.setModeVisibility(playMode, activeOpenWorldRef);
+      if (playMode === 'track') {
+        aiRacerManager.resetAiRacer();
+      }
+      aiRacerManager.syncScaleForCamera(activeCameraMode, worldMode);
     }
 
     if (elHudPoliceBanner) {
@@ -1194,6 +1283,11 @@ async function initApp() {
       btnModePolice.classList.toggle('active', act);
       btnModePolice.setAttribute('aria-pressed', act ? 'true' : 'false');
     }
+    if (btnModeCity) {
+      const act = playMode === 'city';
+      btnModeCity.classList.toggle('active', act);
+      btnModeCity.setAttribute('aria-pressed', act ? 'true' : 'false');
+    }
 
     const btnSettingsModeTrack = document.getElementById('btn-settings-mode-track');
     const btnSettingsModeHouse = document.getElementById('btn-settings-mode-house');
@@ -1201,16 +1295,17 @@ async function initApp() {
     if (btnSettingsModeHouse) btnSettingsModeHouse.classList.toggle('active', playMode === 'freeroam');
     if (btnSettingsModeTrack) btnSettingsModeTrack.classList.toggle('active', playMode === 'track');
     if (btnSettingsModePolice) btnSettingsModePolice.classList.toggle('active', playMode === 'police');
+    if (btnSettingsModeCity) btnSettingsModeCity.classList.toggle('active', playMode === 'city');
 
     if (hudLapWidget) {
-      hudLapWidget.classList.toggle('hidden', isHouse || activeCameraMode > 4);
+      hudLapWidget.classList.toggle('hidden', isHouseOrCity || activeCameraMode > 4);
     }
     if (hudHouseRoomBanner) {
       hudHouseRoomBanner.classList.toggle('hidden', activeCameraMode > 4);
     }
     if (hudHouseRoomName) {
-      hudHouseRoomName.textContent = isHouse
-        ? physics.state.currentRoomShort || '12 • CENTRAL HALL'
+      hudHouseRoomName.textContent = isHouseOrCity
+        ? physics.state.currentRoomShort || (isCity ? 'C1 • GP MAIN STRAIGHT' : '12 • CENTRAL HALL')
         : 'NEON TRACK CIRCUIT';
     }
 
@@ -1240,12 +1335,21 @@ async function initApp() {
       setActiveGameMode('police');
     });
   }
+  if (btnModeCity) {
+    btnModeCity.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveGameMode('city');
+    });
+  }
   if (btnBustedRetry) {
     btnBustedRetry.addEventListener('click', (e) => {
       e.stopPropagation();
       hideBustedGameOver();
       physics.setGameMode('house');
       policeManager.resetRound();
+      if (aiRacerManager) {
+        aiRacerManager.resetAiRacer();
+      }
     });
   }
   if (btnBustedMenu) {
@@ -1951,6 +2055,7 @@ async function initApp() {
   const radarCtx = radarCanvas ? radarCanvas.getContext('2d') : null;
   let radarBgCanvas = null;
   let houseRadarBgCanvas = null;
+  let cityRadarBgCanvas = null;
 
   const projMinimapRawX = (x, y, z) => x - y * 0.36 + z * 0.08;
   const projMinimapRawY = (_x, y, z) => z * 1.08 - y * 1.48;
@@ -2089,6 +2194,38 @@ async function initApp() {
       strokeElevationTier(tier.min, tier.max, tier.side, 12.2, 4.0);
       strokeElevationTier(tier.min, tier.max, tier.shade, 12.0, 0.0);
     }
+
+    // Draw high-contrast Checkered Start/Finish Line & Flag Marker on Track Radar at sample 646
+    const sfIdx = Math.min(646, nPts - 1);
+    const sfPrev = p2d[(sfIdx - 2 + nPts) % nPts];
+    const sfCurr = p2d[sfIdx];
+    const sfNext = p2d[(sfIdx + 2) % nPts];
+    const sfAngle = Math.atan2(sfNext.y - sfPrev.y, sfNext.x - sfPrev.x);
+    bgCtx.save();
+    bgCtx.translate(sfCurr.x, sfCurr.y);
+    bgCtx.rotate(sfAngle + Math.PI * 0.5);
+    // Cyan glowing finish line border
+    bgCtx.fillStyle = '#00e5ff';
+    bgCtx.fillRect(-10, -4.5, 20, 9);
+    // 2x4 Checkered blocks across the track ribbon
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 4; c++) {
+        bgCtx.fillStyle = (r + c) % 2 === 0 ? '#ffffff' : '#09101d';
+        bgCtx.fillRect(-8 + c * 4, -3 + r * 3, 4, 3);
+      }
+    }
+    bgCtx.restore();
+
+    bgCtx.save();
+    bgCtx.font = '900 10px "Orbitron", sans-serif';
+    bgCtx.textAlign = 'center';
+    bgCtx.textBaseline = 'bottom';
+    bgCtx.strokeStyle = 'rgba(2, 6, 14, 0.95)';
+    bgCtx.lineWidth = 3.5;
+    bgCtx.strokeText('🏁 FINISH', sfCurr.x, sfCurr.y - 11);
+    bgCtx.fillStyle = '#ffd27d';
+    bgCtx.fillText('🏁 FINISH', sfCurr.x, sfCurr.y - 11);
+    bgCtx.restore();
 
     // -------------------------------------------------------------------------
     // HIGH-CLARITY ARCHITECTURAL 2D FLOORPLAN MINI-MAP (14-ROOM GIANT HOUSE)
@@ -2320,6 +2457,86 @@ async function initApp() {
       hCtx.fillText(labelText, rcx, rcy);
       hCtx.restore();
     }
+
+    // -------------------------------------------------------------------------
+    // HIGH-CLARITY 2D RADAR BLUEPRINT FOR THE HYPER-REALISTIC CITY & MOUNTAIN MAP
+    // -------------------------------------------------------------------------
+    cityRadarBgCanvas = document.createElement('canvas');
+    cityRadarBgCanvas.width = w;
+    cityRadarBgCanvas.height = h;
+    const cCtx = cityRadarBgCanvas.getContext('2d');
+
+    // Deep forest/parkland background
+    cCtx.fillStyle = 'rgba(14, 34, 24, 0.92)';
+    cCtx.fillRect(0, 0, w, h);
+
+    // East Harbor Marina Bay Water
+    const waterX = mapHouseMinimapX(5.25);
+    cCtx.fillStyle = 'rgba(2, 132, 199, 0.55)';
+    cCtx.fillRect(waterX, 0, w - waterX, h);
+
+    // North Alpine Mountain Range shading
+    const mtnY = mapHouseMinimapY(5.1);
+    cCtx.fillStyle = 'rgba(100, 116, 139, 0.45)';
+    cCtx.fillRect(0, mtnY, w, h - mtnY);
+
+    // Draw 4-Lane Outer Highway Ring & Central Crossroads
+    cCtx.strokeStyle = '#334155';
+    cCtx.lineWidth = 0.62 * hScale;
+    cCtx.lineCap = 'square';
+    const rX0 = mapHouseMinimapX(-2.4);
+    const rX1 = mapHouseMinimapX(4.8);
+    const rZ0 = mapHouseMinimapY(-2.4);
+    const rZ1 = mapHouseMinimapY(4.8);
+    const rXC = mapHouseMinimapX(1.2);
+    const rZC = mapHouseMinimapY(1.2);
+    cCtx.strokeRect(rX0, rZ0, rX1 - rX0, rZ1 - rZ0);
+
+    cCtx.lineWidth = 0.52 * hScale;
+    cCtx.beginPath();
+    cCtx.moveTo(rXC, rZ0);
+    cCtx.lineTo(rXC, rZ1);
+    cCtx.moveTo(rX0, rZC);
+    cCtx.lineTo(rX1, rZC);
+    cCtx.stroke();
+
+    // Dashed yellow centerlines
+    cCtx.strokeStyle = '#facc15';
+    cCtx.lineWidth = 1.6;
+    cCtx.setLineDash([5, 5]);
+    cCtx.strokeRect(rX0, rZ0, rX1 - rX0, rZ1 - rZ0);
+    cCtx.beginPath();
+    cCtx.moveTo(rXC, rZ0);
+    cCtx.lineTo(rXC, rZ1);
+    cCtx.moveTo(rX0, rZC);
+    cCtx.lineTo(rX1, rZC);
+    cCtx.stroke();
+    cCtx.setLineDash([]);
+
+    // Central Roundabout Plaza
+    cCtx.fillStyle = '#1e293b';
+    cCtx.strokeStyle = '#38bdf8';
+    cCtx.lineWidth = 2.2;
+    cCtx.beginPath();
+    cCtx.arc(rXC, rZC, 0.85 * hScale, 0, Math.PI * 2);
+    cCtx.fill();
+    cCtx.stroke();
+
+    // City Sector Labels
+    for (const r of cityMap.rooms) {
+      const rcx = mapHouseMinimapX(r.cx);
+      const rcy = mapHouseMinimapY(r.cz);
+      cCtx.save();
+      cCtx.font = '800 10.5px "Orbitron", sans-serif';
+      cCtx.textAlign = 'center';
+      cCtx.textBaseline = 'middle';
+      cCtx.strokeStyle = 'rgba(2, 6, 14, 0.94)';
+      cCtx.lineWidth = 3.4;
+      cCtx.strokeText(r.shortName, rcx, rcy);
+      cCtx.fillStyle = r.accentColor || '#38bdf8';
+      cCtx.fillText(r.shortName, rcx, rcy);
+      cCtx.restore();
+    }
   }
 
   let lastMinimapKx = -9999;
@@ -2363,6 +2580,7 @@ async function initApp() {
   function drawMinimapRadar(st, forceRedraw = false) {
     if (!radarCtx || !radarCanvas) return;
     const isHouse = activeGameMode === 'house';
+    const isCity = selectedPlayMode === 'city';
     const kx = isHouse
       ? mapHouseMinimapX(st.position.x)
       : mapMinimapX(st.position.x, st.position.y, st.position.z);
@@ -2375,10 +2593,12 @@ async function initApp() {
 
     const hasRemotePlayers = multiplayer && multiplayer.getState().isActive;
     const hasActivePolice = selectedPlayMode === 'police';
+    const hasActiveAi = Boolean(aiRacerManager);
     if (
       !forceRedraw &&
       !hasRemotePlayers &&
       !hasActivePolice &&
+      !hasActiveAi &&
       Math.abs(kx - lastMinimapKx) < 0.12 &&
       Math.abs(ky - lastMinimapKy) < 0.12 &&
       Math.abs(yaw - lastMinimapYaw) < 0.02
@@ -2392,13 +2612,13 @@ async function initApp() {
     const w = radarCanvas.width;
     const h = radarCanvas.height;
     radarCtx.clearRect(0, 0, w, h);
-    const bgSource = isHouse ? houseRadarBgCanvas : radarBgCanvas;
+    const bgSource = isCity ? cityRadarBgCanvas : isHouse ? houseRadarBgCanvas : radarBgCanvas;
     if (bgSource) {
       radarCtx.drawImage(bgSource, 0, 0);
     }
 
     // Highlight active room border in Giant House mode
-    if (isHouse && giantHouse.getRoomAt) {
+    if (isHouse && !isCity && giantHouse.getRoomAt) {
       const activeRm = giantHouse.getRoomAt(st.position.x, st.position.z);
       if (activeRm) {
         const rx = mapHouseMinimapX(activeRm.xMin);
@@ -2413,7 +2633,7 @@ async function initApp() {
       }
     }
 
-    // Draw AI Police Interceptors + Forward Red Vision Cones on Radar
+    // Draw AI Police Interceptors + Forward Red Vision Cones + Fellow AI Chor Hiders on Radar
     if (isHouse && selectedPlayMode === 'police' && policeManager) {
       const cops = policeManager.getPoliceRadarMarkers();
       const pxPerUnit = Math.abs(mapHouseMinimapX(1.0) - mapHouseMinimapX(0.0));
@@ -2448,6 +2668,40 @@ async function initApp() {
           ? '#247cff'
           : '#ff2d2d';
         drawDirectionalArrow(radarCtx, cx, cy, c.yaw, copColor, '#ffffff', 0.86);
+      }
+
+      // Draw Fellow AI Hiders ("AI CHOR 01..03") on Radar
+      if (policeManager.getHiderRadarMarkers) {
+        const aiHiders = policeManager.getHiderRadarMarkers();
+        for (let i = 0; i < aiHiders.length; i++) {
+          const hBot = aiHiders[i];
+          const hx = mapHouseMinimapX(hBot.x);
+          const hy = mapHouseMinimapY(hBot.z);
+          drawDirectionalArrow(
+            radarCtx,
+            hx,
+            hy,
+            hBot.yaw || 0,
+            hBot.hidden ? '#00e676' : hBot.color || '#ffca28',
+            '#ffffff',
+            0.80
+          );
+        }
+      }
+    }
+
+    // Draw AI Rival (Track Race Mode) or AI Roamers (Free Roam House Mode) on Radar
+    if (aiRacerManager) {
+      const aiMarkers = aiRacerManager.getMinimapMarkers(selectedPlayMode);
+      for (let i = 0; i < aiMarkers.length; i++) {
+        const m = aiMarkers[i];
+        const ax = isHouse
+          ? mapHouseMinimapX(m.x)
+          : mapMinimapX(m.x, m.y ?? 0.04, m.z);
+        const ay = isHouse
+          ? mapHouseMinimapY(m.z)
+          : mapMinimapY(m.x, m.y ?? 0.04, m.z);
+        drawDirectionalArrow(radarCtx, ax, ay, m.yaw || 0, m.color || '#ff2a85', '#ffffff', 0.92);
       }
     }
 
@@ -2486,7 +2740,10 @@ async function initApp() {
 
   // Cache HUD DOM elements
   const elScaleSpeed = document.getElementById('hud-scale-speed');
+  const elRacePos = document.getElementById('hud-race-pos');
+  const elTrackPct = document.getElementById('hud-track-pct');
   const elLapCurr = document.getElementById('hud-lap-curr');
+  const elLapTotal = document.getElementById('hud-lap-total');
   const elLapTimer = document.getElementById('hud-lap-timer');
   const elLapSplit = document.getElementById('hud-lap-split');
   const lapDigitEls = [
@@ -2499,8 +2756,11 @@ async function initApp() {
   ];
   const elF1Countdown = document.getElementById('hud-f1-countdown');
   const elFinishOverlay = document.getElementById('hud-finish-overlay');
+  const elFinishEyebrow = document.getElementById('hud-finish-eyebrow');
+  const elFinishTitle = document.getElementById('hud-finish-title');
   const elFinishTime = document.getElementById('hud-finish-time');
   const elFinishSub = document.getElementById('hud-finish-sub');
+  const elFinishAiSub = document.getElementById('hud-finish-ai-sub');
   const elVisorInline = document.getElementById('visor-telem-inline');
 
   function formatLapTimerMMSSCC(seconds) {
@@ -2547,14 +2807,45 @@ async function initApp() {
     }
   }
 
-  function showFinishOverlay(totalTime, bestLap, playAudio = true) {
+  function showFinishOverlay(totalTime, bestLap, playAudio = true, finishMeta = {}) {
     hideLapSplit();
+    const winner = finishMeta.winner || 'player';
+    const isAiWin = winner === 'ai';
+    const diffLabel = String(
+      finishMeta.difficulty || (aiRacerManager ? aiRacerManager.getDifficulty() : 'normal')
+    ).toUpperCase();
+
+    if (elFinishEyebrow) {
+      elFinishEyebrow.textContent = `DESKTOP CIRCUIT · VS ${diffLabel} AI RIVAL`;
+    }
+    if (elFinishTitle) {
+      elFinishTitle.textContent = isAiWin
+        ? '🏁 2ND PLACE — AI RIVAL WON!'
+        : '🏆 1ST PLACE — YOU WIN!';
+      elFinishTitle.classList.toggle('is-defeat', isAiWin);
+    }
     if (elFinishTime) {
       elFinishTime.textContent = formatLapTimerMMSSCC(totalTime);
     }
     if (elFinishSub) {
-      const bestVal = bestLap != null ? bestLap : (totalTime || 0) / 3;
-      elFinishSub.textContent = `BEST LAP ${formatLapTimerMMSSCC(bestVal)}`;
+      if (isAiWin) {
+        const playerPct = Math.min(99, Math.round((physics.state.trackProgress || 0) * 100));
+        elFinishSub.textContent = `AI CROSSED FINISH FIRST · YOUR PROGRESS: ${playerPct}%`;
+      } else {
+        const bestVal = bestLap != null ? bestLap : totalTime || 0;
+        elFinishSub.textContent = `YOUR FINISH TIME ${formatLapTimerMMSSCC(bestVal)} · YOU REACHED FINISH FIRST!`;
+      }
+    }
+    if (elFinishAiSub) {
+      const aiTimeVal = finishMeta.aiTime ?? (aiRacerManager ? aiRacerManager.aiState.finishTime : null);
+      if (aiTimeVal != null) {
+        elFinishAiSub.textContent = `🤖 AI RIVAL (${diffLabel}): ${formatLapTimerMMSSCC(aiTimeVal)}`;
+      } else {
+        const aiPct = aiRacerManager
+          ? Math.min(99, Math.round((aiRacerManager.aiState.trackProgress || 0) * 100))
+          : 0;
+        elFinishAiSub.textContent = `🤖 AI RIVAL (${diffLabel}): ${aiPct}% OF TRACK COMPLETED`;
+      }
     }
     if (elFinishOverlay) {
       elFinishOverlay.classList.remove('hidden');
@@ -2577,7 +2868,11 @@ async function initApp() {
     if (isFinish) {
       const finalTotal =
         totalTime ?? physics.state.finishTotalTime ?? physics.state.totalRaceTime ?? lapTime;
-      showFinishOverlay(finalTotal, bestLap ?? lapTime, true);
+      showFinishOverlay(finalTotal, bestLap ?? lapTime, true, {
+        winner: 'player',
+        aiTime: aiRacerManager ? aiRacerManager.aiState.finishTime : null,
+        difficulty: aiRacerManager ? aiRacerManager.getDifficulty() : 'normal',
+      });
     } else {
       audioSynth.playLapChime();
       const lapNum = completedLapNum || Math.max(1, (physics.state.lapCount || 2) - 1);
@@ -2588,7 +2883,11 @@ async function initApp() {
   if (physics.onRaceFinish) {
     physics.onRaceFinish((totalTime, _lapTimes, bestLap) => {
       if (activeGameMode !== 'track') return;
-      showFinishOverlay(totalTime, bestLap, true);
+      showFinishOverlay(totalTime, bestLap, true, {
+        winner: 'player',
+        aiTime: aiRacerManager ? aiRacerManager.aiState.finishTime : null,
+        difficulty: aiRacerManager ? aiRacerManager.getDifficulty() : 'normal',
+      });
     });
   }
 
@@ -2639,6 +2938,9 @@ async function initApp() {
     const btnAutoText = document.getElementById('autopilot-btn-text');
     if (btnAutoText) btnAutoText.textContent = 'Manual WASD Racing';
     physics.resetToStart();
+    if (aiRacerManager) {
+      aiRacerManager.resetAiRacer();
+    }
     physics.state.countdownLocked = true;
     physics.state.raceClockActive = false;
 
@@ -2725,9 +3027,11 @@ async function initApp() {
     const readyLabel =
       selectedPlayMode === 'police'
         ? 'PLAY POLICE HIDE & SEEK'
-        : selectedPlayMode === 'freeroam'
-          ? 'PLAY GIANT HOUSE ROAM'
-          : 'PLAY NEON TRACK RACE';
+        : selectedPlayMode === 'city'
+          ? 'PLAY APEX CITY & MOUNTAIN'
+          : selectedPlayMode === 'freeroam'
+            ? 'PLAY GIANT HOUSE ROAM'
+            : 'PLAY NEON TRACK RACE';
     if (isCircuitReady || activeGameMode === 'house') {
       btnWelcomeStart.classList.remove('is-warming-up', 'is-queued');
       if (elWelcomeProgressFill) elWelcomeProgressFill.style.width = '100%';
@@ -2920,6 +3224,7 @@ async function initApp() {
     if (!elMobileTouchControls) return;
     const elSettingsModal = document.getElementById('water-glass-settings-modal');
     const elMpModal = document.getElementById('multiplayer-modal');
+    const elGarageModal = document.getElementById('garage-modal-backdrop');
     const isWelcomeOpen =
       elWelcomeOverlay && !elWelcomeOverlay.classList.contains('hidden');
     const isFinishOpen =
@@ -2930,8 +3235,10 @@ async function initApp() {
       elSettingsModal && !elSettingsModal.classList.contains('hidden');
     const isMpOpen =
       elMpModal && !elMpModal.classList.contains('hidden');
+    const isGarageOpen =
+      elGarageModal && !elGarageModal.classList.contains('hidden');
     const shouldHide = Boolean(
-      isWelcomeOpen || isFinishOpen || isBustedOpen || isSettingsOpen || isMpOpen
+      isWelcomeOpen || isFinishOpen || isBustedOpen || isSettingsOpen || isMpOpen || isGarageOpen
     );
     elMobileTouchControls.classList.toggle('hidden', shouldHide);
     if (shouldHide) {
@@ -3142,6 +3449,14 @@ async function initApp() {
       hideWelcomeDialog();
     });
   }
+  if (btnSettingsModeCity) {
+    btnSettingsModeCity.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setActiveGameMode('city');
+      closeSettingsModal();
+      hideWelcomeDialog();
+    });
+  }
   if (btnSettingsMainMenu) {
     btnSettingsMainMenu.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -3154,12 +3469,237 @@ async function initApp() {
     btnSettingsResetCar.addEventListener('click', (e) => {
       e.stopPropagation();
       hideBustedGameOver();
+      hideFinishOverlay();
       physics.resetToStart();
+      if (selectedPlayMode === 'city' && physics.resetHousePose) {
+        physics.resetHousePose(-0.75, -2.4, 0.0);
+      }
+      if (aiRacerManager) {
+        aiRacerManager.resetAiRacer();
+      }
       if (selectedPlayMode === 'police') {
         policeManager.resetRound();
       }
       closeSettingsModal();
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // 3D CAR SELECTION SHOWROOM & MULTIPLE VEHICLE GARAGE SYSTEM
+  // Preserves all existing cars ('bmw_csl', 'classic_kart') + 6 new 3D cars!
+  // -------------------------------------------------------------------------
+  const elGarageModal = document.getElementById('garage-modal-backdrop');
+  const elGarageCanvas = document.getElementById('garage-preview-canvas');
+  const elGarageCarGrid = document.getElementById('garage-car-grid');
+  const btnOpenGarageHud = document.getElementById('btn-open-garage');
+  const btnOpenGarageWelcome = document.getElementById('btn-open-garage-welcome');
+  const btnSettingsOpenGarage = document.getElementById('btn-settings-open-garage');
+  const btnCloseGarage = document.getElementById('btn-close-garage');
+  const btnGarageConfirm = document.getElementById('btn-garage-confirm');
+  const btnGarageAutoRotate = document.getElementById('btn-garage-autorotate');
+
+  const elGarageBadge = document.getElementById('garage-selected-badge');
+  const elGarageClass = document.getElementById('garage-selected-class');
+  const elGarageName = document.getElementById('garage-selected-name');
+  const elGarageHp = document.getElementById('garage-selected-hp');
+  const elGarageDrivetrain = document.getElementById('garage-selected-drivetrain');
+  const elGarageDesc = document.getElementById('garage-selected-desc');
+  const elGarageBarSpeed = document.getElementById('garage-bar-speed');
+  const elGarageValSpeed = document.getElementById('garage-val-speed');
+  const elGarageBarAccel = document.getElementById('garage-bar-accel');
+  const elGarageValAccel = document.getElementById('garage-val-accel');
+  const elGarageBarHandling = document.getElementById('garage-bar-handling');
+  const elGarageValHandling = document.getElementById('garage-val-handling');
+  const elGarageBarBraking = document.getElementById('garage-bar-braking');
+  const elGarageValBraking = document.getElementById('garage-val-braking');
+
+  const showroomPreview = elGarageCanvas
+    ? new CarShowroomPreview(elGarageCanvas, scene.environment)
+    : null;
+
+  let selectedCarId = localStorage.getItem('deskracer_selected_car') || 'bmw_csl';
+  let selectedCarPaint = localStorage.getItem('deskracer_selected_paint') || '';
+  let currentGarageFilter = 'all';
+
+  async function applySelectedVehicleToGame(carId, customPaintHex = '') {
+    const spec = getVehicleSpecById(carId);
+    selectedCarId = spec.id;
+    selectedCarPaint = customPaintHex || '';
+    try {
+      localStorage.setItem('deskracer_selected_car', selectedCarId);
+      localStorage.setItem('deskracer_selected_paint', selectedCarPaint);
+    } catch (_e) {
+      // Ignore storage quota errors
+    }
+
+    if (microKart.switchToCatalogVehicle) {
+      await microKart.switchToCatalogVehicle(selectedCarId, selectedCarPaint || null);
+      syncKartScaleForCamera(activeCameraMode);
+    }
+
+    if (physics && physics.state && spec.physicsMultiplier) {
+      physics.state.topSpeedMultiplier = spec.physicsMultiplier.maxSpeed || 1.0;
+    }
+
+    const eyebrowEl = document.querySelector('#welcome-dialog-overlay .welcome-eyebrow');
+    if (eyebrowEl) {
+      eyebrowEl.textContent = `${spec.name.toUpperCase()} · 8-CAR 3D GARAGE · 60FPS`;
+    }
+  }
+
+  function updateGarageTelemetryUI(spec) {
+    if (!spec) return;
+    if (elGarageBadge) {
+      elGarageBadge.textContent = spec.badge || 'NEW 3D';
+      elGarageBadge.classList.toggle('is-original', spec.category === 'original');
+    }
+    if (elGarageClass) elGarageClass.textContent = spec.classLabel || 'SUPERCAR';
+    if (elGarageName) elGarageName.textContent = spec.name;
+    if (elGarageHp) elGarageHp.textContent = spec.horsepower || '600 HP';
+    if (elGarageDrivetrain) elGarageDrivetrain.textContent = spec.drivetrain || '';
+    if (elGarageDesc) elGarageDesc.textContent = spec.description || '';
+
+    const st = spec.stats || { speed: 92, accel: 90, handling: 92, braking: 90 };
+    if (elGarageBarSpeed) elGarageBarSpeed.style.width = `${st.speed}%`;
+    if (elGarageValSpeed) elGarageValSpeed.textContent = String(st.speed);
+    if (elGarageBarAccel) elGarageBarAccel.style.width = `${st.accel}%`;
+    if (elGarageValAccel) elGarageValAccel.textContent = String(st.accel);
+    if (elGarageBarHandling) elGarageBarHandling.style.width = `${st.handling}%`;
+    if (elGarageValHandling) elGarageValHandling.textContent = String(st.handling);
+    if (elGarageBarBraking) elGarageBarBraking.style.width = `${st.braking}%`;
+    if (elGarageValBraking) elGarageValBraking.textContent = String(st.braking);
+  }
+
+  function renderGarageRosterGrid() {
+    if (!elGarageCarGrid) return;
+    const filtered = VEHICLE_CATALOG.filter((c) =>
+      currentGarageFilter === 'all' ? true : c.category === currentGarageFilter
+    );
+
+    elGarageCarGrid.innerHTML = filtered
+      .map((car) => {
+        const isActive = car.id === selectedCarId;
+        const isOrig = car.category === 'original';
+        return `
+          <button type="button" class="garage-car-card ${isActive ? 'active' : ''}" data-carid="${car.id}">
+            <div class="garage-card-top">
+              <span class="garage-card-tag ${isOrig ? 'is-original' : ''}">${car.badge}</span>
+              <span class="garage-card-hp">${car.horsepower}</span>
+            </div>
+            <div class="garage-card-name">${car.name}</div>
+            <div class="garage-card-sub">${car.classLabel} · ${car.topSpeedMph} MPH</div>
+          </button>
+        `;
+      })
+      .join('');
+
+    elGarageCarGrid.querySelectorAll('.garage-car-card').forEach((cardBtn) => {
+      cardBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cid = cardBtn.dataset.carid || 'bmw_csl';
+        selectedCarId = cid;
+        const spec = getVehicleSpecById(cid);
+        updateGarageTelemetryUI(spec);
+        renderGarageRosterGrid();
+        if (showroomPreview) {
+          showroomPreview.previewCar(selectedCarId, selectedCarPaint || null);
+        }
+        applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
+      });
+    });
+  }
+
+  function openGarageModal() {
+    if (!elGarageModal) return;
+    closeSettingsModal();
+    elGarageModal.classList.remove('hidden');
+    const spec = getVehicleSpecById(selectedCarId);
+    updateGarageTelemetryUI(spec);
+    renderGarageRosterGrid();
+    if (showroomPreview) {
+      showroomPreview.start();
+      showroomPreview.previewCar(selectedCarId, selectedCarPaint || null);
+    }
+    syncMobileTouchControlsVisibility();
+  }
+
+  function closeGarageModal() {
+    if (!elGarageModal) return;
+    elGarageModal.classList.add('hidden');
+    if (showroomPreview) {
+      showroomPreview.stop();
+    }
+    syncMobileTouchControlsVisibility();
+  }
+
+  if (btnOpenGarageHud) {
+    btnOpenGarageHud.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openGarageModal();
+      btnOpenGarageHud.blur();
+    });
+  }
+  if (btnOpenGarageWelcome) {
+    btnOpenGarageWelcome.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openGarageModal();
+    });
+  }
+  if (btnSettingsOpenGarage) {
+    btnSettingsOpenGarage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openGarageModal();
+    });
+  }
+  if (btnCloseGarage) {
+    btnCloseGarage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeGarageModal();
+    });
+  }
+  if (btnGarageConfirm) {
+    btnGarageConfirm.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
+      closeGarageModal();
+    });
+  }
+  if (btnGarageAutoRotate && showroomPreview) {
+    btnGarageAutoRotate.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showroomPreview.autoRotate = !showroomPreview.autoRotate;
+      btnGarageAutoRotate.classList.toggle('active', showroomPreview.autoRotate);
+    });
+  }
+
+  document.querySelectorAll('.garage-filter-btn').forEach((fBtn) => {
+    fBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentGarageFilter = fBtn.dataset.filter || 'all';
+      document.querySelectorAll('.garage-filter-btn').forEach((b) => {
+        b.classList.toggle('active', b === fBtn);
+      });
+      renderGarageRosterGrid();
+    });
+  });
+
+  document.querySelectorAll('#garage-paint-swatches .paint-swatch-btn').forEach((pBtn) => {
+    pBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectedCarPaint = pBtn.dataset.paint || '';
+      document.querySelectorAll('#garage-paint-swatches .paint-swatch-btn').forEach((b) => {
+        b.classList.toggle('active', b === pBtn);
+      });
+      if (showroomPreview) {
+        showroomPreview.previewCar(selectedCarId, selectedCarPaint || null);
+      }
+      applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
+    });
+  });
+
+  // Restore saved vehicle selection on startup
+  if (selectedCarId !== 'bmw_csl' || selectedCarPaint) {
+    applySelectedVehicleToGame(selectedCarId, selectedCarPaint);
   }
 
   // -------------------------------------------------------------------------
@@ -3565,15 +4105,36 @@ async function initApp() {
         hudHouseRoomName.textContent = compactRoom;
       }
     } else {
-      if (hudHouseRoomName && lastRoomNameStr !== 'NEON TRACK CIRCUIT') {
-        lastRoomNameStr = 'NEON TRACK CIRCUIT';
-        hudHouseRoomName.textContent = 'NEON TRACK CIRCUIT';
+      const diffLabel = aiRacerManager ? aiRacerManager.getDifficulty().toUpperCase() : 'NORMAL';
+      const trackBannerStr = `FINISH LINE RACE · VS ${diffLabel} AI`;
+      if (hudHouseRoomName && lastRoomNameStr !== trackBannerStr) {
+        lastRoomNameStr = trackBannerStr;
+        hudHouseRoomName.textContent = trackBannerStr;
       }
       const isPAutoMode = Boolean(st.autopilot && !st.victoryCruise);
-      const lapDisplay = isPAutoMode ? 1 : Math.min(3, Math.max(1, st.lapCount || 1));
+      const targetLaps = st.targetLaps || 1;
+      const lapDisplay = isPAutoMode ? 1 : Math.min(targetLaps, Math.max(1, st.lapCount || 1));
       if (elLapCurr && lapDisplay !== lastLapCurr) {
         lastLapCurr = lapDisplay;
         elLapCurr.textContent = String(lapDisplay);
+      }
+      if (elLapTotal && elLapTotal.textContent !== String(targetLaps)) {
+        elLapTotal.textContent = String(targetLaps);
+      }
+      // Update live Race Position (1ST/2 vs 2ND/2) and Track Completion %
+      if (elRacePos && aiRacerManager) {
+        const pProg = st.totalProgress || 0;
+        const aiProg = aiRacerManager.aiState.totalProgress || 0;
+        const isFirst = pProg >= aiProg - 0.002;
+        elRacePos.textContent = isFirst ? '1ST/2' : '2ND/2';
+        elRacePos.classList.toggle('is-first', isFirst);
+        elRacePos.classList.toggle('is-second', !isFirst);
+      }
+      if (elTrackPct) {
+        const pct = st.raceFinished
+          ? 100
+          : Math.min(99, Math.max(0, Math.round(((st.totalProgress || 0) / Math.max(1, targetLaps)) * 100)));
+        elTrackPct.textContent = `${pct}%`;
       }
       if (elLapTimer) {
         const displayTime = isPAutoMode
@@ -3614,15 +4175,16 @@ async function initApp() {
         elPoliceTimerText.textContent = formatPoliceSurvivalTime(pSt.survivalTime);
       }
       if (elPoliceStatusBadge) {
+        const diffUp = (pSt.difficulty || 'normal').toUpperCase();
         elPoliceStatusBadge.textContent =
           pSt.chasingCopsCount > 0
             ? `🚨 ${pSt.chasingCopsCount} COPS PURSUING!`
-            : '🚓 4 COPS PATROLLING';
+            : `🚓 4 AI COPS (${diffUp})`;
         elPoliceStatusBadge.classList.toggle('is-chasing', pSt.chasingCopsCount > 0);
       }
       if (elPoliceStealthText) {
         if (pSt.playerHidden) {
-          elPoliceStealthText.textContent = `HIDDEN UNDER ${pSt.hiddenLabel || 'FURNITURE'} ✓`;
+          elPoliceStealthText.textContent = `HIDDEN UNDER ${pSt.hiddenLabel || 'FURNITURE'} ✓ (+3 AI CHOR)`;
           elPoliceStealthText.classList.add('is-hidden-safe');
           elPoliceStealthText.classList.remove('is-danger');
         } else if (pSt.chasingCopsCount > 0) {
@@ -3630,7 +4192,7 @@ async function initApp() {
           elPoliceStealthText.classList.add('is-danger');
           elPoliceStealthText.classList.remove('is-hidden-safe');
         } else {
-          elPoliceStealthText.textContent = 'AVOID RED VISION CONES';
+          elPoliceStealthText.textContent = '3 AI CHOR + YOU · HIDE UNDER FURNITURE';
           elPoliceStealthText.classList.remove('is-hidden-safe', 'is-danger');
         }
       }
@@ -3642,13 +4204,21 @@ async function initApp() {
   // -------------------------------------------------------------------------
   // URL QUERY PARAMETERS (?mode=house|track|police, ?cam=1..4/6, ?sector=1..6, ?s=..., ?finish=1)
   // -------------------------------------------------------------------------
+  const urlAiDiffParam = urlParams.get('aidiff');
+  if (urlAiDiffParam && ['normal', 'medium', 'hard'].includes(urlAiDiffParam.toLowerCase())) {
+    applyAiDifficulty(urlAiDiffParam.toLowerCase());
+  } else {
+    applyAiDifficulty('normal');
+  }
+
   const urlModeParam = urlParams.get('mode');
   if (urlModeParam === 'police') {
     setActiveGameMode('police');
-  } else if (urlModeParam === 'track' || urlParams.has('sector') || urlParams.has('s') || urlParams.get('finish') === '1' || urlParams.has('f1step') || urlParams.get('sparks') === '1') {
-    setActiveGameMode('track');
-  } else {
+  } else if (urlModeParam === 'house' || urlModeParam === 'freeroam') {
     setActiveGameMode('freeroam');
+  } else {
+    // Default to Neon Track Race vs AI Rival so player can immediately race to the Finish Line
+    setActiveGameMode('track');
   }
   if (urlParams.has('sector')) {
     const requestedSector = parseInt(urlParams.get('sector'), 10);
@@ -3786,14 +4356,17 @@ async function initApp() {
       multiplayer.update(dt, st, activeGameMode);
     }
 
-    // 2C. Step AI Police Interceptors & Vision Cone Stealth Detection in Police Mode
-    if (selectedPlayMode === 'police' && policeManager) {
-      const isMenuPaused =
-        (elWelcomeOverlay && !elWelcomeOverlay.classList.contains('hidden')) ||
-        (elSettingsModal && !elSettingsModal.classList.contains('hidden'));
-      if (!isMenuPaused) {
-        policeManager.update(dt, st);
-      }
+    // 2C. Step AI Rival Racer (Track Mode) & AI House Roamers (Free Roam Mode)
+    const isMenuPaused =
+      (elWelcomeOverlay && !elWelcomeOverlay.classList.contains('hidden')) ||
+      (elSettingsModal && !elSettingsModal.classList.contains('hidden'));
+    if (aiRacerManager && !isMenuPaused) {
+      aiRacerManager.update(dt, st, selectedPlayMode);
+    }
+
+    // 2D. Step AI Police Interceptors, Vision Cones & AI Chor Hider Bots in Police Hide & Seek Mode
+    if (selectedPlayMode === 'police' && policeManager && !isMenuPaused) {
+      policeManager.update(dt, st);
     }
 
     // 3. Update Atmosphere & Under-Track LEDs

@@ -619,6 +619,34 @@ body {
   border-radius: 999px;
 }
 
+.hud-race-pos-badge {
+  padding: 1.5px 6px;
+  border-radius: 999px;
+  font-family: 'Orbitron', sans-serif;
+  font-style: italic;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  background: rgba(0, 230, 118, 0.28);
+  border: 1px solid rgba(105, 240, 174, 0.85);
+  color: #72ffae;
+}
+
+.hud-race-pos-badge.is-second {
+  background: rgba(255, 59, 48, 0.34);
+  border-color: rgba(255, 130, 120, 0.9);
+  color: #ffb4ab;
+}
+
+.hud-track-pct-badge {
+  font-family: 'Orbitron', sans-serif;
+  font-style: italic;
+  font-size: 8.5px;
+  font-weight: 900;
+  color: #ffd27d;
+  letter-spacing: 0.03em;
+}
+
 .hud-lap-header {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
@@ -830,11 +858,11 @@ body {
     inset 0 1px 1px rgba(255, 255, 255, 0.55);
 }
 
-/* 3 Compact Liquid-Glass Mode Cards */
+/* 4 Compact Liquid-Glass Mode Cards (Preserving 3 Original + New Realistic City & Mountain Map) */
 .welcome-mode-selector {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
   text-align: left;
 }
 
@@ -928,6 +956,89 @@ body {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* AI Difficulty Selector Bar (Normal / Medium / Hard) */
+.ai-diff-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 14px;
+  text-align: left;
+  flex-wrap: wrap;
+}
+
+.ai-diff-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ai-diff-kicker {
+  font-family: 'Orbitron', sans-serif;
+  font-style: italic;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #76f2ff;
+}
+
+.ai-diff-desc-text {
+  font-size: 8.5px;
+  color: rgba(225, 242, 255, 0.85);
+}
+
+.ai-diff-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ai-diff-pill-btn {
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(6, 14, 28, 0.65);
+  border: 1px solid rgba(190, 235, 255, 0.28);
+  color: #d8eeff;
+  font-family: 'Orbitron', sans-serif;
+  font-style: italic;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  transition: all 0.14s ease;
+}
+
+.ai-diff-pill-btn:hover {
+  border-color: rgba(160, 245, 255, 0.85);
+  color: #ffffff;
+}
+
+.ai-diff-pill-btn.diff-normal.active {
+  background: linear-gradient(135deg, rgba(0, 230, 118, 0.36), rgba(0, 180, 120, 0.24));
+  border-color: #4eff9f;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(0, 230, 118, 0.36);
+}
+
+.ai-diff-pill-btn.diff-medium.active {
+  background: linear-gradient(135deg, rgba(255, 202, 40, 0.38), rgba(255, 140, 0, 0.26));
+  border-color: #ffd54f;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 193, 7, 0.38);
+}
+
+.ai-diff-pill-btn.diff-hard.active {
+  background: linear-gradient(135deg, rgba(255, 42, 133, 0.44), rgba(255, 59, 48, 0.32));
+  border-color: #ff69b4;
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(255, 42, 133, 0.45);
+}
+
+.settings-ai-row {
+  grid-template-columns: repeat(3, 1fr);
 }
 
 .welcome-footer-row {
@@ -1194,25 +1305,56 @@ body {
 .hud-finish-title {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 900;
-  color: #ffffff;
+  color: #4eff9f;
+  text-shadow: 0 0 18px rgba(0, 230, 118, 0.55);
+}
+
+.hud-finish-title.is-defeat {
+  color: #ff5252;
+  text-shadow: 0 0 18px rgba(255, 59, 48, 0.65);
 }
 
 .hud-finish-time {
   font-family: 'Orbitron', sans-serif;
   font-style: italic;
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 900;
   color: #00e5ff;
 }
 
 .hud-finish-sub {
   font-family: 'Orbitron', sans-serif;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 800;
   color: #ffd27d;
+  margin-bottom: 2px;
+}
+
+.hud-finish-ai-sub {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  color: #cfe8ff;
+  margin-bottom: 4px;
+}
+
+.finish-ai-diff-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.finish-ai-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  color: #8ceeff;
+  letter-spacing: 0.06em;
 }
 
 /* =========================================================================
@@ -1854,3 +1996,415 @@ body {
 .hidden {
   display: none !important;
 }
+
+/* =========================================================================
+   8. 3D CAR SELECTION SHOWROOM & CITY MAP UI STYLES
+   ========================================================================= */
+.mode-tag-city {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.92), rgba(16, 185, 129, 0.88));
+  border-color: #bae6fd;
+  color: #ffffff;
+}
+
+.garage-cta-highlight {
+  color: #7dd3fc !important;
+  border-color: rgba(56, 189, 248, 0.72) !important;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.28), rgba(6, 182, 212, 0.16)) !important;
+}
+
+.garage-cta-highlight:hover {
+  border-color: #ffffff !important;
+  color: #ffffff !important;
+}
+
+.garage-modal-card {
+  width: min(96vw, 880px);
+  max-height: 92dvh;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.garage-main-layout {
+  display: grid;
+  grid-template-columns: 1.05fr 1.15fr;
+  gap: 10px;
+  align-items: stretch;
+}
+
+@media (max-width: 720px) {
+  .welcome-mode-selector {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .garage-main-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.garage-preview-column {
+  padding: 8px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.garage-canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: 165px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 45%, #131c2e 0%, #060911 100%);
+  border: 1px solid rgba(125, 211, 252, 0.35);
+}
+
+#garage-preview-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+#garage-preview-canvas:active {
+  cursor: grabbing;
+}
+
+.garage-canvas-badges {
+  position: absolute;
+  top: 6px;
+  left: 7px;
+  display: flex;
+  gap: 5px;
+  pointer-events: none;
+}
+
+.garage-origin-badge,
+.garage-class-badge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 7.5px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.garage-origin-badge {
+  background: rgba(14, 165, 233, 0.88);
+  border: 1px solid #bae6fd;
+  color: #ffffff;
+}
+
+.garage-origin-badge.is-original {
+  background: rgba(245, 158, 11, 0.88);
+  border-color: #fde68a;
+  color: #ffffff;
+}
+
+.garage-class-badge {
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  color: #e2e8f0;
+}
+
+.garage-rotate-toggle {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 7.5px;
+  font-weight: 800;
+  color: #bae6fd;
+  cursor: pointer;
+}
+
+.garage-rotate-toggle.active {
+  background: rgba(14, 165, 233, 0.42);
+  border-color: #7dd3fc;
+  color: #ffffff;
+}
+
+.garage-drag-hint {
+  position: absolute;
+  bottom: 5px;
+  right: 8px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(186, 230, 253, 0.72);
+  pointer-events: none;
+}
+
+.garage-car-info {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.garage-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.garage-car-title {
+  margin: 0;
+  font-family: 'Orbitron', sans-serif;
+  font-style: italic;
+  font-size: 12px;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.garage-hp-pill {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.22);
+  border: 1px solid rgba(125, 211, 252, 0.65);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #7dd3fc;
+  white-space: nowrap;
+}
+
+.garage-drivetrain-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8.5px;
+  color: #fcd34d;
+}
+
+.garage-car-desc {
+  margin: 0;
+  font-size: 8.5px;
+  color: rgba(226, 232, 240, 0.85);
+  line-height: 1.25;
+}
+
+.garage-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+}
+
+.garage-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.garage-stat-label {
+  width: 54px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 7.5px;
+  font-weight: 800;
+  color: rgba(203, 213, 225, 0.9);
+  text-align: left;
+}
+
+.garage-stat-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  overflow: hidden;
+}
+
+.garage-stat-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0ea5e9 0%, #38bdf8 60%, #fde047 100%);
+  transition: width 0.2s ease;
+}
+
+.garage-stat-num {
+  width: 18px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  font-weight: 700;
+  color: #ffffff;
+  text-align: right;
+}
+
+.garage-paint-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.garage-paint-label {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 7.5px;
+  font-weight: 800;
+  color: #bae6fd;
+}
+
+.garage-paint-swatches {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.paint-swatch-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.paint-swatch-btn.paint-factory {
+  width: auto;
+  padding: 0 6px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 7.5px;
+  font-weight: 800;
+}
+
+.paint-swatch-btn.active,
+.paint-swatch-btn:hover {
+  transform: scale(1.14);
+  border-color: #ffffff;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.75);
+}
+
+.garage-roster-column {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  justify-content: space-between;
+}
+
+.garage-filter-tabs {
+  display: flex;
+  gap: 5px;
+}
+
+.garage-filter-btn {
+  flex: 1;
+  padding: 5px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.68);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #cbd5e1;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 7.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.garage-filter-btn.active {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.42), rgba(56, 189, 248, 0.25));
+  border-color: #7dd3fc;
+  color: #ffffff;
+}
+
+.garage-car-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  max-height: 230px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.garage-car-card {
+  cursor: pointer;
+  padding: 7px 8px;
+  border-radius: 12px;
+  background: rgba(10, 18, 32, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: all 0.14s ease;
+}
+
+.garage-car-card:hover {
+  border-color: rgba(125, 211, 252, 0.75);
+  transform: translateY(-1px);
+}
+
+.garage-car-card.active {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.34), rgba(245, 158, 11, 0.22));
+  border-color: #7dd3fc;
+  box-shadow: 0 0 14px rgba(14, 165, 233, 0.35);
+}
+
+.garage-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.garage-card-tag {
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 6.5px;
+  font-weight: 900;
+  background: rgba(14, 165, 233, 0.32);
+  border: 1px solid rgba(125, 211, 252, 0.65);
+  color: #bae6fd;
+}
+
+.garage-card-tag.is-original {
+  background: rgba(245, 158, 11, 0.32);
+  border-color: rgba(253, 224, 71, 0.75);
+  color: #fef08a;
+}
+
+.garage-card-hp {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.garage-card-name {
+  font-family: 'Orbitron', sans-serif;
+  font-style: italic;
+  font-size: 9.5px;
+  font-weight: 900;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.garage-card-sub {
+  font-size: 7.5px;
+  color: rgba(203, 213, 225, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.garage-footer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.garage-confirm-btn {
+  width: 100%;
+}
+

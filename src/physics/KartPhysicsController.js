@@ -301,6 +301,10 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     wasCountdownLocked: false,
     launchWindowTimer: 0.0,
     lapCount: 1,
+    targetLaps: 1,
+    trackProgress: 0.0,
+    totalProgress: 0.0,
+    lapCheckpointsMask: 0,
     currentLapTime: 0.0,
     totalRaceTime: 0.0,
     lapTimes: [],
@@ -426,7 +430,7 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
   function teleportToSector(sectorNum) {
     const targetArc = sectorStartArcs[sectorNum] ?? sectorStartArcs[6] ?? 0.0;
     state.s = targetArc;
-    state.lateralOffset = 0.0;
+    state.lateralOffset = sectorNum === 6 && !state.autopilot ? -0.0036 : 0.0;
     state.lateralVel = 0.0;
     state.headingYaw = 0.0;
     state.turnRight = 0.0;
@@ -445,6 +449,9 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     state.lastRoadTurnDeg = 0.0;
     state.lastSteerTurnDeg = 0.0;
     state.boostActive = 0.0;
+    state.trackProgress = 0.0;
+    state.totalProgress = 0.0;
+    state.lapCheckpointsMask = 0;
     state.speed = state.autopilot || state.victoryCruise ? 0.187 : 0.0;
     syncPoseFromSpline();
   }
@@ -466,6 +473,9 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     state.railHitCooldown = 0.0;
     state.angledIntoRail = false;
     state.steeringAway = false;
+    state.trackProgress = 0.0;
+    state.totalProgress = 0.0;
+    state.lapCheckpointsMask = 0;
     teleportToSector(6);
   }
 
@@ -1022,16 +1032,37 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
 
     // Advance arc-length s along periodic loop projected by cos(headingYaw) and inside-apex racing line factor
     const prevS = state.s;
+    const prevProgress = ((prevS - startFinishArc) % totalLength + totalLength) % totalLength / totalLength;
     const forwardProjection = isAiCruise ? 1.0 : Math.max(0.0, Math.cos(state.headingYaw));
     const ds = (state.speed * forwardProjection * clampedDt) / apexFactor;
     state.s = ((state.s + ds) % totalLength + totalLength) % totalLength;
+    const currProgress = ((state.s - startFinishArc) % totalLength + totalLength) % totalLength / totalLength;
 
-    // Continuous 3-Lap Total Race Clock & Lap Completion (Manual Mode only; NEVER advances in Autopilot P)
+    // Update 3-sector checkpoints (20%, 50%, 80% of the track) for 100% reliable Finish Line crossing
+    if (currProgress >= 0.14 && currProgress <= 0.42) {
+      state.lapCheckpointsMask |= 1;
+    } else if (currProgress > 0.42 && currProgress <= 0.70) {
+      state.lapCheckpointsMask |= 2;
+    } else if (currProgress > 0.70 && currProgress <= 0.96) {
+      state.lapCheckpointsMask |= 4;
+    }
+
+    state.trackProgress = state.raceFinished
+      ? 1.0
+      : state.lapCheckpointsMask === 0 && currProgress > 0.85
+        ? 0.0
+        : currProgress;
+    state.totalProgress = state.raceFinished
+      ? (state.targetLaps || 1)
+      : (state.lapCount - 1) + state.trackProgress;
+
+    // Continuous Race Clock & Checkpoint-Verified Finish Line Completion
     if (state.autopilot) {
       state.raceClockActive = false;
       state.currentLapTime = 0.0;
       state.totalRaceTime = 0.0;
       state.lapCount = 1;
+      state.lapCheckpointsMask = 0;
     } else if (!state.victoryCruise && !state.raceFinished) {
       if (state.currentLapTime > 0 && state.totalRaceTime < state.currentLapTime) {
         state.totalRaceTime = state.currentLapTime;
@@ -1043,51 +1074,58 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
         state.currentLapTime += clampedDt;
         state.totalRaceTime += clampedDt;
       }
-      if (state.speed > 0 && state.currentLapTime > 2.5) {
-        const distBefore =
-          ((startFinishArc - prevS) % totalLength + totalLength) % totalLength;
-        if (distBefore > 0 && distBefore <= ds * 1.5) {
-          state.lastLapTime = state.currentLapTime;
-          if (state.bestLapTime === null || state.lastLapTime < state.bestLapTime) {
-            state.bestLapTime = state.lastLapTime;
-          }
-          state.lapTimes.push(state.lastLapTime);
-          state.currentLapTime = 0.0;
 
-          if (state.lapCount < 3) {
-            const completedLap = state.lapCount;
-            state.lapCount += 1;
-            if (onLapCompleteCallback) {
-              onLapCompleteCallback(
-                state.lastLapTime,
-                state.bestLapTime,
-                completedLap,
-                state.totalRaceTime,
-                false
-              );
-            }
-          } else {
-            state.finishTotalTime = state.totalRaceTime;
-            state.raceFinished = true;
-            state.raceClockActive = false;
-            state.victoryCruise = false;
-            state.boostActive = 0.0;
-            if (onLapCompleteCallback) {
-              onLapCompleteCallback(
-                state.lastLapTime,
-                state.bestLapTime,
-                3,
-                state.finishTotalTime,
-                true
-              );
-            }
-            if (onRaceFinishCallback) {
-              onRaceFinishCallback(
-                state.finishTotalTime,
-                state.lapTimes.slice(),
-                state.bestLapTime
-              );
-            }
+      const crossedFinishAfterFullLoop =
+        state.lapCheckpointsMask === 7 &&
+        prevProgress > 0.72 &&
+        currProgress < 0.35 &&
+        state.currentLapTime > 3.0;
+
+      if (crossedFinishAfterFullLoop) {
+        state.lastLapTime = state.currentLapTime;
+        if (state.bestLapTime === null || state.lastLapTime < state.bestLapTime) {
+          state.bestLapTime = state.lastLapTime;
+        }
+        state.lapTimes.push(state.lastLapTime);
+        state.currentLapTime = 0.0;
+        state.lapCheckpointsMask = 0;
+
+        const requiredLaps = Math.max(1, state.targetLaps || 1);
+        if (state.lapCount < requiredLaps) {
+          const completedLap = state.lapCount;
+          state.lapCount += 1;
+          if (onLapCompleteCallback) {
+            onLapCompleteCallback(
+              state.lastLapTime,
+              state.bestLapTime,
+              completedLap,
+              state.totalRaceTime,
+              false
+            );
+          }
+        } else {
+          state.finishTotalTime = state.totalRaceTime;
+          state.raceFinished = true;
+          state.trackProgress = 1.0;
+          state.totalProgress = requiredLaps;
+          state.raceClockActive = false;
+          state.victoryCruise = false;
+          state.boostActive = 0.0;
+          if (onLapCompleteCallback) {
+            onLapCompleteCallback(
+              state.lastLapTime,
+              state.bestLapTime,
+              requiredLaps,
+              state.finishTotalTime,
+              true
+            );
+          }
+          if (onRaceFinishCallback) {
+            onRaceFinishCallback(
+              state.finishTotalTime,
+              state.lapTimes.slice(),
+              state.bestLapTime
+            );
           }
         }
       }
@@ -1418,6 +1456,10 @@ export async function createKartPhysicsController(splineData, manifest, roadGeo)
     setGiantHouseWorld,
     setGameMode,
     getGameMode: () => currentGameMode,
+    setTargetLaps: (laps) => {
+      state.targetLaps = Math.max(1, Math.min(5, Math.round(Number(laps) || 1)));
+      return state.targetLaps;
+    },
     onLapComplete: (cb) => {
       onLapCompleteCallback = cb;
     },

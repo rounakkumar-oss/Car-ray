@@ -730,10 +730,29 @@ export function createFriendsMultiplayerManager({
       }
     });
 
-    // If solo testing Hide & Seek before friends join, make player Seeker
+    // If starting Chor-Police with no human friends connected yet, spawn 3 AI Hider ("CHOR") bots!
     if (totalCount === 1) {
+      const aiBotSpawns = [
+        { id: 'ai_mp_chor_1', name: 'AI CHOR 01', colorIdx: 3, x: -2.1, z: -1.85, targetX: -2.2, targetZ: -2.5 },
+        { id: 'ai_mp_chor_2', name: 'AI CHOR 02', colorIdx: 2, x: 2.4, z: -1.85, targetX: 4.5, targetZ: -1.75 },
+        { id: 'ai_mp_chor_3', name: 'AI CHOR 03', colorIdx: 4, x: 0.0, z: 1.85, targetX: -2.15, targetZ: 2.25 },
+      ];
       rolesMap[localPlayerId] = 'seeker';
-      hidersCount = 1;
+      hidersCount = aiBotSpawns.length;
+      for (const botCfg of aiBotSpawns) {
+        const rp = ensureRemotePlayerKart(botCfg.id, botCfg.name, botCfg.colorIdx, 'hider');
+        rp.isAiBot = true;
+        rp.currentPos.set(botCfg.x, 0.001, botCfg.z);
+        rp.targetPos.set(botCfg.targetX, 0.001, botCfg.targetZ);
+        rp.aiWaypoints = [
+          { x: botCfg.x, z: botCfg.z },
+          { x: botCfg.targetX, z: botCfg.targetZ },
+          { x: 1.2, z: 0.0 },
+          { x: 2.4, z: 1.65 },
+        ];
+        rp.aiWpIdx = 1;
+        rolesMap[botCfg.id] = 'hider';
+      }
     }
 
     hideSeek.active = true;
@@ -865,12 +884,40 @@ export function createFriendsMultiplayerManager({
       });
     }
 
-    // 2. Smoothly interpolate (lerp) all remote friends' karts at 60 FPS
+    // 2. Smoothly interpolate (lerp) all remote friends' karts & AI bots at 60 FPS
     const lerpAlpha = 1.0 - Math.exp(-15.0 * dt);
     for (const rp of players.values()) {
+      if (rp.isAiBot && rp.role === 'hider') {
+        // AI Chor Bot autonomous navigation & evasion when Seeker approaches
+        const distToSeeker = Math.hypot(pos.x - rp.currentPos.x, pos.z - rp.currentPos.z);
+        if (hideSeek.phase === 'seeking' && distToSeeker < 1.35 && Array.isArray(rp.aiWaypoints)) {
+          // Evade Seeker by switching to the farthest waypoint
+          let bestWp = rp.aiWaypoints[0];
+          let maxDist = -1;
+          for (const wp of rp.aiWaypoints) {
+            const d = Math.hypot(wp.x - pos.x, wp.z - pos.z);
+            if (d > maxDist) {
+              maxDist = d;
+              bestWp = wp;
+            }
+          }
+          rp.targetPos.set(bestWp.x, 0.001, bestWp.z);
+        }
+        const dxBot = rp.targetPos.x - rp.currentPos.x;
+        const dzBot = rp.targetPos.z - rp.currentPos.z;
+        const distTarget = Math.hypot(dxBot, dzBot);
+        if (distTarget > 0.08) {
+          const stepDist = Math.min(distTarget, 0.58 * dt);
+          rp.currentPos.x += (dxBot / distTarget) * stepDist;
+          rp.currentPos.z += (dzBot / distTarget) * stepDist;
+          rp.targetYaw = Math.atan2(dzBot, dxBot);
+        }
+      }
       const prevX = rp.currentPos.x;
       const prevZ = rp.currentPos.z;
-      rp.currentPos.lerp(rp.targetPos, lerpAlpha);
+      if (!rp.isAiBot) {
+        rp.currentPos.lerp(rp.targetPos, lerpAlpha);
+      }
       const dYaw = shortestAngleDelta(rp.currentYaw, rp.targetYaw);
       rp.currentYaw += dYaw * lerpAlpha;
 
@@ -899,7 +946,7 @@ export function createFriendsMultiplayerManager({
       ) {
         const dx = pos.x - rp.currentPos.x;
         const dz = pos.z - rp.currentPos.z;
-        if (dx * dx + dz * dz < 0.24 * 0.24) {
+        if (dx * dx + dz * dz < 0.26 * 0.26) {
           if (isHost) {
             markHiderCaught(rp.id, localPlayerName);
           } else {

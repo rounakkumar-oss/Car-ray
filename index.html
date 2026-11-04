@@ -114,10 +114,12 @@
             <!-- Top-Right: Compact Icon-Only Pill Buttons (Lap Timer + Friends + Camera 🎥 + Pause/Settings ⚙️ + Audio Mute 🔊) -->
             <div class="hud-settings-anchor">
               <div class="hud-top-right-row">
-                <!-- Compact Lap Counter & Timer (Shown only in Track Race Mode) -->
+                <!-- Compact Lap Counter, Race Position vs AI & Timer (Shown in Track Race Mode) -->
                 <div id="hud-lap-widget" class="hud-lap-widget water-glass-pill">
+                  <span id="hud-race-pos" class="hud-race-pos-badge is-first">1ST/2</span>
+                  <span id="hud-track-pct" class="hud-track-pct-badge">0%</span>
                   <div id="hud-lap-header" class="hud-lap-header">
-                    LAP <span id="hud-lap-curr" class="hud-lap-curr">1</span>/3
+                    LAP <span id="hud-lap-curr" class="hud-lap-curr">1</span>/<span id="hud-lap-total">1</span>
                   </div>
                   <div id="hud-lap-timer" class="hud-lap-timer" aria-label="00:00.00"><span class="timer-digit" id="lap-d0">0</span><span class="timer-digit" id="lap-d1">0</span><span class="timer-sep">:</span><span class="timer-digit" id="lap-d2">0</span><span class="timer-digit" id="lap-d3">0</span><span class="timer-sep">.</span><span class="timer-digit" id="lap-d4">0</span><span class="timer-digit" id="lap-d5">0</span></div>
                   <div id="hud-lap-split" class="hud-lap-split hidden"></div>
@@ -136,6 +138,21 @@
                     <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
                   </svg>
                   <span id="hud-camera-label" class="hud-cam-mini-badge">1</span>
+                </button>
+
+                <!-- Icon-Only Garage / Car Selection Button (🏎️) -->
+                <button
+                  id="btn-open-garage"
+                  class="hud-icon-btn water-glass-btn"
+                  type="button"
+                  aria-label="Open 3D Car Selection Garage (G)"
+                  title="Car Garage &amp; 3D Showroom (G)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2"></path>
+                    <circle cx="6.5" cy="16.5" r="2.5"></circle>
+                    <circle cx="16.5" cy="16.5" r="2.5"></circle>
+                  </svg>
                 </button>
 
                 <!-- Icon-Only Friends Multiplayer Button -->
@@ -213,7 +230,7 @@
 
               <!-- 3 Visual Mode Cards: Free Roam, Track Race, Police Hide & Seek -->
               <div class="welcome-mode-selector welcome-mode-selector-3" role="group" aria-label="Select Game Mode">
-                <!-- Card 1: Free Roam (14-Room Giant House) -->
+                <!-- Card 1: Free Roam (14-Room Giant House + AI Roamers) -->
                 <button
                   id="btn-mode-house"
                   class="mode-select-card water-glass-subcard"
@@ -228,15 +245,15 @@
                       <path d="M45 46 L95 26 L132 26 L178 46" stroke="#00e5ff" stroke-width="3" stroke-linecap="round" stroke-dasharray="5 4" />
                       <circle cx="178" cy="46" r="5" fill="#00e5ff" />
                     </svg>
-                    <span class="mode-tag-badge">14 ROOMS · OPEN WORLD</span>
+                    <span class="mode-tag-badge">14 ROOMS · + AI RACERS</span>
                   </div>
                   <div class="mode-card-body">
                     <span class="mode-select-title">FREE ROAM HOUSE</span>
-                    <span class="mode-select-desc">Explore 14 photorealistic rooms, stunt ramps, pool bridges &amp; furniture</span>
+                    <span class="mode-select-desc">Explore 14 rooms, stunt ramps &amp; pool bridges alongside AI Roamers</span>
                   </div>
                 </button>
 
-                <!-- Card 2: Neon Track Race (3-Lap Desk Coaster) -->
+                <!-- Card 2: Neon Track Race (Full Track Finish Line vs AI Rival) -->
                 <button
                   id="btn-mode-track"
                   class="mode-select-card water-glass-subcard active"
@@ -248,16 +265,17 @@
                       <path d="M22 52 C42 14, 98 14, 114 38 C130 62, 178 58, 198 22" stroke="rgba(255,140,40,0.35)" stroke-width="11" stroke-linecap="round" />
                       <path d="M22 52 C42 14, 98 14, 114 38 C130 62, 178 58, 198 22" stroke="#00e5ff" stroke-width="3.2" stroke-linecap="round" />
                       <circle cx="114" cy="38" r="5.5" fill="#ffd27d" />
+                      <circle cx="96" cy="31" r="5" fill="#00e676" />
                     </svg>
-                    <span class="mode-tag-badge">3 LAPS · DESK CIRCUIT</span>
+                    <span class="mode-tag-badge">🏁 FINISH LINE · VS AI RIVAL</span>
                   </div>
                   <div class="mode-card-body">
                     <span class="mode-select-title">NEON TRACK RACE</span>
-                    <span class="mode-select-desc">High-speed banked coaster racing across the RGB gaming desk</span>
+                    <span class="mode-select-desc">Race the full desk circuit vs AI Rival — reach the Finish Line first!</span>
                   </div>
                 </button>
 
-                <!-- Card 3: Police Hide & Seek (AI Interceptors + Red Vision Cones) -->
+                <!-- Card 3: Police Hide & Seek (AI Interceptors + AI Chor Hiders) -->
                 <button
                   id="btn-mode-police"
                   class="mode-select-card water-glass-subcard"
@@ -272,16 +290,52 @@
                       <rect x="156" y="22" width="44" height="30" rx="5" stroke="#00e676" stroke-width="1.8" fill="rgba(0,230,118,0.14)" />
                       <circle cx="178" cy="37" r="4.5" fill="#00e676" />
                     </svg>
-                    <span class="mode-tag-badge mode-tag-police">🚨 AI SIRENS &amp; VISION CONES</span>
+                    <span class="mode-tag-badge mode-tag-police">🚨 AI COPS + 3 AI CHOR</span>
                   </div>
                   <div class="mode-card-body">
-                    <span class="mode-select-title">POLICE HIDE &amp; SEEK</span>
-                    <span class="mode-select-desc">Dodge Police vision cones &amp; hide under beds, sofas, tables &amp; desks!</span>
+                    <span class="mode-select-title">HIDE &amp; SEEK (AI)</span>
+                    <span class="mode-select-desc">Evade AI Police cones with 3 AI Chor Hiders &amp; hide under furniture!</span>
+                  </div>
+                </button>
+
+                <!-- Card 4: NEW Hyper-Realistic City & Mountain 3D Open-World Map -->
+                <button
+                  id="btn-mode-city"
+                  class="mode-select-card water-glass-subcard"
+                  type="button"
+                  data-gamemode="city"
+                >
+                  <div class="mode-preview-banner preview-city">
+                    <svg class="mode-preview-svg" viewBox="0 0 220 74" fill="none">
+                      <polygon points="10,64 48,18 86,64" fill="rgba(100,116,139,0.45)" stroke="rgba(148,163,184,0.75)" stroke-width="1.4" />
+                      <polygon points="62,64 106,10 150,64" fill="rgba(71,85,105,0.55)" stroke="rgba(226,232,240,0.85)" stroke-width="1.5" />
+                      <rect x="148" y="18" width="22" height="46" rx="2" fill="rgba(56,189,248,0.28)" stroke="#38bdf8" stroke-width="1.5" />
+                      <rect x="176" y="26" width="26" height="38" rx="2" fill="rgba(14,165,233,0.25)" stroke="#0ea5e9" stroke-width="1.5" />
+                      <path d="M12 62 Q110 42 208 62" stroke="#facc15" stroke-width="3" stroke-dasharray="6 4" />
+                    </svg>
+                    <span class="mode-tag-badge mode-tag-city">🏔️ NEW REALISTIC 3D MAP</span>
+                  </div>
+                  <div class="mode-card-body">
+                    <span class="mode-select-title">APEX CITY &amp; MOUNTAIN</span>
+                    <span class="mode-select-desc">Real-world highway circuit, glass skyscrapers, alpine peaks &amp; AI supercars!</span>
                   </div>
                 </button>
               </div>
 
-              <!-- Footer Action Bar: Play CTA + Friends Multiplayer Room Code + Quick Camera Select -->
+              <!-- AI Difficulty Selector Bar (Normal / Medium / Hard) for Track Race & Hide & Seek -->
+              <div class="ai-diff-bar water-glass-subcard" role="group" aria-label="Select AI Difficulty">
+                <div class="ai-diff-info">
+                  <span class="ai-diff-kicker">🤖 AI RIVAL &amp; HIDE-AND-SEEK BOT DIFFICULTY</span>
+                  <span id="ai-diff-desc-text" class="ai-diff-desc-text">Normal AI — Balanced speed &amp; smooth cornering</span>
+                </div>
+                <div class="ai-diff-pills">
+                  <button type="button" class="ai-diff-pill-btn diff-normal active" data-aidiff="normal">🟢 NORMAL</button>
+                  <button type="button" class="ai-diff-pill-btn diff-medium" data-aidiff="medium">🟡 MEDIUM</button>
+                  <button type="button" class="ai-diff-pill-btn diff-hard" data-aidiff="hard">🔴 HARD</button>
+                </div>
+              </div>
+
+              <!-- Footer Action Bar: Play CTA + 3D Car Garage + Friends Multiplayer Room Code -->
               <div class="welcome-footer-row">
                 <button id="btn-welcome-start" class="welcome-start-btn water-glass-cta" type="button">
                   <span id="welcome-start-text" class="welcome-start-text">PLAY TRACK RACE</span>
@@ -291,8 +345,12 @@
                   </span>
                 </button>
 
+                <button id="btn-open-garage-welcome" type="button" class="start-mp-secondary-btn water-glass-btn garage-cta-highlight">
+                  🏎️ SELECT CAR (8 CARS)
+                </button>
+
                 <button id="btn-open-mp-welcome" type="button" class="start-mp-secondary-btn water-glass-btn">
-                  👥 FRIENDS ROOM CODE (2–6P)
+                  👥 FRIENDS CODE (2–6P)
                 </button>
               </div>
             </div>
@@ -309,10 +367,13 @@
                 <button id="btn-close-settings" class="modal-close-btn water-glass-btn" type="button" aria-label="Close Settings">✕</button>
               </div>
 
-              <!-- Quick Game Mode Switcher -->
+              <!-- Quick Game Mode & Garage Switcher -->
               <div class="settings-section">
-                <div class="settings-section-title">SWITCH GAME MODE</div>
+                <div class="settings-section-title">SWITCH GAME MODE &amp; GARAGE</div>
                 <div class="settings-quick-row">
+                  <button id="btn-settings-mode-city" type="button" class="settings-pill-btn water-glass-btn">
+                    🏔️ APEX CITY &amp; MOUNTAIN
+                  </button>
                   <button id="btn-settings-mode-house" type="button" class="settings-pill-btn water-glass-btn">
                     🏠 FREE ROAM HOUSE
                   </button>
@@ -322,8 +383,27 @@
                   <button id="btn-settings-mode-police" type="button" class="settings-pill-btn water-glass-btn">
                     🚨 POLICE HIDE &amp; SEEK
                   </button>
+                  <button id="btn-settings-open-garage" type="button" class="settings-pill-btn water-glass-btn">
+                    🚘 SELECT CAR (8 CARS)
+                  </button>
                   <button id="btn-settings-open-mp" type="button" class="settings-pill-btn water-glass-btn">
                     👥 FRIENDS LOBBY
+                  </button>
+                </div>
+              </div>
+
+              <!-- AI Difficulty Selector inside Settings -->
+              <div class="settings-section">
+                <div class="settings-section-title">🤖 AI RIVAL &amp; HIDE-AND-SEEK DIFFICULTY</div>
+                <div class="settings-quick-row settings-ai-row">
+                  <button type="button" class="settings-pill-btn water-glass-btn ai-diff-pill-btn diff-normal active" data-aidiff="normal">
+                    🟢 NORMAL AI
+                  </button>
+                  <button type="button" class="settings-pill-btn water-glass-btn ai-diff-pill-btn diff-medium" data-aidiff="medium">
+                    🟡 MEDIUM AI
+                  </button>
+                  <button type="button" class="settings-pill-btn water-glass-btn ai-diff-pill-btn diff-hard" data-aidiff="hard">
+                    🔴 HARD AI
                   </button>
                 </div>
               </div>
@@ -509,16 +589,121 @@
             </div>
           </div>
 
+          <!-- 3D Car Selection & Garage Showroom Modal (All Existing + Newly Added Realistic 3D Sports Cars) -->
+          <div id="garage-modal-backdrop" class="welcome-dialog-overlay hidden" role="dialog" aria-labelledby="garage-modal-title">
+            <div class="welcome-dialog-card water-glass-modal garage-modal-card">
+              <div class="modal-top-bar">
+                <div>
+                  <div class="welcome-eyebrow">3D TURNTABLE SHOWROOM · EXISTING + NEW 3D SPORTS CARS</div>
+                  <h2 id="garage-modal-title" class="modal-heading">VEHICLE GARAGE &amp; SELECTION</h2>
+                </div>
+                <button id="btn-close-garage" class="modal-close-btn water-glass-btn" type="button" aria-label="Close Garage">✕</button>
+              </div>
+
+              <div class="garage-main-layout">
+                <!-- Left Column: Live 3D Turntable Preview + Telemetry Bars + Custom Metallic Paint -->
+                <div class="garage-preview-column water-glass-subcard">
+                  <div class="garage-canvas-wrap">
+                    <canvas id="garage-preview-canvas" width="520" height="280"></canvas>
+                    <div class="garage-canvas-badges">
+                      <span id="garage-selected-badge" class="garage-origin-badge">ORIGINAL</span>
+                      <span id="garage-selected-class" class="garage-class-badge">GT CONCEPT</span>
+                    </div>
+                    <button id="btn-garage-autorotate" type="button" class="garage-rotate-toggle water-glass-btn active" title="Toggle 360° Auto-Rotation">
+                      🔄 360° SPIN
+                    </button>
+                    <span class="garage-drag-hint">DRAG TO ORBIT 360°</span>
+                  </div>
+
+                  <div class="garage-car-info">
+                    <div class="garage-title-row">
+                      <h3 id="garage-selected-name" class="garage-car-title">2015 BMW 3.0 CSL Hommage R</h3>
+                      <span id="garage-selected-hp" class="garage-hp-pill">580 HP</span>
+                    </div>
+                    <div id="garage-selected-drivetrain" class="garage-drivetrain-sub">RWD • 3.0L TwinPower Turbo I6</div>
+                    <p id="garage-selected-desc" class="garage-car-desc">
+                      Original flagship 2015 BMW 3.0 CSL Hommage R motorsport concept with M-stripe racing livery.
+                    </p>
+                  </div>
+
+                  <!-- Performance Telemetry Bars -->
+                  <div class="garage-stats-grid">
+                    <div class="garage-stat-row">
+                      <span class="garage-stat-label">TOP SPEED</span>
+                      <div class="garage-stat-track"><div id="garage-bar-speed" class="garage-stat-fill" style="width: 94%"></div></div>
+                      <span id="garage-val-speed" class="garage-stat-num">94</span>
+                    </div>
+                    <div class="garage-stat-row">
+                      <span class="garage-stat-label">ACCEL</span>
+                      <div class="garage-stat-track"><div id="garage-bar-accel" class="garage-stat-fill" style="width: 91%"></div></div>
+                      <span id="garage-val-accel" class="garage-stat-num">91</span>
+                    </div>
+                    <div class="garage-stat-row">
+                      <span class="garage-stat-label">HANDLING</span>
+                      <div class="garage-stat-track"><div id="garage-bar-handling" class="garage-stat-fill" style="width: 95%"></div></div>
+                      <span id="garage-val-handling" class="garage-stat-num">95</span>
+                    </div>
+                    <div class="garage-stat-row">
+                      <span class="garage-stat-label">BRAKING</span>
+                      <div class="garage-stat-track"><div id="garage-bar-braking" class="garage-stat-fill" style="width: 93%"></div></div>
+                      <span id="garage-val-braking" class="garage-stat-num">93</span>
+                    </div>
+                  </div>
+
+                  <!-- Custom Metallic Clearcoat Paint Swatches -->
+                  <div class="garage-paint-bar">
+                    <span class="garage-paint-label">FINISH:</span>
+                    <div id="garage-paint-swatches" class="garage-paint-swatches">
+                      <button type="button" class="paint-swatch-btn paint-factory active" data-paint="" title="Factory Original Livery">OEM</button>
+                      <button type="button" class="paint-swatch-btn" data-paint="#e11d48" style="background:#e11d48" title="Crimson Metallic"></button>
+                      <button type="button" class="paint-swatch-btn" data-paint="#0ea5e9" style="background:#0ea5e9" title="Cyan Hyper Metallic"></button>
+                      <button type="button" class="paint-swatch-btn" data-paint="#2563eb" style="background:#2563eb" title="Sapphire Blue"></button>
+                      <button type="button" class="paint-swatch-btn" data-paint="#eab308" style="background:#eab308" title="Solar Gold"></button>
+                      <button type="button" class="paint-swatch-btn" data-paint="#10b981" style="background:#10b981" title="Emerald Racing Green"></button>
+                      <button type="button" class="paint-swatch-btn" data-paint="#f8fafc" style="background:#f8fafc" title="Alpine Pearl White"></button>
+                      <button type="button" class="paint-swatch-btn" data-paint="#1e293b" style="background:#1e293b" title="Stealth Carbon Black"></button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right Column: Filter Tabs + Vehicle Roster Grid + Confirm Button -->
+                <div class="garage-roster-column">
+                  <div class="garage-filter-tabs" role="tablist">
+                    <button type="button" class="garage-filter-btn active" data-filter="all">ALL CARS (8)</button>
+                    <button type="button" class="garage-filter-btn" data-filter="original">EXISTING / ORIGINAL (2)</button>
+                    <button type="button" class="garage-filter-btn" data-filter="new">NEW 3D SPORTS CARS (6)</button>
+                  </div>
+
+                  <div id="garage-car-grid" class="garage-car-grid"></div>
+
+                  <div class="garage-footer-actions">
+                    <button id="btn-garage-confirm" type="button" class="welcome-start-btn water-glass-cta garage-confirm-btn">
+                      <span class="welcome-start-text">DRIVE SELECTED CAR</span>
+                      <kbd class="welcome-enter-kbd">EQUIP ▶</kbd>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Center Formula 1 Countdown Number -->
           <div id="hud-f1-countdown" class="hud-f1-countdown hidden">5</div>
 
-          <!-- 3-Lap Finish Overlay -->
+          <!-- Track Race Finish Line Result Overlay (Player vs AI Rival) -->
           <div id="hud-finish-overlay" class="welcome-dialog-overlay hud-finish-overlay hidden" role="dialog" aria-labelledby="hud-finish-title">
             <div class="welcome-dialog-card water-glass-modal finish-dialog-card">
-              <div class="welcome-eyebrow">DESKTOP CIRCUIT · 3 LAPS COMPLETE</div>
-              <h2 id="hud-finish-title" class="hud-finish-title">FINISH</h2>
+              <div id="hud-finish-eyebrow" class="welcome-eyebrow">DESKTOP CIRCUIT · FINISH LINE RESULT</div>
+              <h2 id="hud-finish-title" class="hud-finish-title">🏆 1ST PLACE — YOU WIN!</h2>
               <div id="hud-finish-time" class="hud-finish-time">00:00.00</div>
-              <div id="hud-finish-sub" class="hud-finish-sub">BEST LAP 00:00.00</div>
+              <div id="hud-finish-sub" class="hud-finish-sub">YOUR FINISH TIME · AI RIVAL BEATEN!</div>
+              <div id="hud-finish-ai-sub" class="hud-finish-ai-sub">🤖 AI RIVAL (NORMAL): RACING...</div>
+              <div class="finish-ai-diff-row" role="group" aria-label="Change AI Difficulty for Next Race">
+                <span class="finish-ai-label">NEXT RACE AI:</span>
+                <button type="button" class="ai-diff-pill-btn diff-normal active" data-aidiff="normal">🟢 NORMAL</button>
+                <button type="button" class="ai-diff-pill-btn diff-medium" data-aidiff="medium">🟡 MEDIUM</button>
+                <button type="button" class="ai-diff-pill-btn diff-hard" data-aidiff="hard">🔴 HARD</button>
+              </div>
               <div class="finish-actions-row">
                 <button id="btn-finish-race-again" class="welcome-start-btn water-glass-cta finish-action-btn" type="button">
                   <span class="welcome-start-text">RACE AGAIN</span>
